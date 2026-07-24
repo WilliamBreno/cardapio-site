@@ -52,9 +52,15 @@ func main() {
 	router := gin.Default()
 
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     cfg.FrontendURLs,
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowOrigins: cfg.FrontendURLs,
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		// X-Drenux-Admin-Secret é o header customizado usado pela área
+		// interna /drenux/* (ver middleware.DrenuxAdminRequired) — sem
+		// declarar aqui, o navegador bloqueia a requisição no preflight
+		// de CORS antes dela sequer chegar no backend, e o front recebe
+		// só um erro de rede genérico, sem status HTTP nenhum pra
+		// diagnosticar.
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Drenux-Admin-Secret"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
