@@ -1,0 +1,71 @@
+package handler
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/WilliamBreno/cardapio-backend/internal/service"
+	"github.com/gin-gonic/gin"
+)
+
+// DrenuxAdminHandler atende as rotas internas /drenux/* — controle manual
+// de repasse de comissão de afiliado (Fase 5.5 do roadmap). Protegido por
+// middleware.DrenuxAdminRequired, não por um login próprio (ver decisão
+// registrada em docs/plano-melhorias-drenux.md).
+type DrenuxAdminHandler struct {
+	repasseService *service.RepasseAfiliadoService
+}
+
+func NewDrenuxAdminHandler(repasseService *service.RepasseAfiliadoService) *DrenuxAdminHandler {
+	return &DrenuxAdminHandler{repasseService: repasseService}
+}
+
+// PendentesPorAfiliado atende GET /drenux/afiliados/pendentes — visão
+// geral: um afiliado por linha, com o total pendente somado.
+func (h *DrenuxAdminHandler) PendentesPorAfiliado(c *gin.Context) {
+	pendentes, err := h.repasseService.PendentesAgrupado()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, pendentes)
+}
+
+// DetalheAfiliado atende GET /drenux/afiliados/:id/repasses — extrato
+// completo (pendente + pago) de um afiliado específico.
+func (h *DrenuxAdminHandler) DetalheAfiliado(c *gin.Context) {
+	afiliadoID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "id inválido"})
+		return
+	}
+
+	repasses, err := h.repasseService.DetalheAfiliado(uint(afiliadoID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, repasses)
+}
+
+type marcarComoPagoRequest struct {
+	IDs []uint `json:"ids" binding:"required,min=1"`
+}
+
+// MarcarComoPago atende POST /drenux/repasses/marcar-pago — chamado
+// depois do repasse via Pix ser feito manualmente, fora do sistema. Só
+// registra a confirmação, não movimenta dinheiro nenhum.
+func (h *DrenuxAdminHandler) MarcarComoPago(c *gin.Context) {
+	var req marcarComoPagoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})
+		return
+	}
+
+	total, err := h.repasseService.MarcarComoPago(req.IDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"marcados": total})
+}

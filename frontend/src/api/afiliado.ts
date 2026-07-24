@@ -64,3 +64,30 @@ export async function iniciarOnboardingStripeAfiliado(): Promise<{ url: string }
   const { data } = await apiAfiliado.post<{ url: string }>('/afiliado/stripe/onboarding');
   return data;
 }
+
+// Repasse manual de comissão pra pedidos pagos via Mercado Pago (Fase 5.5
+// do roadmap — o Mercado Pago não faz split automático de 3 partes, então
+// esse valor é registrado como pendente e repassado via Pix por fora).
+export type StatusRepasse = 'pendente' | 'pago';
+
+export interface RepasseAfiliado {
+  id: number;
+  afiliado_id: number;
+  pedido_id: number;
+  loja_id: number;
+  loja?: { id: number; nome: string; slug: string };
+  valor: number;
+  status: StatusRepasse;
+  pago_em: string | null;
+  created_at: string;
+}
+
+export interface ExtratoAfiliado {
+  repasses: RepasseAfiliado[];
+  total_pendente: number;
+}
+
+export async function buscarExtratoAfiliado(): Promise<ExtratoAfiliado> {
+  const { data } = await apiAfiliado.get<ExtratoAfiliado>('/afiliado/repasses');
+  return data;
+}

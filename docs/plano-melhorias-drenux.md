@@ -196,8 +196,9 @@ de cálculo que já existe em `MeuPlano.tsx`, avisando quando o faturamento do m
 equilíbrio pra outro plano.
 
 ### Fase 5 — Integração real com o Mercado Pago (decisão fechada em 23/07/2026)
-Status: `[~] 5.1–5.4 implementadas em 23/07/2026, ainda NÃO testadas contra o Mercado Pago de
-verdade — 5.5 continua pendente de decisão do William`
+Status: `[~] 5.1–5.5 implementadas — checkout/webhook (5.1–5.4) testados em produção em 24/07/2026
+com correções aplicadas ao longo do teste; repasse de afiliado (5.5) é controle manual, não split
+automático — ver detalhe de cada subfase abaixo`
 
 **O que foi implementado (código novo, revisar antes de confiar em produção):**
 - `domain/loja.go`: `MercadoPagoAccessToken`/`MercadoPagoRefreshToken`/`MercadoPagoUserID`/
@@ -358,20 +359,57 @@ algum motivo, avisar antes de remover qualquer rota/handler dela.
   login do admin) que renova via `refresh_token` **antes** de expirar — evitar que uma loja perca a
   capacidade de receber pagamento silenciosamente por token vencido.
 
-**5.5 — Em aberto, precisa de pesquisa antes de implementar: repasse de comissão do afiliado**
-Hoje o repasse do afiliado usa `Stripe Transfer` (a plataforma recebe o valor cheio via
-`application_fee`, depois transfere uma parte pra conta Stripe Connect do afiliado, separado do
-pedido original). **Não confirmamos ainda o equivalente disso no Mercado Pago** — não presumir que
-existe uma função pronta de "enviar dinheiro pra terceiro" até verificar na documentação oficial.
-Duas hipóteses a investigar, nessa ordem:
-1. Afiliado também vira "vendedor" com conta MP própria vinculada via OAuth, e a divisão de 3 partes
-   (Loja + Drenux + Afiliado) acontece na mesma transação — isso exigiria o modelo **1:N** do
-   Mercado Pago, que precisa de contato comercial pra habilitar (diferente do 1:1, que é self-service).
-2. A Drenux recebe o valor cheio da comissão (1:1 normal com a Loja) e faz um repasse **separado**
-   pro afiliado por fora (Pix manual/agendado), sem usar split nenhum pra essa parte — mais parecido
-   com o padrão atual da Stripe.
-Confirmar com o William qual caminho seguir antes de escrever qualquer código de repasse de
-afiliado — essa parte não deve ser implementada só com suposição.
+**5.5 — Repasse de comissão do afiliado — decisão fechada em 24/07/2026, implementada**
+Status: `[x] concluída` (controle manual — não é split automático). Decisão: hipótese 2 do que
+estava em aberto (repasse separado, fora do split) — o split 1:N do Mercado Pago exigiria contato
+comercial sem prazo garantido, então optamos por controlar isso internamente em vez de esperar.
+
+O que foi implementado:
+- `domain/repasse_afiliado.go` (novo): `RepasseAfiliado` — um lançamento por pedido pago via
+  Mercado Pago com afiliado vinculado (`PedidoID` com `uniqueIndex`, trava duplicata se a
+  notificação do Mercado Pago repetir), `Valor`, `Status` (`pendente`/`pago`), `PagoEm`.
+- Fórmula de comissão **não mudou** — extraída de dentro de `transferirComissaoAfiliado`
+  (Stripe) pra uma função só, `calcularComissaoAfiliado` (em `stripe_service.go`, ~37,6% da taxa
+  de plataforma do plano da loja, igual já era). Usada tanto pelo repasse automático via Stripe
+  Transfer quanto pelo registro manual do Mercado Pago — os dois processadores usam exatamente a
+  mesma conta. **Nota**: não existe em lugar nenhum do código uma fórmula de "30% do lucro
+  líquido" pro Start mencionada num pedido anterior — a fórmula real, em produção, sempre foi
+  ~37,6% da taxa de plataforma, igual em qualquer plano; usei essa (a que já existe de verdade),
+  não inventei a de "lucro líquido".
+- `MercadoPagoService.ProcessarNotificacaoPagamento`: onde antes só logava aviso, agora calcula e
+  registra o `RepasseAfiliado` como `pendente` via `RepasseAfiliadoService.RegistrarPendente`.
+- `GET /afiliado/repasses` (novo, autenticado pelo token do próprio afiliado): extrato — histórico
+  completo + total pendente. Seção nova em `DashboardAfiliado` (frontend), abaixo de "Lojas
+  indicadas".
+- **Área admin da Drenux — decisão do William**: não existe login de staff da plataforma nesse
+  projeto (só dono de loja e afiliado, cada um só vê os próprios dados). Perguntei como proteger a
+  tela de "marcar como pago"; decisão foi um secret compartilhado (`DRENUX_ADMIN_SECRET`, header
+  `X-Drenux-Admin-Secret`), mesmo padrão do `CronSecret` já usado em `/relatorio/semanal` — mas
+  fechando por padrão se a variável não estiver definida (diferente do CronSecret, que abre a rota
+  se não tiver secret configurado; aqui expõe dado financeiro de todos os afiliados, então "sem
+  secret" tem que significar "fechado", não "aberto por engano"). Rotas novas: `GET
+  /drenux/afiliados/pendentes` (visão geral), `GET /drenux/afiliados/:id/repasses` (detalhe), `POST
+  /drenux/repasses/marcar-pago` (lote). Frontend: `/drenux/afiliados`, pede o secret uma vez
+  (guardado em localStorage via `drenuxAdminStore`), lista afiliados com saldo pendente, expande
+  pra ver os lançamentos, marca em lote como pago.
+- **Nenhuma chamada de API de pagamento** foi adicionada — o repasse via Pix continua 100% manual,
+  fora do sistema, como pedido. Essa tela só registra a confirmação depois do Pix já ter sido
+  feito.
+
+Validado com `go build ./...`, `go vet ./...`, `gofmt -l`, `npx tsc -b` e `npm run build`, todos
+limpos.
+
+**Correção (24/07/2026): comissão incidindo sobre frete, achada num pedido de auditoria do
+William.** Confirmado: `pedido.Total` inclui `TaxaEntrega` (`pedido_service.go`,
+`pedido.Total = total + taxaEntrega`). O `marketplace_fee` do Mercado Pago já excluía frete desde
+a correção do teste de R$1 (Fase 5, `CriarCheckout`) — isso já estava certo. **Mas a comissão do
+afiliado (Fase 5.5, `ProcessarNotificacaoPagamento`) não excluía** — usava `pedido.Total` cheio,
+entrou assim junto com a implementação da Fase 5.5 na mesma sessão. Corrigido pra
+`pedido.Total - pedido.TaxaEntrega`, mesma base do marketplace_fee. Também corrigidos, por
+consistência (mas confirmados como **código morto hoje**, sem rota que os alcance desde a Fase
+5.2): `StripeService.CriarCheckout` (application_fee) e `StripeService.transferirComissaoAfiliado`
+— os dois também usavam `pedido.Total` cheio. Fórmula da comissão em si não mudou em nenhum dos
+três — só a base sobre a qual ela é aplicada. Validado com `go build`/`go vet`/`gofmt`.
 
 ## Backlog mais antigo, fora de escopo por enquanto (não iniciar sem o William pedir)
 

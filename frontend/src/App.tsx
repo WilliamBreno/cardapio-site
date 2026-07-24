@@ -24,6 +24,7 @@ import { DashboardAfiliado } from './pages/afiliado/Dashboard';
 import { EsqueciSenhaAfiliado } from './pages/afiliado/EsqueciSenha';
 import { RedefinirSenhaAfiliado } from './pages/afiliado/RedefinirSenha';
 import { AfiliadoRotaProtegida } from './components/AfiliadoRotaProtegida';
+import { DrenuxAfiliados } from './pages/drenux/Afiliados';
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,11 @@ function App() {
           <Route element={<AfiliadoRotaProtegida />}>
             <Route path="/afiliado/dashboard" element={<DashboardAfiliado />} />
           </Route>
+
+          {/* Interno — repasse de comissão de afiliado (Fase 5.5), sem
+              login de staff próprio: protegido por secret compartilhado
+              (ver DrenuxAfiliados/drenuxAdminStore). */}
+          <Route path="/drenux/afiliados" element={<DrenuxAfiliados />} />
 
           {/* Precisa vir ANTES de "/:slug" — senão o React Router tentaria
               casar "/loja-x/pedido/5/rastrear" com a rota do cardápio,

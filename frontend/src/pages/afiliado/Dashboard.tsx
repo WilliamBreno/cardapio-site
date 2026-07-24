@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { buscarDashboardAfiliado, iniciarOnboardingStripeAfiliado } from '../../api/afiliado';
+import { buscarDashboardAfiliado, buscarExtratoAfiliado, iniciarOnboardingStripeAfiliado } from '../../api/afiliado';
 import { useAfiliadoAuthStore } from '../../store/afiliadoAuthStore';
 
 function moeda(v: number) {
@@ -11,6 +11,11 @@ function formatarData(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+const STATUS_REPASSE_INFO: Record<string, { label: string; classe: string }> = {
+  pendente: { label: 'Pendente', classe: 'bg-amber-100 text-amber-800' },
+  pago: { label: 'Pago', classe: 'bg-emerald-100 text-emerald-700' },
+};
+
 export function DashboardAfiliado() {
   const logout = useAfiliadoAuthStore((s) => s.logout);
   const [conectando, setConectando] = useState(false);
@@ -19,6 +24,12 @@ export function DashboardAfiliado() {
   const { data, isLoading } = useQuery({
     queryKey: ['afiliado-dashboard'],
     queryFn: buscarDashboardAfiliado,
+    refetchInterval: 60_000,
+  });
+
+  const { data: extrato } = useQuery({
+    queryKey: ['afiliado-extrato'],
+    queryFn: buscarExtratoAfiliado,
     refetchInterval: 60_000,
   });
 
@@ -130,6 +141,51 @@ export function DashboardAfiliado() {
                   <span className="text-xs text-tinta-suave">/{loja.slug}</span>
                 </li>
               ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Extrato de repasse — pedidos pagos via Mercado Pago (Fase 5.5:
+            sem split automático de 3 partes ainda, o repasse é feito via
+            Pix por fora e confirmado manualmente pela Drenux). */}
+        <section className="rounded-2xl bg-superficie p-5 shadow-sm">
+          <h2 className="font-display text-lg tracking-wide text-tinta">Extrato de repasse</h2>
+          <p className="mt-1 text-sm text-tinta-suave">
+            Comissões de pedidos pagos via Mercado Pago — repassadas via Pix, à parte do que já cai direto pela Stripe.
+          </p>
+
+          <div className="mt-4 rounded-xl bg-fundo px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Pendente a receber</p>
+            <p className="mt-1 font-carimbo text-2xl font-semibold text-tinta">
+              {moeda(extrato?.total_pendente ?? 0)}
+            </p>
+          </div>
+
+          {!extrato?.repasses || extrato.repasses.length === 0 ? (
+            <p className="mt-4 text-sm text-tinta-suave">Nenhum lançamento ainda.</p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {extrato.repasses.map((r) => {
+                const status = STATUS_REPASSE_INFO[r.status] ?? STATUS_REPASSE_INFO.pendente;
+                return (
+                  <li key={r.id} className="flex items-center justify-between rounded-xl bg-fundo px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-tinta">
+                        {r.loja?.nome ?? `Loja #${r.loja_id}`} <span className="text-tinta-suave">· pedido #{r.pedido_id}</span>
+                      </p>
+                      <p className="text-xs text-tinta-suave">
+                        {r.status === 'pago' && r.pago_em ? `Pago em ${formatarData(r.pago_em)}` : `Gerado em ${formatarData(r.created_at)}`}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="font-carimbo text-sm font-semibold text-tinta">{moeda(r.valor)}</span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${status.classe}`}>
+                        {status.label}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

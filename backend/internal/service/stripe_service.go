@@ -29,6 +29,31 @@ const TaxaPlataformaPercentual = 8.0
 // indicou a loja, quando existir.
 const ComissaoAfiliadoPercentual = 3.01
 
+// proporcaoComissaoAfiliado é a fatia da taxa de plataforma que vira
+// comissão do afiliado — ~37,6% da taxa cobrada da loja indicada,
+// qualquer que seja o plano dela (Start/Pro/Scale). É a mesma proporção
+// em reais que dá ComissaoAfiliadoPercentual (3,01%) quando a loja está
+// no Start (8% × 0,376 ≈ 3,01%) — ComissaoAfiliadoPercentual é só o valor
+// de referência pro caso mais comum, o cálculo de verdade é sempre feito
+// em cima da taxa real do plano via calcularComissaoAfiliado.
+const proporcaoComissaoAfiliado = 0.376
+
+// calcularComissaoAfiliado é a fórmula única de comissão de afiliado,
+// usada tanto pelo repasse automático via Stripe Transfer quanto pelo
+// registro manual do Mercado Pago (ver RepasseAfiliadoService, Fase 5.5
+// do roadmap) — mudar aqui muda os dois processadores de uma vez, de
+// propósito, pra nunca desalinhar.
+func calcularComissaoAfiliado(pedidoTotal float64, plano string) float64 {
+	taxaPercentual := TaxaPlataformaPercentual
+	switch plano {
+	case "pro":
+		taxaPercentual = 4.0
+	case "scale":
+		taxaPercentual = 1.5
+	}
+	return pedidoTotal * taxaPercentual / 100 * proporcaoComissaoAfiliado
+}
+
 // valoresMensalidadePlano define o preço mensal (em reais) de cada plano
 // pago. O plano Start não entra aqui — não tem mensalidade.
 var valoresMensalidadePlano = map[string]float64{
@@ -155,7 +180,13 @@ func (s *StripeService) CriarCheckout(ctx context.Context, pedidoID uint, fronte
 	}
 
 	// Comissão da plataforma varia por plano da loja — Start continua
-	// nos 8% de sempre; Pro/Scale usam a taxa reduzida acordada.
+	// nos 8% de sempre; Pro/Scale usam a taxa reduzida acordada. Não
+	// incide sobre frete — mesma regra do Mercado Pago (ver
+	// MercadoPagoService.CriarCheckout, baseComissao). NOTA: essa rota
+	// (checkout de pedido via Stripe) está sem uso desde a Fase 5.2 —
+	// nenhuma rota chama CriarCheckout pra pedido hoje, o checkout migrou
+	// pro Mercado Pago — mantido corrigido só por consistência, caso essa
+	// rota volte a ser registrada algum dia.
 	taxaPercentual := TaxaPlataformaPercentual
 	switch loja.Plano {
 	case "pro":
@@ -163,7 +194,8 @@ func (s *StripeService) CriarCheckout(ctx context.Context, pedidoID uint, fronte
 	case "scale":
 		taxaPercentual = 1.5
 	}
-	taxaPlataforma := int64(math.Round(pedido.Total * 100 * taxaPercentual / 100))
+	baseComissao := pedido.Total - pedido.TaxaEntrega
+	taxaPlataforma := int64(math.Round(baseComissao * 100 * taxaPercentual / 100))
 
 	params := &stripe.CheckoutSessionCreateParams{
 		Mode:       stripe.String(string(stripe.CheckoutSessionModePayment)),
@@ -798,18 +830,10 @@ func (s *StripeService) transferirComissaoAfiliado(pedido *domain.Pedido, loja *
 		return
 	}
 
-	// Proporção fixa: o afiliado sempre fica com ~37,6% da taxa cobrada
-	// da loja indicada, qualquer que seja o plano dela (Start/Pro/Scale).
-	taxaPercentual := TaxaPlataformaPercentual
-	switch loja.Plano {
-	case "pro":
-		taxaPercentual = 4.0
-	case "scale":
-		taxaPercentual = 1.5
-	}
-	const proporcaoAfiliado = 0.376
-
-	valorComissao := pedido.Total * taxaPercentual / 100 * proporcaoAfiliado
+	// Comissão não incide sobre frete — mesma regra do marketplace_fee do
+	// Mercado Pago. NOTA: rota sem uso desde a Fase 5.2 (ver comentário em
+	// CriarCheckout acima) — corrigido só por consistência.
+	valorComissao := calcularComissaoAfiliado(pedido.Total-pedido.TaxaEntrega, loja.Plano)
 	valorCentavos := int64(math.Round(valorComissao * 100))
 	if valorCentavos <= 0 {
 		return

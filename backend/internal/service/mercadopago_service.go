@@ -42,23 +42,25 @@ type MercadoPagoService struct {
 	frontendURL   string
 	httpClient    *http.Client
 
-	lojaRepo     *repository.LojaRepository
-	pedidoRepo   *repository.PedidoRepository
-	posPagamento *PosPagamentoService
+	lojaRepo       *repository.LojaRepository
+	pedidoRepo     *repository.PedidoRepository
+	posPagamento   *PosPagamentoService
+	repasseService *RepasseAfiliadoService
 }
 
-func NewMercadoPagoService(clientID, clientSecret, webhookSecret, jwtSecret, apiPublicURL, frontendURL string, db *gorm.DB, posPagamento *PosPagamentoService) *MercadoPagoService {
+func NewMercadoPagoService(clientID, clientSecret, webhookSecret, jwtSecret, apiPublicURL, frontendURL string, db *gorm.DB, posPagamento *PosPagamentoService, repasseService *RepasseAfiliadoService) *MercadoPagoService {
 	return &MercadoPagoService{
-		clientID:      clientID,
-		clientSecret:  clientSecret,
-		webhookSecret: webhookSecret,
-		jwtSecret:     jwtSecret,
-		apiPublicURL:  apiPublicURL,
-		frontendURL:   frontendURL,
-		httpClient:    &http.Client{Timeout: 20 * time.Second},
-		lojaRepo:      repository.NewLojaRepository(db),
-		pedidoRepo:    repository.NewPedidoRepository(db),
-		posPagamento:  posPagamento,
+		clientID:       clientID,
+		clientSecret:   clientSecret,
+		webhookSecret:  webhookSecret,
+		jwtSecret:      jwtSecret,
+		apiPublicURL:   apiPublicURL,
+		frontendURL:    frontendURL,
+		httpClient:     &http.Client{Timeout: 20 * time.Second},
+		lojaRepo:       repository.NewLojaRepository(db),
+		pedidoRepo:     repository.NewPedidoRepository(db),
+		posPagamento:   posPagamento,
+		repasseService: repasseService,
 	}
 }
 
@@ -620,8 +622,20 @@ func (s *MercadoPagoService) ProcessarNotificacaoPagamento(ctx context.Context, 
 	}
 	log.Printf("pedido %d marcado como pago via Mercado Pago (payment_id=%s)", pedidoID, paymentID)
 
+	// O split do Mercado Pago hoje é só 1:1 (Loja + Drenux) — não dá pra
+	// repassar a comissão do afiliado na mesma transação como a Stripe
+	// fazia via Transfer. Decisão fechada na Fase 5.5 (ver
+	// docs/plano-melhorias-drenux.md): registrar o valor devido e repassar
+	// via Pix manual depois, controlado pela tela /drenux/afiliados.
 	if loja.AfiliadoID != nil {
-		log.Printf("aviso: pedido %d pago via Mercado Pago tem afiliado vinculado à loja %d, mas repasse automático de comissão ainda não existe pra esse processador (Fase 5.5 em aberto no roadmap) — repassar manualmente", pedidoID, loja.ID)
+		// Mesma regra do marketplace_fee: comissão não incide sobre frete
+		// (ver CriarCheckout, baseComissao).
+		valorComissao := calcularComissaoAfiliado(pedido.Total-pedido.TaxaEntrega, loja.Plano)
+		if err := s.repasseService.RegistrarPendente(*loja.AfiliadoID, pedido.ID, loja.ID, valorComissao); err != nil {
+			log.Printf("aviso: não foi possível registrar repasse de afiliado do pedido %d: %v", pedidoID, err)
+		} else {
+			log.Printf("pedido %d: repasse de R$%.2f registrado como pendente pro afiliado %d", pedidoID, valorComissao, *loja.AfiliadoID)
+		}
 	}
 
 	log.Printf("pedido %d: disparando pós-pagamento (estoque + notificação)", pedidoID)

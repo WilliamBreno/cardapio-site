@@ -10,11 +10,12 @@ import (
 
 type AfiliadoHandler struct {
 	afiliadoService *service.AfiliadoService
+	repasseService  *service.RepasseAfiliadoService
 	frontendURL     string
 }
 
-func NewAfiliadoHandler(afiliadoService *service.AfiliadoService, frontendURL string) *AfiliadoHandler {
-	return &AfiliadoHandler{afiliadoService: afiliadoService, frontendURL: frontendURL}
+func NewAfiliadoHandler(afiliadoService *service.AfiliadoService, repasseService *service.RepasseAfiliadoService, frontendURL string) *AfiliadoHandler {
+	return &AfiliadoHandler{afiliadoService: afiliadoService, repasseService: repasseService, frontendURL: frontendURL}
 }
 
 type afiliadoLoginRequest struct {
@@ -48,6 +49,21 @@ func (h *AfiliadoHandler) Dashboard(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dados)
+}
+
+// Extrato atende GET /afiliado/repasses — protegida pelo token do
+// próprio afiliado. Mostra o histórico de comissões de pedidos pagos via
+// Mercado Pago (repasse manual, ver Fase 5.5) e quanto ainda está
+// pendente — separado do "total_ganho" do Dashboard, que soma tudo
+// (Stripe + Mercado Pago) já efetivamente repassado.
+func (h *AfiliadoHandler) Extrato(c *gin.Context) {
+	afiliadoID := c.GetUint("afiliado_id")
+	extrato, err := h.repasseService.ExtratoAfiliado(afiliadoID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, extrato)
 }
 
 // IniciarOnboarding atende POST /afiliado/stripe/onboarding.

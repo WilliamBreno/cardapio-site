@@ -43,6 +43,7 @@ func main() {
 		&domain.SolicitacaoEntrega{},
 		&domain.Afiliado{},
 		&domain.AssinaturaPendente{},
+		&domain.RepasseAfiliado{},
 	); err != nil {
 		log.Fatalf("erro ao migrar o banco: %v", err)
 	}
@@ -117,14 +118,21 @@ func main() {
 	stripeHandler := handler.NewStripeHandler(stripeService, cfg.FrontendURLs[0])
 	planoHandler := handler.NewPlanoHandler(stripeService)
 
+	// repasseAfiliadoService controla o repasse manual de comissão de
+	// afiliado pra pedidos pagos via Mercado Pago (Fase 5.5 — split 1:N
+	// exigiria contato comercial sem prazo, então o repasse em si continua
+	// manual/Pix, só o controle é automático).
+	repasseAfiliadoService := service.NewRepasseAfiliadoService(db)
+
 	// MercadoPagoService assume o checkout de PEDIDO (não o de assinatura
 	// de plano, que continua na Stripe) — ver Fase 5 do roadmap em
 	// docs/plano-melhorias-drenux.md.
 	mercadoPagoService := service.NewMercadoPagoService(
 		cfg.MercadoPagoClientID, cfg.MercadoPagoClientSecret, cfg.MercadoPagoWebhookSecret,
-		cfg.JWTSecret, cfg.APIPublicURL, cfg.FrontendURLs[0], db, posPagamentoService,
+		cfg.JWTSecret, cfg.APIPublicURL, cfg.FrontendURLs[0], db, posPagamentoService, repasseAfiliadoService,
 	)
 	mercadoPagoHandler := handler.NewMercadoPagoHandler(mercadoPagoService, cfg.FrontendURLs[0], cfg.CronSecret)
+	drenuxAdminHandler := handler.NewDrenuxAdminHandler(repasseAfiliadoService)
 
 	lojaHandler := handler.NewLojaHandler(lojaService, distanciaService)
 
@@ -145,7 +153,7 @@ func main() {
 	solicitacaoHandler := handler.NewSolicitacaoHandler(repository.NewSolicitacaoEntregaRepository(db))
 
 	afiliadoService := service.NewAfiliadoService(db, cfg.JWTSecret, cfg.StripeSecretKey, emailSender, cfg.FrontendURLs[0])
-	afiliadoHandler := handler.NewAfiliadoHandler(afiliadoService, cfg.FrontendURLs[0])
+	afiliadoHandler := handler.NewAfiliadoHandler(afiliadoService, repasseAfiliadoService, cfg.FrontendURLs[0])
 
 	router.POST("/auth/cadastro", authHandler.Cadastrar)
 	router.POST("/auth/login", authHandler.Login)
@@ -268,6 +276,16 @@ func main() {
 	afiliado.Use(middleware.AfiliadoRequired(cfg.JWTSecret))
 	afiliado.GET("/dashboard", afiliadoHandler.Dashboard)
 	afiliado.POST("/stripe/onboarding", afiliadoHandler.IniciarOnboarding)
+	afiliado.GET("/repasses", afiliadoHandler.Extrato)
+
+	// /drenux/* — controle interno de repasse de comissão de afiliado
+	// (Fase 5.5), sem sistema de login de staff próprio: protegido só por
+	// um secret compartilhado (ver middleware.DrenuxAdminRequired).
+	drenux := router.Group("/drenux")
+	drenux.Use(middleware.DrenuxAdminRequired(cfg.DrenuxAdminSecret))
+	drenux.GET("/afiliados/pendentes", drenuxAdminHandler.PendentesPorAfiliado)
+	drenux.GET("/afiliados/:id/repasses", drenuxAdminHandler.DetalheAfiliado)
+	drenux.POST("/repasses/marcar-pago", drenuxAdminHandler.MarcarComoPago)
 
 	router.GET("/health", func(c *gin.Context) {
 		sqlDB, err := db.DB()
