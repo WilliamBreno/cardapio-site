@@ -13,11 +13,42 @@ import (
 // middleware.DrenuxAdminRequired, não por um login próprio (ver decisão
 // registrada em docs/plano-melhorias-drenux.md).
 type DrenuxAdminHandler struct {
-	repasseService *service.RepasseAfiliadoService
+	repasseService  *service.RepasseAfiliadoService
+	afiliadoService *service.AfiliadoService
 }
 
-func NewDrenuxAdminHandler(repasseService *service.RepasseAfiliadoService) *DrenuxAdminHandler {
-	return &DrenuxAdminHandler{repasseService: repasseService}
+func NewDrenuxAdminHandler(repasseService *service.RepasseAfiliadoService, afiliadoService *service.AfiliadoService) *DrenuxAdminHandler {
+	return &DrenuxAdminHandler{repasseService: repasseService, afiliadoService: afiliadoService}
+}
+
+type criarAfiliadoRequest struct {
+	Nome  string `json:"nome" binding:"required"`
+	Email string `json:"email" binding:"required,email"`
+	Senha string `json:"senha" binding:"required,min=6"`
+}
+
+// CriarAfiliado atende POST /drenux/afiliados — não existe autocadastro
+// de afiliado (ver domain.Afiliado), então essa é a única forma de criar
+// uma conta hoje, restrita a quem tem o secret de /drenux/*.
+func (h *DrenuxAdminHandler) CriarAfiliado(c *gin.Context) {
+	var req criarAfiliadoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})
+		return
+	}
+
+	afiliado, err := h.afiliadoService.CriarAfiliado(req.Nome, req.Email, req.Senha)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"id":     afiliado.ID,
+		"nome":   afiliado.Nome,
+		"email":  afiliado.Email,
+		"codigo": afiliado.Codigo,
+	})
 }
 
 // PendentesPorAfiliado atende GET /drenux/afiliados/pendentes — visão

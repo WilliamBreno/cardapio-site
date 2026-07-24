@@ -49,3 +49,23 @@ export async function marcarRepassesComoPago(ids: number[]): Promise<{ marcados:
   const { data } = await apiDrenux.post<{ marcados: number }>('/drenux/repasses/marcar-pago', { ids });
   return data;
 }
+
+export interface CriarAfiliadoInput {
+  nome: string;
+  email: string;
+  senha: string;
+}
+
+export interface AfiliadoCriado {
+  id: number;
+  nome: string;
+  email: string;
+  codigo: string;
+}
+
+// Não existe autocadastro de afiliado — essa é a única forma de criar
+// uma conta hoje, restrita a quem tem o secret de /drenux/*.
+export async function criarAfiliado(input: CriarAfiliadoInput): Promise<AfiliadoCriado> {
+  const { data } = await apiDrenux.post<AfiliadoCriado>('/drenux/afiliados', input);
+  return data;
+}

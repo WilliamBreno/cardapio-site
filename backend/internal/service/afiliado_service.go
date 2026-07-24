@@ -37,6 +37,54 @@ func NewAfiliadoService(db *gorm.DB, jwtSecret, stripeSecretKey string, emailSen
 	}
 }
 
+// CriarAfiliado cadastra uma conta de afiliado — não existe autocadastro
+// (ver domain.Afiliado), então isso só é chamado pela tela interna
+// /drenux/afiliados (secret-gated, ver middleware.DrenuxAdminRequired).
+// O código de indicação (usado em ?ref=CODIGO) é gerado a partir do nome,
+// reaproveitando o mesmo gerador de slug já usado pra loja.
+func (s *AfiliadoService) CriarAfiliado(nome, email, senha string) (*domain.Afiliado, error) {
+	senhaHash, err := bcrypt.GenerateFromPassword([]byte(senha), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("gerando hash da senha: %w", err)
+	}
+
+	codigo, err := s.gerarCodigoUnico(nome)
+	if err != nil {
+		return nil, fmt.Errorf("gerando código de indicação: %w", err)
+	}
+
+	afiliado := domain.Afiliado{
+		Nome:      nome,
+		Email:     email,
+		SenhaHash: string(senhaHash),
+		Codigo:    codigo,
+	}
+	if err := s.afiliadoRepo.Criar(&afiliado); err != nil {
+		return nil, fmt.Errorf("não foi possível criar o afiliado (email já cadastrado?): %w", err)
+	}
+	return &afiliado, nil
+}
+
+// gerarCodigoUnico monta o código de indicação a partir do nome (mesmo
+// normalizador usado pro slug de loja — minúsculo, sem acento, só
+// [a-z0-9-]) e desambigua com um sufixo numérico se já existir.
+func (s *AfiliadoService) gerarCodigoUnico(nome string) (string, error) {
+	base := gerarSlug(nome)
+	if base == "" {
+		base = "afiliado"
+	}
+	codigo := base
+	contador := 1
+	for {
+		_, err := s.afiliadoRepo.BuscarPorCodigo(codigo)
+		if err != nil {
+			return codigo, nil // não encontrado — código livre
+		}
+		contador++
+		codigo = fmt.Sprintf("%s-%d", base, contador)
+	}
+}
+
 // Login confere email/senha do afiliado e devolve um token JWT próprio,
 // separado do token de dono de loja (claim "afiliado_id" em vez de
 // "usuario_id"/"loja_id").

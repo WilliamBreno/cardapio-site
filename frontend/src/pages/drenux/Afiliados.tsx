@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   listarPendentesPorAfiliado,
   buscarRepassesDoAfiliado,
   marcarRepassesComoPago,
+  criarAfiliado,
   type PendentePorAfiliado,
 } from '../../api/drenux';
 import { useDrenuxAdminStore } from '../../store/drenuxAdminStore';
@@ -22,46 +24,140 @@ function formatarData(iso: string) {
 // o repasse via Pix ser feito manualmente e confirmado nesta tela. Não
 // existe login de staff da Drenux ainda, então o acesso é só por um
 // secret compartilhado (ver middleware.DrenuxAdminRequired no backend).
+//
+// De propósito, não existe formulário de login visível aqui — qualquer
+// um que abrisse essa URL sem saber de nada veria um campo "digite o
+// secret", o que já denuncia que existe uma área interna aqui. Em vez
+// disso, o acesso é só por link mágico (?key=SECRET): quem não manda
+// esse parâmetro (ou não tem o secret salvo de uma visita anterior) cai
+// numa página "não encontrada" comum, sem nenhuma pista do que é essa
+// rota. Isso é só camuflagem, não é a proteção de verdade — quem chama
+// a API direto (o path aparece no bundle JS) ainda esbarra no secret
+// checado no backend, que é o que realmente impede o acesso.
 export function DrenuxAfiliados() {
   const secret = useDrenuxAdminStore((s) => s.secret);
+  const setSecret = useDrenuxAdminStore((s) => s.setSecret);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const key = searchParams.get('key');
+
+  useEffect(() => {
+    if (!key) return;
+    setSecret(key);
+    const proximos = new URLSearchParams(searchParams);
+    proximos.delete('key');
+    setSearchParams(proximos, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
   if (!secret) {
-    return <FormularioSecret />;
+    return <PaginaNaoEncontrada />;
   }
 
   return <PainelRepasses />;
 }
 
-function FormularioSecret() {
-  const setSecret = useDrenuxAdminStore((s) => s.setSecret);
-  const [campo, setCampo] = useState('');
+function PaginaNaoEncontrada() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-fundo px-4 text-center">
+      <div>
+        <p className="font-display text-2xl text-tinta">404</p>
+        <p className="mt-1 text-sm text-tinta-suave">Página não encontrada.</p>
+      </div>
+    </div>
+  );
+}
 
-  function entrar(e: React.FormEvent) {
+function CriarAfiliadoForm() {
+  const [aberto, setAberto] = useState(false);
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+  const [criado, setCriado] = useState<{ nome: string; codigo: string } | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function criar(e: React.FormEvent) {
     e.preventDefault();
-    if (campo.trim()) setSecret(campo.trim());
+    setEnviando(true);
+    setErro(null);
+    try {
+      const afiliado = await criarAfiliado({ nome, email, senha });
+      setCriado({ nome: afiliado.nome, codigo: afiliado.codigo });
+      setNome('');
+      setEmail('');
+      setSenha('');
+      setAberto(false);
+    } catch {
+      setErro('Não foi possível criar — confere se o email já não está cadastrado.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  if (!aberto) {
+    return (
+      <div className="space-y-2">
+        <button
+          onClick={() => { setAberto(true); setCriado(null); }}
+          className="w-full rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta hover:border-acento hover:text-acento"
+        >
+          + Criar afiliado
+        </button>
+        {criado && (
+          <p className="rounded-lg bg-emerald-100 px-3 py-2 text-xs text-emerald-800">
+            Afiliado "{criado.nome}" criado — código de indicação: <strong>{criado.codigo}</strong>
+          </p>
+        )}
+      </div>
+    );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-fundo px-4">
-      <form onSubmit={entrar} className="w-full max-w-sm space-y-4 rounded-2xl bg-superficie p-6 shadow-sm">
-        <div>
-          <h1 className="font-display text-xl tracking-wide text-tinta">Área interna — Drenux</h1>
-          <p className="mt-1 text-sm text-tinta-suave">Repasse de comissão de afiliados.</p>
-        </div>
-        <input
-          type="password"
-          required
-          autoFocus
-          value={campo}
-          onChange={(e) => setCampo(e.target.value)}
-          placeholder="Secret de acesso"
-          className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento"
-        />
-        <button type="submit" className="w-full rounded-full bg-acento py-2 text-sm font-semibold text-superficie">
-          Entrar
+    <form onSubmit={criar} className="space-y-3 rounded-2xl bg-superficie p-4 shadow-sm">
+      <p className="text-sm font-medium text-tinta">Criar afiliado</p>
+      <input
+        required
+        autoFocus
+        value={nome}
+        onChange={(e) => setNome(e.target.value)}
+        placeholder="Nome"
+        className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-sm text-tinta outline-none focus:border-acento"
+      />
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email"
+        className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-sm text-tinta outline-none focus:border-acento"
+      />
+      <input
+        type="password"
+        required
+        minLength={6}
+        value={senha}
+        onChange={(e) => setSenha(e.target.value)}
+        placeholder="Senha (mínimo 6 caracteres)"
+        className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-sm text-tinta outline-none focus:border-acento"
+      />
+      {erro && <p className="text-xs text-acento">{erro}</p>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setAberto(false)}
+          className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta"
+        >
+          Cancelar
         </button>
-      </form>
-    </div>
+        <button
+          type="submit"
+          disabled={enviando}
+          className="flex-1 rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+        >
+          {enviando ? 'Criando...' : 'Criar'}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -80,9 +176,10 @@ function PainelRepasses() {
   if (isError) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-fundo px-4 text-center">
-        <p className="text-tinta-suave">Secret inválido ou expirado.</p>
+        <p className="text-tinta-suave">Secret inválido, expirado ou bloqueado por tentativas erradas.</p>
+        <p className="text-xs text-tinta-suave">Acesse de novo pelo link com ?key= pra entrar com o secret certo.</p>
         <button onClick={logout} className="text-sm font-medium text-acento hover:underline">
-          Tentar de novo
+          Sair
         </button>
       </div>
     );
@@ -101,6 +198,8 @@ function PainelRepasses() {
           Comissões de pedidos pagos via Mercado Pago, pendentes de repasse manual via Pix — o Mercado Pago
           ainda não faz split automático de 3 partes (Loja + Drenux + Afiliado).
         </p>
+
+        <CriarAfiliadoForm />
 
         {isLoading ? (
           <p className="text-tinta-suave">Carregando...</p>

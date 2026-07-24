@@ -132,7 +132,6 @@ func main() {
 		cfg.JWTSecret, cfg.APIPublicURL, cfg.FrontendURLs[0], db, posPagamentoService, repasseAfiliadoService,
 	)
 	mercadoPagoHandler := handler.NewMercadoPagoHandler(mercadoPagoService, cfg.FrontendURLs[0], cfg.CronSecret)
-	drenuxAdminHandler := handler.NewDrenuxAdminHandler(repasseAfiliadoService)
 
 	lojaHandler := handler.NewLojaHandler(lojaService, distanciaService)
 
@@ -154,6 +153,7 @@ func main() {
 
 	afiliadoService := service.NewAfiliadoService(db, cfg.JWTSecret, cfg.StripeSecretKey, emailSender, cfg.FrontendURLs[0])
 	afiliadoHandler := handler.NewAfiliadoHandler(afiliadoService, repasseAfiliadoService, cfg.FrontendURLs[0])
+	drenuxAdminHandler := handler.NewDrenuxAdminHandler(repasseAfiliadoService, afiliadoService)
 
 	router.POST("/auth/cadastro", authHandler.Cadastrar)
 	router.POST("/auth/login", authHandler.Login)
@@ -283,6 +283,7 @@ func main() {
 	// um secret compartilhado (ver middleware.DrenuxAdminRequired).
 	drenux := router.Group("/drenux")
 	drenux.Use(middleware.DrenuxAdminRequired(cfg.DrenuxAdminSecret))
+	drenux.POST("/afiliados", drenuxAdminHandler.CriarAfiliado)
 	drenux.GET("/afiliados/pendentes", drenuxAdminHandler.PendentesPorAfiliado)
 	drenux.GET("/afiliados/:id/repasses", drenuxAdminHandler.DetalheAfiliado)
 	drenux.POST("/repasses/marcar-pago", drenuxAdminHandler.MarcarComoPago)
