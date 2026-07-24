@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  listarPendentesPorAfiliado,
+  listarAfiliados,
   buscarRepassesDoAfiliado,
   marcarRepassesComoPago,
   criarAfiliado,
-  type PendentePorAfiliado,
+  type AfiliadoComTotais,
 } from '../../api/drenux';
 import { useDrenuxAdminStore } from '../../store/drenuxAdminStore';
 
@@ -67,26 +67,36 @@ function PaginaNaoEncontrada() {
   );
 }
 
-function CriarAfiliadoForm() {
+function CriarAfiliadoForm({ onCriado }: { onCriado: () => void }) {
   const [aberto, setAberto] = useState(false);
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  // Percentual "cru" (37.6), não a fração — converte pra fração (0.376)
+  // só na hora de mandar pro backend, que é como domain.Afiliado guarda.
+  const [comissao, setComissao] = useState('37.6');
   const [erro, setErro] = useState<string | null>(null);
   const [criado, setCriado] = useState<{ nome: string; codigo: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   async function criar(e: React.FormEvent) {
     e.preventDefault();
+    const comissaoFracao = parseFloat(comissao) / 100;
+    if (!comissaoFracao || comissaoFracao <= 0 || comissaoFracao > 1) {
+      setErro('Comissão precisa ser um número entre 0 e 100.');
+      return;
+    }
     setEnviando(true);
     setErro(null);
     try {
-      const afiliado = await criarAfiliado({ nome, email, senha });
+      const afiliado = await criarAfiliado({ nome, email, senha, comissao_percentual: comissaoFracao });
       setCriado({ nome: afiliado.nome, codigo: afiliado.codigo });
       setNome('');
       setEmail('');
       setSenha('');
+      setComissao('37.6');
       setAberto(false);
+      onCriado();
     } catch {
       setErro('Não foi possível criar — confere se o email já não está cadastrado.');
     } finally {
@@ -140,6 +150,24 @@ function CriarAfiliadoForm() {
         placeholder="Senha (mínimo 6 caracteres)"
         className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-sm text-tinta outline-none focus:border-acento"
       />
+      <div>
+        <label className="mb-1 block text-xs font-medium text-tinta-suave">
+          Comissão desse afiliado — % da taxa de plataforma que ele recebe (padrão: 37,6%)
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            required
+            step="0.1"
+            min="0.1"
+            max="100"
+            value={comissao}
+            onChange={(e) => setComissao(e.target.value)}
+            className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-sm text-tinta outline-none focus:border-acento"
+          />
+          <span className="text-sm text-tinta-suave">%</span>
+        </div>
+      </div>
       {erro && <p className="text-xs text-acento">{erro}</p>}
       <div className="flex gap-2">
         <button
@@ -165,9 +193,9 @@ function PainelRepasses() {
   const logout = useDrenuxAdminStore((s) => s.logout);
   const queryClient = useQueryClient();
 
-  const { data: pendentes, isLoading, isError } = useQuery({
-    queryKey: ['drenux-pendentes'],
-    queryFn: listarPendentesPorAfiliado,
+  const { data: afiliados, isLoading, isError } = useQuery({
+    queryKey: ['drenux-afiliados'],
+    queryFn: listarAfiliados,
     retry: false,
   });
 
@@ -185,37 +213,41 @@ function PainelRepasses() {
     );
   }
 
+  function invalidar() {
+    queryClient.invalidateQueries({ queryKey: ['drenux-afiliados'] });
+  }
+
   return (
     <div className="min-h-screen bg-fundo px-4 py-8">
       <div className="mx-auto max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="font-display text-2xl tracking-wide text-tinta">Repasse de afiliados</h1>
+          <h1 className="font-display text-2xl tracking-wide text-tinta">Afiliados</h1>
           <button onClick={logout} className="text-sm text-tinta-suave hover:text-acento">
             Sair
           </button>
         </div>
         <p className="text-sm text-tinta-suave">
-          Comissões de pedidos pagos via Mercado Pago, pendentes de repasse manual via Pix — o Mercado Pago
-          ainda não faz split automático de 3 partes (Loja + Drenux + Afiliado).
+          Todo afiliado cadastrado, com a comissão negociada e quanto já foi pago/está pendente de pedidos
+          pagos via Mercado Pago (repasse manual via Pix — sem split automático de 3 partes ainda).
         </p>
 
-        <CriarAfiliadoForm />
+        <CriarAfiliadoForm onCriado={invalidar} />
 
         {isLoading ? (
           <p className="text-tinta-suave">Carregando...</p>
-        ) : !pendentes || pendentes.length === 0 ? (
-          <p className="text-tinta-suave">Nenhum repasse pendente.</p>
+        ) : !afiliados || afiliados.length === 0 ? (
+          <p className="text-tinta-suave">Nenhum afiliado cadastrado ainda.</p>
         ) : (
           <ul className="space-y-3">
-            {pendentes.map((p) => (
+            {afiliados.map((a) => (
               <AfiliadoCard
-                key={p.afiliado_id}
-                pendente={p}
-                aberto={afiliadoAberto === p.afiliado_id}
-                onToggle={() => setAfiliadoAberto(afiliadoAberto === p.afiliado_id ? null : p.afiliado_id)}
+                key={a.afiliado_id}
+                afiliado={a}
+                aberto={afiliadoAberto === a.afiliado_id}
+                onToggle={() => setAfiliadoAberto(afiliadoAberto === a.afiliado_id ? null : a.afiliado_id)}
                 onMarcarPago={() => {
-                  queryClient.invalidateQueries({ queryKey: ['drenux-pendentes'] });
-                  queryClient.invalidateQueries({ queryKey: ['drenux-repasses', p.afiliado_id] });
+                  invalidar();
+                  queryClient.invalidateQueries({ queryKey: ['drenux-repasses', a.afiliado_id] });
                 }}
               />
             ))}
@@ -227,19 +259,19 @@ function PainelRepasses() {
 }
 
 function AfiliadoCard({
-  pendente,
+  afiliado,
   aberto,
   onToggle,
   onMarcarPago,
 }: {
-  pendente: PendentePorAfiliado;
+  afiliado: AfiliadoComTotais;
   aberto: boolean;
   onToggle: () => void;
   onMarcarPago: () => void;
 }) {
   const { data: repasses, isLoading } = useQuery({
-    queryKey: ['drenux-repasses', pendente.afiliado_id],
-    queryFn: () => buscarRepassesDoAfiliado(pendente.afiliado_id),
+    queryKey: ['drenux-repasses', afiliado.afiliado_id],
+    queryFn: () => buscarRepassesDoAfiliado(afiliado.afiliado_id),
     enabled: aberto,
   });
 
@@ -266,14 +298,22 @@ function AfiliadoCard({
 
   return (
     <li className="rounded-2xl bg-superficie p-4 shadow-sm">
-      <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 text-left">
+      <button onClick={onToggle} className="flex w-full items-start justify-between gap-3 text-left">
         <div>
-          <p className="font-medium text-tinta">{pendente.nome}</p>
+          <p className="font-medium text-tinta">{afiliado.nome}</p>
           <p className="text-xs text-tinta-suave">
-            {pendente.email} · {pendente.quantidade} lançamento{pendente.quantidade > 1 ? 's' : ''}
+            {afiliado.email} · código <span className="font-carimbo">{afiliado.codigo}</span> · comissão{' '}
+            {(afiliado.comissao_percentual * 100).toFixed(1)}%
+          </p>
+          <p className="text-xs text-tinta-suave">
+            {afiliado.quantidade} lançamento{afiliado.quantidade !== 1 ? 's' : ''}
           </p>
         </div>
-        <span className="shrink-0 font-carimbo text-lg font-semibold text-tinta">{moeda(pendente.total_pendente)}</span>
+        <div className="shrink-0 text-right">
+          <p className="font-carimbo text-lg font-semibold text-tinta">{moeda(afiliado.total_pendente)}</p>
+          <p className="text-[11px] text-tinta-suave">pendente</p>
+          {afiliado.total_pago > 0 && <p className="mt-1 text-[11px] text-emerald-700">{moeda(afiliado.total_pago)} já pago</p>}
+        </div>
       </button>
 
       {aberto && (

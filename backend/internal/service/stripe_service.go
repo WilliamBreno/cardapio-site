@@ -29,21 +29,23 @@ const TaxaPlataformaPercentual = 8.0
 // indicou a loja, quando existir.
 const ComissaoAfiliadoPercentual = 3.01
 
-// proporcaoComissaoAfiliado é a fatia da taxa de plataforma que vira
-// comissão do afiliado — ~37,6% da taxa cobrada da loja indicada,
-// qualquer que seja o plano dela (Start/Pro/Scale). É a mesma proporção
-// em reais que dá ComissaoAfiliadoPercentual (3,01%) quando a loja está
-// no Start (8% × 0,376 ≈ 3,01%) — ComissaoAfiliadoPercentual é só o valor
-// de referência pro caso mais comum, o cálculo de verdade é sempre feito
-// em cima da taxa real do plano via calcularComissaoAfiliado.
-const proporcaoComissaoAfiliado = 0.376
+// ProporcaoComissaoAfiliadoPadrao é o valor sugerido no cadastro de um
+// afiliado novo — ~37,6% da taxa de plataforma, o padrão histórico usado
+// igual pra todo mundo antes da Fase 5.5 permitir negociar por afiliado
+// (ver domain.Afiliado.ComissaoPercentual). É a mesma proporção que dá
+// ComissaoAfiliadoPercentual (3,01%) quando a loja está no Start
+// (8% × 0,376 ≈ 3,01%). Depois do cadastro, quem manda é o percentual
+// salvo em cada Afiliado, não essa constante.
+const ProporcaoComissaoAfiliadoPadrao = 0.376
 
 // calcularComissaoAfiliado é a fórmula única de comissão de afiliado,
 // usada tanto pelo repasse automático via Stripe Transfer quanto pelo
 // registro manual do Mercado Pago (ver RepasseAfiliadoService, Fase 5.5
 // do roadmap) — mudar aqui muda os dois processadores de uma vez, de
-// propósito, pra nunca desalinhar.
-func calcularComissaoAfiliado(pedidoTotal float64, plano string) float64 {
+// propósito, pra nunca desalinhar. proporcaoAfiliado vem de
+// domain.Afiliado.ComissaoPercentual — cada afiliado pode ter a própria,
+// não é mais um valor fixo global.
+func calcularComissaoAfiliado(pedidoTotal float64, plano string, proporcaoAfiliado float64) float64 {
 	taxaPercentual := TaxaPlataformaPercentual
 	switch plano {
 	case "pro":
@@ -51,7 +53,7 @@ func calcularComissaoAfiliado(pedidoTotal float64, plano string) float64 {
 	case "scale":
 		taxaPercentual = 1.5
 	}
-	return pedidoTotal * taxaPercentual / 100 * proporcaoComissaoAfiliado
+	return pedidoTotal * taxaPercentual / 100 * proporcaoAfiliado
 }
 
 // valoresMensalidadePlano define o preço mensal (em reais) de cada plano
@@ -833,7 +835,7 @@ func (s *StripeService) transferirComissaoAfiliado(pedido *domain.Pedido, loja *
 	// Comissão não incide sobre frete — mesma regra do marketplace_fee do
 	// Mercado Pago. NOTA: rota sem uso desde a Fase 5.2 (ver comentário em
 	// CriarCheckout acima) — corrigido só por consistência.
-	valorComissao := calcularComissaoAfiliado(pedido.Total-pedido.TaxaEntrega, loja.Plano)
+	valorComissao := calcularComissaoAfiliado(pedido.Total-pedido.TaxaEntrega, loja.Plano, afiliado.ComissaoPercentual)
 	valorCentavos := int64(math.Round(valorComissao * 100))
 	if valorCentavos <= 0 {
 		return

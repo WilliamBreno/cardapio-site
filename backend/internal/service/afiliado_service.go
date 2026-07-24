@@ -42,7 +42,15 @@ func NewAfiliadoService(db *gorm.DB, jwtSecret, stripeSecretKey string, emailSen
 // /drenux/afiliados (secret-gated, ver middleware.DrenuxAdminRequired).
 // O código de indicação (usado em ?ref=CODIGO) é gerado a partir do nome,
 // reaproveitando o mesmo gerador de slug já usado pra loja.
-func (s *AfiliadoService) CriarAfiliado(nome, email, senha string) (*domain.Afiliado, error) {
+//
+// comissaoPercentual é a fração da taxa de plataforma que ESSE afiliado
+// recebe (ex: 0.376 = 37,6%) — definida aqui no cadastro, negociada por
+// afiliado (ver domain.Afiliado.ComissaoPercentual, Fase 5.5).
+func (s *AfiliadoService) CriarAfiliado(nome, email, senha string, comissaoPercentual float64) (*domain.Afiliado, error) {
+	if comissaoPercentual <= 0 || comissaoPercentual > 1 {
+		return nil, errors.New("comissão precisa ser maior que 0 e no máximo 1 (100% da taxa de plataforma)")
+	}
+
 	senhaHash, err := bcrypt.GenerateFromPassword([]byte(senha), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("gerando hash da senha: %w", err)
@@ -54,10 +62,11 @@ func (s *AfiliadoService) CriarAfiliado(nome, email, senha string) (*domain.Afil
 	}
 
 	afiliado := domain.Afiliado{
-		Nome:      nome,
-		Email:     email,
-		SenhaHash: string(senhaHash),
-		Codigo:    codigo,
+		Nome:               nome,
+		Email:              email,
+		SenhaHash:          string(senhaHash),
+		Codigo:             codigo,
+		ComissaoPercentual: comissaoPercentual,
 	}
 	if err := s.afiliadoRepo.Criar(&afiliado); err != nil {
 		return nil, fmt.Errorf("não foi possível criar o afiliado (email já cadastrado?): %w", err)

@@ -16,6 +16,14 @@ type Afiliado struct {
 	Codigo          string `gorm:"size:30;not null;unique" json:"codigo"`
 	StripeAccountID string `gorm:"size:100" json:"-"`
 
+	// ComissaoPercentual é a fração da taxa de plataforma que ESSE
+	// afiliado recebe de comissão — 0.376 (37,6%) é o valor padrão
+	// histórico, usado igual pra todo mundo antes da Fase 5.5 permitir
+	// negociar por afiliado. Definido no cadastro (ver
+	// AfiliadoService.CriarAfiliado), usado tanto no repasse automático
+	// via Stripe Transfer quanto no registro manual do Mercado Pago.
+	ComissaoPercentual float64 `gorm:"not null;default:0.376" json:"comissao_percentual"`
+
 	ResetToken       *string    `json:"-"`
 	ResetTokenExpira *time.Time `json:"-"`
 

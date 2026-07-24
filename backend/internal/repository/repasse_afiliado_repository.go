@@ -52,24 +52,36 @@ func (r *RepasseAfiliadoRepository) SomarPendentePorAfiliado(afiliadoID uint) (f
 	return total, err
 }
 
-// PendentePorAfiliado é a linha da visão geral do admin Drenux — um
-// afiliado por linha, com o total pendente somado. O detalhe
-// (lançamento por lançamento) vem de ListarPorAfiliado a partir do ID.
-type PendentePorAfiliado struct {
-	AfiliadoID uint    `json:"afiliado_id"`
-	Nome       string  `json:"nome"`
-	Email      string  `json:"email"`
-	Total      float64 `json:"total_pendente"`
-	Quantidade int64   `json:"quantidade"`
+// AfiliadoComTotais é a linha da visão geral do admin Drenux — TODO
+// afiliado cadastrado (mesmo sem nenhum lançamento ainda, por isso é
+// LEFT JOIN), com quanto já foi pago e quanto ainda está pendente. O
+// detalhe (lançamento por lançamento) vem de ListarPorAfiliado a partir
+// do ID.
+type AfiliadoComTotais struct {
+	AfiliadoID         uint    `json:"afiliado_id"`
+	Nome               string  `json:"nome"`
+	Email              string  `json:"email"`
+	Codigo             string  `json:"codigo"`
+	ComissaoPercentual float64 `json:"comissao_percentual"`
+	TotalPendente      float64 `json:"total_pendente"`
+	TotalPago          float64 `json:"total_pago"`
+	Quantidade         int64   `json:"quantidade"`
 }
 
-func (r *RepasseAfiliadoRepository) ListarPendentesAgrupado() ([]PendentePorAfiliado, error) {
-	var resultado []PendentePorAfiliado
-	err := r.db.Table("repasses_afiliado").
-		Joins("JOIN afiliados ON afiliados.id = repasses_afiliado.afiliado_id").
-		Where("repasses_afiliado.status = ?", domain.StatusRepassePendente).
-		Group("afiliados.id, afiliados.nome, afiliados.email").
-		Select("afiliados.id AS afiliado_id, afiliados.nome AS nome, afiliados.email AS email, COALESCE(SUM(repasses_afiliado.valor),0) AS total, COUNT(*) AS quantidade").
+func (r *RepasseAfiliadoRepository) ListarTodosComTotais() ([]AfiliadoComTotais, error) {
+	var resultado []AfiliadoComTotais
+	err := r.db.Table("afiliados").
+		Joins("LEFT JOIN repasses_afiliado ON repasses_afiliado.afiliado_id = afiliados.id").
+		Group("afiliados.id, afiliados.nome, afiliados.email, afiliados.codigo, afiliados.comissao_percentual").
+		Order("afiliados.nome").
+		Select(`afiliados.id AS afiliado_id,
+			afiliados.nome AS nome,
+			afiliados.email AS email,
+			afiliados.codigo AS codigo,
+			afiliados.comissao_percentual AS comissao_percentual,
+			COALESCE(SUM(CASE WHEN repasses_afiliado.status = 'pendente' THEN repasses_afiliado.valor ELSE 0 END), 0) AS total_pendente,
+			COALESCE(SUM(CASE WHEN repasses_afiliado.status = 'pago' THEN repasses_afiliado.valor ELSE 0 END), 0) AS total_pago,
+			COUNT(repasses_afiliado.id) AS quantidade`).
 		Scan(&resultado).Error
 	return resultado, err
 }

@@ -14,20 +14,30 @@ import (
 // docs/plano-melhorias-drenux.md, Fase 5.5) — não movimenta dinheiro, só
 // registra quanto é devido e se já foi pago.
 type RepasseAfiliadoService struct {
-	repasseRepo *repository.RepasseAfiliadoRepository
+	repasseRepo  *repository.RepasseAfiliadoRepository
+	afiliadoRepo *repository.AfiliadoRepository
 }
 
 func NewRepasseAfiliadoService(db *gorm.DB) *RepasseAfiliadoService {
 	return &RepasseAfiliadoService{
-		repasseRepo: repository.NewRepasseAfiliadoRepository(db),
+		repasseRepo:  repository.NewRepasseAfiliadoRepository(db),
+		afiliadoRepo: repository.NewAfiliadoRepository(db),
 	}
 }
 
-// RegistrarPendente cria o lançamento de comissão devida ao afiliado de
-// um pedido pago via Mercado Pago — chamado na confirmação do pagamento
-// (ver MercadoPagoService.ProcessarNotificacaoPagamento). Idempotente: se
-// a notificação repetir pro mesmo pedido, só ignora em vez de duplicar.
-func (s *RepasseAfiliadoService) RegistrarPendente(afiliadoID, pedidoID, lojaID uint, valor float64) error {
+// RegistrarPendente calcula (usando o percentual de comissão próprio
+// desse afiliado — ver domain.Afiliado.ComissaoPercentual) e registra o
+// valor devido por um pedido pago via Mercado Pago. baseComissao já vem
+// sem a taxa de entrega (ver MercadoPagoService.CriarCheckout — comissão
+// não incide sobre frete). Idempotente: se a notificação do Mercado Pago
+// repetir pro mesmo pedido, só ignora em vez de duplicar.
+func (s *RepasseAfiliadoService) RegistrarPendente(afiliadoID, pedidoID, lojaID uint, baseComissao float64, plano string) error {
+	afiliado, err := s.afiliadoRepo.BuscarPorID(afiliadoID)
+	if err != nil {
+		return fmt.Errorf("buscando afiliado %d: %w", afiliadoID, err)
+	}
+
+	valor := calcularComissaoAfiliado(baseComissao, plano, afiliado.ComissaoPercentual)
 	if valor <= 0 {
 		return nil
 	}
@@ -72,10 +82,12 @@ func (s *RepasseAfiliadoService) ExtratoAfiliado(afiliadoID uint) (*ExtratoAfili
 	return &ExtratoAfiliado{Repasses: repasses, TotalPendente: total}, nil
 }
 
-// PendentesAgrupado é a visão geral do admin Drenux: um afiliado por
-// linha, com o total pendente somado — usada pra decidir quem repassar.
-func (s *RepasseAfiliadoService) PendentesAgrupado() ([]repository.PendentePorAfiliado, error) {
-	return s.repasseRepo.ListarPendentesAgrupado()
+// ListarTodosComTotais é a visão geral do admin Drenux: TODOS os
+// afiliados cadastrados (mesmo sem nenhum lançamento ainda), com o total
+// pago e pendente de cada um — pra ver quem existe, não só quem tem
+// saldo pra receber.
+func (s *RepasseAfiliadoService) ListarTodosComTotais() ([]repository.AfiliadoComTotais, error) {
+	return s.repasseRepo.ListarTodosComTotais()
 }
 
 // DetalheAfiliado é o extrato completo de um afiliado específico, visto

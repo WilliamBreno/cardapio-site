@@ -27,16 +27,21 @@ apiDrenux.interceptors.response.use(
   }
 );
 
-export interface PendentePorAfiliado {
+// AfiliadoComTotais é TODO afiliado cadastrado (mesmo sem nenhum
+// lançamento ainda), com quanto já foi pago e quanto está pendente.
+export interface AfiliadoComTotais {
   afiliado_id: number;
   nome: string;
   email: string;
+  codigo: string;
+  comissao_percentual: number;
   total_pendente: number;
+  total_pago: number;
   quantidade: number;
 }
 
-export async function listarPendentesPorAfiliado(): Promise<PendentePorAfiliado[]> {
-  const { data } = await apiDrenux.get<PendentePorAfiliado[]>('/drenux/afiliados/pendentes');
+export async function listarAfiliados(): Promise<AfiliadoComTotais[]> {
+  const { data } = await apiDrenux.get<AfiliadoComTotais[]>('/drenux/afiliados');
   return data;
 }
 
@@ -54,6 +59,10 @@ export interface CriarAfiliadoInput {
   nome: string;
   email: string;
   senha: string;
+  // Fração da taxa de plataforma que esse afiliado recebe (0.376 = 37,6%)
+  // — não é porcentagem "crua" (0-100), é a mesma fração usada no cálculo
+  // no backend (ver domain.Afiliado.ComissaoPercentual).
+  comissao_percentual: number;
 }
 
 export interface AfiliadoCriado {
@@ -61,6 +70,7 @@ export interface AfiliadoCriado {
   nome: string;
   email: string;
   codigo: string;
+  comissao_percentual: number;
 }
 
 // Não existe autocadastro de afiliado — essa é a única forma de criar

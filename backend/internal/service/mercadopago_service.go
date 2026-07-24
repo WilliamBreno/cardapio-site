@@ -629,12 +629,14 @@ func (s *MercadoPagoService) ProcessarNotificacaoPagamento(ctx context.Context, 
 	// via Pix manual depois, controlado pela tela /drenux/afiliados.
 	if loja.AfiliadoID != nil {
 		// Mesma regra do marketplace_fee: comissão não incide sobre frete
-		// (ver CriarCheckout, baseComissao).
-		valorComissao := calcularComissaoAfiliado(pedido.Total-pedido.TaxaEntrega, loja.Plano)
-		if err := s.repasseService.RegistrarPendente(*loja.AfiliadoID, pedido.ID, loja.ID, valorComissao); err != nil {
+		// (ver CriarCheckout, baseComissao). O percentual em si é o do
+		// próprio afiliado (RegistrarPendente busca e aplica), não um
+		// valor fixo global.
+		baseComissao := pedido.Total - pedido.TaxaEntrega
+		if err := s.repasseService.RegistrarPendente(*loja.AfiliadoID, pedido.ID, loja.ID, baseComissao, loja.Plano); err != nil {
 			log.Printf("aviso: não foi possível registrar repasse de afiliado do pedido %d: %v", pedidoID, err)
 		} else {
-			log.Printf("pedido %d: repasse de R$%.2f registrado como pendente pro afiliado %d", pedidoID, valorComissao, *loja.AfiliadoID)
+			log.Printf("pedido %d: repasse registrado como pendente pro afiliado %d", pedidoID, *loja.AfiliadoID)
 		}
 	}
 

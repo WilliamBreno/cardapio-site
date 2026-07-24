@@ -25,6 +25,10 @@ type criarAfiliadoRequest struct {
 	Nome  string `json:"nome" binding:"required"`
 	Email string `json:"email" binding:"required,email"`
 	Senha string `json:"senha" binding:"required,min=6"`
+	// ComissaoPercentual é a fração da taxa de plataforma que ESSE
+	// afiliado recebe (ex: 0.376 = 37,6%) — definida no cadastro, negociada
+	// por afiliado (ver domain.Afiliado.ComissaoPercentual, Fase 5.5).
+	ComissaoPercentual float64 `json:"comissao_percentual" binding:"required,gt=0,lte=1"`
 }
 
 // CriarAfiliado atende POST /drenux/afiliados — não existe autocadastro
@@ -37,29 +41,31 @@ func (h *DrenuxAdminHandler) CriarAfiliado(c *gin.Context) {
 		return
 	}
 
-	afiliado, err := h.afiliadoService.CriarAfiliado(req.Nome, req.Email, req.Senha)
+	afiliado, err := h.afiliadoService.CriarAfiliado(req.Nome, req.Email, req.Senha, req.ComissaoPercentual)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"id":     afiliado.ID,
-		"nome":   afiliado.Nome,
-		"email":  afiliado.Email,
-		"codigo": afiliado.Codigo,
+		"id":                  afiliado.ID,
+		"nome":                afiliado.Nome,
+		"email":               afiliado.Email,
+		"codigo":              afiliado.Codigo,
+		"comissao_percentual": afiliado.ComissaoPercentual,
 	})
 }
 
-// PendentesPorAfiliado atende GET /drenux/afiliados/pendentes — visão
-// geral: um afiliado por linha, com o total pendente somado.
-func (h *DrenuxAdminHandler) PendentesPorAfiliado(c *gin.Context) {
-	pendentes, err := h.repasseService.PendentesAgrupado()
+// ListarAfiliados atende GET /drenux/afiliados — visão geral: TODOS os
+// afiliados cadastrados, mesmo sem nenhum lançamento ainda, com o total
+// pago e pendente de cada um.
+func (h *DrenuxAdminHandler) ListarAfiliados(c *gin.Context) {
+	afiliados, err := h.repasseService.ListarTodosComTotais()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, pendentes)
+	c.JSON(http.StatusOK, afiliados)
 }
 
 // DetalheAfiliado atende GET /drenux/afiliados/:id/repasses — extrato

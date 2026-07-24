@@ -290,7 +290,7 @@ func main() {
 	drenux := router.Group("/drenux")
 	drenux.Use(middleware.DrenuxAdminRequired(cfg.DrenuxAdminSecret))
 	drenux.POST("/afiliados", drenuxAdminHandler.CriarAfiliado)
-	drenux.GET("/afiliados/pendentes", drenuxAdminHandler.PendentesPorAfiliado)
+	drenux.GET("/afiliados", drenuxAdminHandler.ListarAfiliados)
 	drenux.GET("/afiliados/:id/repasses", drenuxAdminHandler.DetalheAfiliado)
 	drenux.POST("/repasses/marcar-pago", drenuxAdminHandler.MarcarComoPago)
 
