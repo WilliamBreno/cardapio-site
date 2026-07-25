@@ -3,7 +3,9 @@ package notification
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/WilliamBreno/cardapio-backend/internal/domain"
@@ -12,6 +14,7 @@ import (
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
 
@@ -39,11 +42,41 @@ func NewWhatsmeowSender(ctx context.Context, connString string) (*WhatsmeowSende
 
 	clientLog := waLog.Stdout("WhatsmeowClient", "ERROR", true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
+	client.AddEventHandler(logarEventoWhatsapp)
 	if err := client.Connect(); err != nil {
 		return nil, fmt.Errorf("conectando sessão existente: %w", err)
 	}
 
 	return &WhatsmeowSender{client: client}, nil
+}
+
+// logarEventoWhatsapp é só diagnóstico (não muda nenhum comportamento de
+// envio) — registrado pra investigar mensagens que "saem" do número da
+// plataforma mas não chegam no destinatário (ver Tarefa 0,
+// docs/plano-melhorias-drenux.md). Sem isso, o serviço não tinha
+// nenhuma visibilidade sobre: confirmação de entrega/leitura real (o
+// SendMessage só confirma que o servidor do WhatsApp aceitou a
+// mensagem, não que ela chegou no aparelho de quem recebe — são coisas
+// diferentes), nem sobre a conta ter sido desconectada, banida
+// temporariamente ou substituída por outra sessão — qualquer um desses
+// explicaria o sintoma relatado sem aparecer como erro no envio em si.
+func logarEventoWhatsapp(evt any) {
+	switch e := evt.(type) {
+	case *events.Receipt:
+		log.Printf("whatsapp: recibo %s de %s pras mensagens %v (%s)", e.Type, e.Sender, e.MessageIDs, e.Timestamp.Format(time.RFC3339))
+	case *events.Connected:
+		log.Println("whatsapp: conectado")
+	case *events.Disconnected:
+		log.Println("whatsapp: desconectado (websocket fechado pelo servidor)")
+	case *events.LoggedOut:
+		log.Printf("whatsapp: ALERTA — sessão desconectada/deslogada (onConnect=%v, motivo=%v). Nenhuma mensagem vai sair até repareear com cmd/whatsapp-pair.", e.OnConnect, e.Reason)
+	case *events.TemporaryBan:
+		log.Printf("whatsapp: ALERTA — número banido temporariamente pelo WhatsApp: %s", e.String())
+	case *events.ConnectFailure:
+		log.Printf("whatsapp: ALERTA — falha de conexão (motivo=%s, msg=%s)", e.Reason.String(), e.Message)
+	case *events.StreamReplaced:
+		log.Println("whatsapp: ALERTA — sessão substituída por outra conexão com as mesmas credenciais (rodando o processo em duplicidade em algum lugar?)")
+	}
 }
 
 // Pair faz o pareamento inicial via QR code. Rode uma única vez,
@@ -92,6 +125,31 @@ func Pair(ctx context.Context, connString string) error {
 	return nil
 }
 
+// Unpair remove a sessão pareada atual (se existir) — necessário antes
+// de rodar Pair de novo pra reconectar, porque GetFirstDevice sempre
+// devolve a sessão já salva se ela existir, mesmo deslogada/banida pelo
+// WhatsApp (ver cmd/whatsapp-unpair). Rode localmente, apontando pra
+// mesma DATABASE_URL de produção, e reinicie o serviço principal depois
+// de repareear — ele só conecta ao WhatsApp uma vez, no boot.
+func Unpair(ctx context.Context, connString string) error {
+	container, deviceStore, err := abrirDeviceStore(ctx, connString)
+	if err != nil {
+		return err
+	}
+	if deviceStore.ID == nil {
+		fmt.Println("Nenhuma sessão pareada encontrada — nada a remover. Já pode rodar cmd/whatsapp-pair direto.")
+		return nil
+	}
+
+	numero := deviceStore.ID.User
+	if err := container.DeleteDevice(ctx, deviceStore); err != nil {
+		return fmt.Errorf("removendo sessão pareada: %w", err)
+	}
+
+	fmt.Printf("Sessão do número %s removida. Agora rode 'go run ./cmd/whatsapp-pair' pra escanear um QR code novo.\n", numero)
+	return nil
+}
+
 func abrirDeviceStore(ctx context.Context, connString string) (*sqlstore.Container, *store.Device, error) {
 	dbLog := waLog.Stdout("WhatsmeowDB", "ERROR", true)
 	container, err := sqlstore.New(ctx, "postgres", connString, dbLog)
@@ -135,19 +193,50 @@ func (s *WhatsmeowSender) EnviarSaiuParaEntrega(ctx context.Context, pedido *dom
 // identificador interno (LID) certo — sem isso, o envio falha
 // silenciosamente com "no LID found", mesmo pra números válidos.
 func (s *WhatsmeowSender) enviarTexto(ctx context.Context, telefone, texto string) error {
-	resultados, err := s.client.IsOnWhatsApp(ctx, []string{"+" + telefone})
-	if err != nil {
-		return fmt.Errorf("verificando número %s no WhatsApp: %w", telefone, err)
-	}
-	if len(resultados) == 0 || !resultados[0].IsIn {
-		return fmt.Errorf("número %s não está registrado no WhatsApp", telefone)
+	// Defesa a mais, além da normalização na escrita (ver
+	// service.NormalizarTelefone): número salvo com espaço/hífen/sem o 55
+	// resolve pro JID errado (ou nenhum) sem gerar erro nenhum visível —
+	// foi exatamente o sintoma investigado na Tarefa 0
+	// (docs/plano-melhorias-drenux.md): mensagem "sai" no app mas não
+	// chega em ninguém real.
+	limpo := apenasDigitos(telefone)
+	if !strings.HasPrefix(limpo, "55") {
+		limpo = "55" + limpo
 	}
 
-	msg := &waE2E.Message{Conversation: proto.String(texto)}
-	if _, err := s.client.SendMessage(ctx, resultados[0].JID, msg); err != nil {
-		return fmt.Errorf("enviando mensagem para %s: %w", telefone, err)
+	resultados, err := s.client.IsOnWhatsApp(ctx, []string{"+" + limpo})
+	if err != nil {
+		log.Printf("whatsapp: erro verificando número %q (normalizado de %q) no WhatsApp: %v", limpo, telefone, err)
+		return fmt.Errorf("verificando número %s no WhatsApp: %w", limpo, err)
 	}
+	if len(resultados) == 0 || !resultados[0].IsIn {
+		log.Printf("whatsapp: número %q (normalizado de %q) NÃO está registrado no WhatsApp — nenhuma mensagem foi enviada", limpo, telefone)
+		return fmt.Errorf("número %s não está registrado no WhatsApp", limpo)
+	}
+	jid := resultados[0].JID
+
+	msg := &waE2E.Message{Conversation: proto.String(texto)}
+	resp, err := s.client.SendMessage(ctx, jid, msg)
+	if err != nil {
+		log.Printf("whatsapp: erro enviando mensagem pra %s (JID %s): %v", limpo, jid, err)
+		return fmt.Errorf("enviando mensagem para %s: %w", limpo, err)
+	}
+	log.Printf("whatsapp: mensagem %s aceita pelo servidor pra %s (JID %s) às %s — isso confirma só que o WhatsApp recebeu, não que chegou no aparelho de quem recebe (ver eventos de Receipt no log pra confirmar entrega)", resp.ID, limpo, jid, resp.Timestamp.Format(time.RFC3339))
 	return nil
+}
+
+// apenasDigitos remove tudo que não for número — mesmo critério de
+// service.NormalizarTelefone, duplicado aqui porque o pacote
+// notification não pode importar service (import cíclico: service já
+// importa notification).
+func apenasDigitos(telefone string) string {
+	var sb strings.Builder
+	for _, r := range telefone {
+		if r >= '0' && r <= '9' {
+			sb.WriteRune(r)
+		}
+	}
+	return sb.String()
 }
 
 // Close encerra a conexão com o WhatsApp. Chame no shutdown do serviço.

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { buscarCardapio } from '../api/catalogo';
@@ -9,6 +9,19 @@ import { CarrinhoFlutuante } from '../components/CarrinhoFlutuante';
 import { CarrinhoDrawer } from '../components/CarrinhoDrawer';
 import { HistoricoDrawer } from '../components/HistoricoDrawer';
 import { GuardadosDrawer } from '../components/GuardadosDrawer';
+import { rotuloCatalogo } from '../lib/utils';
+import type { TipoProduto } from '../api/types';
+
+// Lembra o segmento da loja (cardápio/catálogo) de uma visita anterior,
+// só pra acertar a palavra certa na tela de "abrindo..." — nesse momento
+// a resposta da API ainda não chegou, então não temos segmento_principal
+// de verdade ainda. Numa primeira visita mesmo (sem nada salvo), cai no
+// padrão "cardápio" de rotuloCatalogo(undefined), sem regressão nenhuma.
+function segmentoLembrado(slug: string | undefined): TipoProduto | undefined {
+  if (!slug) return undefined;
+  const valor = localStorage.getItem(`drenux-segmento-${slug}`);
+  return valor === 'mercadoria' || valor === 'alimenticio' ? valor : undefined;
+}
 
 function lojaEstaAberta(loja: {
   horario_abertura: string;
@@ -55,10 +68,21 @@ export function CardapioPublico() {
     refetchInterval: 60_000, // revalida o status de aberta a cada minuto
   });
 
+  // Guarda o segmento assim que a resposta chega — assim, numa próxima
+  // visita a essa mesma loja, a tela de "abrindo..." já acerta a palavra
+  // (cardápio/catálogo) antes mesmo da API responder de novo.
+  useEffect(() => {
+    if (slug && data?.loja.segmento_principal) {
+      localStorage.setItem(`drenux-segmento-${slug}`, data.loja.segmento_principal);
+    }
+  }, [slug, data?.loja.segmento_principal]);
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-fundo">
-        <p className="font-display tracking-wide text-tinta-suave">Abrindo o cardápio...</p>
+        <p className="font-display tracking-wide text-tinta-suave">
+          Abrindo o {rotuloCatalogo(segmentoLembrado(slug))}...
+        </p>
       </div>
     );
   }
