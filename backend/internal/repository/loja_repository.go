@@ -122,25 +122,26 @@ func (r *LojaRepository) LimparAssinatura(lojaID uint) error {
 
 // ConfiguracoesLoja agrupa todos os campos editáveis pelo dono no painel.
 type ConfiguracoesLoja struct {
-	WhatsappNumero          string
-	LogoURL                 string
-	ModoPedido              string
-	AntecedenciaMinimaHoras int
-	HorarioAbertura         string
-	HorarioFechamento       string
-	MargemFechamentoMinutos int
-	Pausado                 bool
-	MensagemPausa           string
-	AceitaRetirada          bool
-	AceitaEntrega           bool
-	TaxaEntregaTipo         string
-	TaxaEntregaValor        float64
-	TaxaEntregaBase         float64
-	TaxaEntregaPorKm        float64
-	ValorMinimoPedido       float64
-	Tema                    string
-	AceitaGuardarEntregar   bool
-	SegmentoPrincipal       string
+	WhatsappNumero           string
+	LogoURL                  string
+	ModoPedido               string
+	AntecedenciaMinimaHoras  int
+	HorarioAbertura          string
+	HorarioFechamento        string
+	MargemFechamentoMinutos  int
+	Pausado                  bool
+	MensagemPausa            string
+	AceitaRetirada           bool
+	AceitaEntrega            bool
+	TaxaEntregaTipo          string
+	TaxaEntregaValor         float64
+	TaxaEntregaBase          float64
+	TaxaEntregaPorKm         float64
+	ValorMinimoPedido        float64
+	Tema                     string
+	AceitaGuardarEntregar    bool
+	SegmentoPrincipal        string
+	SugestaoInteligenteAtiva bool
 
 	Endereco  string
 	Latitude  float64
@@ -151,30 +152,31 @@ type ConfiguracoesLoja struct {
 
 func (r *LojaRepository) AtualizarConfiguracoes(lojaID uint, cfg ConfiguracoesLoja) error {
 	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Updates(map[string]interface{}{
-		"whatsapp_numero":           cfg.WhatsappNumero,
-		"logo_url":                  cfg.LogoURL,
-		"modo_pedido":               cfg.ModoPedido,
-		"antecedencia_minima_horas": cfg.AntecedenciaMinimaHoras,
-		"horario_abertura":          cfg.HorarioAbertura,
-		"horario_fechamento":        cfg.HorarioFechamento,
-		"margem_fechamento_minutos": cfg.MargemFechamentoMinutos,
-		"pausado":                   cfg.Pausado,
-		"mensagem_pausa":            cfg.MensagemPausa,
-		"aceita_retirada":           cfg.AceitaRetirada,
-		"aceita_entrega":            cfg.AceitaEntrega,
-		"taxa_entrega_tipo":         cfg.TaxaEntregaTipo,
-		"taxa_entrega_valor":        cfg.TaxaEntregaValor,
-		"taxa_entrega_base":         cfg.TaxaEntregaBase,
-		"taxa_entrega_por_km":       cfg.TaxaEntregaPorKm,
-		"valor_minimo_pedido":       cfg.ValorMinimoPedido,
-		"tema":                      cfg.Tema,
-		"aceita_guardar_entregar":   cfg.AceitaGuardarEntregar,
-		"segmento_principal":        cfg.SegmentoPrincipal,
-		"endereco":                  cfg.Endereco,
-		"latitude":                  cfg.Latitude,
-		"longitude":                 cfg.Longitude,
-		"cidade":                    cfg.Cidade,
-		"estado":                    cfg.Estado,
+		"whatsapp_numero":            cfg.WhatsappNumero,
+		"logo_url":                   cfg.LogoURL,
+		"modo_pedido":                cfg.ModoPedido,
+		"antecedencia_minima_horas":  cfg.AntecedenciaMinimaHoras,
+		"horario_abertura":           cfg.HorarioAbertura,
+		"horario_fechamento":         cfg.HorarioFechamento,
+		"margem_fechamento_minutos":  cfg.MargemFechamentoMinutos,
+		"pausado":                    cfg.Pausado,
+		"mensagem_pausa":             cfg.MensagemPausa,
+		"aceita_retirada":            cfg.AceitaRetirada,
+		"aceita_entrega":             cfg.AceitaEntrega,
+		"taxa_entrega_tipo":          cfg.TaxaEntregaTipo,
+		"taxa_entrega_valor":         cfg.TaxaEntregaValor,
+		"taxa_entrega_base":          cfg.TaxaEntregaBase,
+		"taxa_entrega_por_km":        cfg.TaxaEntregaPorKm,
+		"valor_minimo_pedido":        cfg.ValorMinimoPedido,
+		"tema":                       cfg.Tema,
+		"aceita_guardar_entregar":    cfg.AceitaGuardarEntregar,
+		"segmento_principal":         cfg.SegmentoPrincipal,
+		"sugestao_inteligente_ativa": cfg.SugestaoInteligenteAtiva,
+		"endereco":                   cfg.Endereco,
+		"latitude":                   cfg.Latitude,
+		"longitude":                  cfg.Longitude,
+		"cidade":                     cfg.Cidade,
+		"estado":                     cfg.Estado,
 	}).Error
 }
 

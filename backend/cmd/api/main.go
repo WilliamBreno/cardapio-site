@@ -44,10 +44,24 @@ func main() {
 		&domain.Afiliado{},
 		&domain.AssinaturaPendente{},
 		&domain.RepasseAfiliado{},
+		&domain.Combo{},
+		&domain.ComboItem{},
+		&domain.PedidoCombo{},
+		&domain.PedidoComboItem{},
+		&domain.SugestaoProduto{},
+		&domain.ConfiguracaoPlataforma{},
 	); err != nil {
 		log.Fatalf("erro ao migrar o banco: %v", err)
 	}
 	log.Println("migrations aplicadas com sucesso")
+
+	// Garante a linha única (ID 1) de configuração da plataforma — se já
+	// existir, não mexe nela (o valor pode ter sido ajustado direto no
+	// console do Neon, ver docs/plano-melhorias-drenux.md, Fase 6).
+	var cfgPlataforma domain.ConfiguracaoPlataforma
+	if err := db.FirstOrCreate(&cfgPlataforma, domain.ConfiguracaoPlataforma{ID: 1}).Error; err != nil {
+		log.Fatalf("erro ao inicializar configuração da plataforma: %v", err)
+	}
 
 	router := gin.Default()
 
@@ -141,6 +155,17 @@ func main() {
 
 	lojaHandler := handler.NewLojaHandler(lojaService, distanciaService)
 
+	// Combos e Sugestão Inteligente (Fase 6 do roadmap) — aditivos, não
+	// mexem em checkout/estoque/comissão existentes.
+	comboService := service.NewComboService(db)
+	comboHandler := handler.NewComboHandler(comboService)
+
+	sugestaoProdutoService := service.NewSugestaoProdutoService(db)
+	sugestaoProdutoHandler := handler.NewSugestaoProdutoHandler(sugestaoProdutoService, lojaRepoParaPedido)
+
+	configuracaoPlataformaService := service.NewConfiguracaoPlataformaService(db)
+	configuracaoPlataformaHandler := handler.NewConfiguracaoPlataformaHandler(configuracaoPlataformaService)
+
 	dashboardService := service.NewDashboardService(db)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 	fotoHandler := handler.NewFotoHandler(db)
@@ -177,6 +202,7 @@ func main() {
 	router.GET("/lojas/:slug/historico", catalogoHandler.BuscarHistorico)
 	router.POST("/lojas/:slug/pedidos", pedidoHandler.Criar)
 	router.GET("/lojas/:slug/pedidos/:id/rastrear", pedidoHandler.Rastrear)
+	router.GET("/lojas/:slug/sugestoes-carrinho", sugestaoProdutoHandler.SugestoesCarrinho)
 	router.POST("/lojas/:slug/cupons/validar", func(c *gin.Context) {
 		loja, err := lojaService.BuscarPorSlug(c.Param("slug"))
 		if err != nil {
@@ -277,6 +303,17 @@ func main() {
 
 	admin.GET("/loja", lojaHandler.Buscar)
 	admin.PUT("/loja", lojaHandler.AtualizarConfiguracoes)
+
+	admin.GET("/combos", comboHandler.Listar)
+	admin.POST("/combos", comboHandler.Criar)
+	admin.PUT("/combos/:id", comboHandler.Atualizar)
+	admin.DELETE("/combos/:id", comboHandler.Deletar)
+
+	admin.GET("/sugestoes-produto", sugestaoProdutoHandler.Listar)
+	admin.POST("/sugestoes-produto", sugestaoProdutoHandler.Criar)
+	admin.DELETE("/sugestoes-produto/:id", sugestaoProdutoHandler.Deletar)
+
+	admin.GET("/configuracao-plataforma", configuracaoPlataformaHandler.Buscar)
 
 	afiliado := router.Group("/afiliado")
 	afiliado.Use(middleware.AfiliadoRequired(cfg.JWTSecret))

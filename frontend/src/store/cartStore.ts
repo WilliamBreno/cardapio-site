@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ItemCarrinho, Produto, VariacaoProduto } from '../api/types';
+import type { Combo, ItemCarrinho, ItemCarrinhoCombo, Produto, SelecaoComboItem, SugestaoCarrinhoItem, VariacaoProduto } from '../api/types';
 import { precoItem } from '../lib/utils';
 
 // Chave única do item = produto_id + variacao_id (ou só produto_id se sem variação)
@@ -9,15 +9,38 @@ function chaveItem(produtoId: number, variacaoId?: number): string {
 
 interface CartState {
   itens: ItemCarrinho[];
+  combos: ItemCarrinhoCombo[];
   adicionar: (produto: Produto, variacao?: VariacaoProduto) => void;
+  // adicionarSugestao entra pelo mesmo caminho de "adicionar", mas marca o
+  // item com o vínculo de Sugestão Inteligente que originou ele e trava o
+  // preço com desconto já calculado pelo backend (MontarSugestoesCarrinho)
+  // — o backend revalida tudo de novo no checkout, então isso é só pra
+  // exibir o total certo no carrinho antes de confirmar.
+  adicionarSugestao: (sugestao: SugestaoCarrinhoItem, produto: Produto) => void;
   remover: (produtoId: number, variacaoId?: number) => void;
   alterarQuantidade: (produtoId: number, quantidade: number, variacaoId?: number) => void;
+  // Combo é tratado como uma linha própria no carrinho (chave = combo_id)
+  // — pra manter o V1 simples, adicionar o mesmo combo de novo só soma
+  // quantidade, mantendo as variações escolhidas na primeira vez.
+  adicionarCombo: (combo: Combo, selecoes: SelecaoComboItem[]) => void;
+  removerCombo: (comboId: number) => void;
+  alterarQuantidadeCombo: (comboId: number, quantidade: number) => void;
   limpar: () => void;
   total: () => number;
+  // produtosNoCarrinho reúne os IDs de produto avulsos + componentes de
+  // combo presentes no carrinho agora — é exatamente o que a Sugestão
+  // Inteligente precisa pra montar a seção de sugestões (nunca sugerir
+  // algo que já está no carrinho, seja avulso ou dentro de um combo).
+  produtosNoCarrinho: () => number[];
+}
+
+function precoItemCarrinho(item: ItemCarrinho): number {
+  return item.precoComDesconto ?? precoItem(item.produto, item.variacao);
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
   itens: [],
+  combos: [],
 
   adicionar: (produto, variacao) => {
     set((state) => {
@@ -35,6 +58,35 @@ export const useCartStore = create<CartState>((set, get) => ({
         };
       }
       return { itens: [...state.itens, { produto, variacao, quantidade: 1 }] };
+    });
+  },
+
+  adicionarSugestao: (sugestao, produto) => {
+    set((state) => {
+      const chave = chaveItem(produto.id);
+      const existente = state.itens.find(
+        (item) => chaveItem(item.produto.id, item.variacao?.id) === chave
+      );
+      if (existente) {
+        return {
+          itens: state.itens.map((item) =>
+            chaveItem(item.produto.id, item.variacao?.id) === chave
+              ? { ...item, quantidade: item.quantidade + 1 }
+              : item
+          ),
+        };
+      }
+      return {
+        itens: [
+          ...state.itens,
+          {
+            produto,
+            quantidade: 1,
+            sugestaoProdutoId: sugestao.sugestao_id,
+            precoComDesconto: sugestao.preco_com_desconto,
+          },
+        ],
+      };
     });
   },
 
@@ -62,11 +114,53 @@ export const useCartStore = create<CartState>((set, get) => ({
     }));
   },
 
-  limpar: () => set({ itens: [] }),
+  adicionarCombo: (combo, selecoes) => {
+    set((state) => {
+      const existente = state.combos.find((item) => item.combo.id === combo.id);
+      if (existente) {
+        return {
+          combos: state.combos.map((item) =>
+            item.combo.id === combo.id ? { ...item, quantidade: item.quantidade + 1 } : item
+          ),
+        };
+      }
+      return { combos: [...state.combos, { combo, quantidade: 1, selecoes }] };
+    });
+  },
 
-  total: () =>
-    get().itens.reduce(
-      (soma, item) => soma + precoItem(item.produto, item.variacao) * item.quantidade,
+  removerCombo: (comboId) => {
+    set((state) => ({ combos: state.combos.filter((item) => item.combo.id !== comboId) }));
+  },
+
+  alterarQuantidadeCombo: (comboId, quantidade) => {
+    if (quantidade <= 0) {
+      get().removerCombo(comboId);
+      return;
+    }
+    set((state) => ({
+      combos: state.combos.map((item) =>
+        item.combo.id === comboId ? { ...item, quantidade } : item
+      ),
+    }));
+  },
+
+  limpar: () => set({ itens: [], combos: [] }),
+
+  total: () => {
+    const totalItens = get().itens.reduce(
+      (soma, item) => soma + precoItemCarrinho(item) * item.quantidade,
       0
-    ),
+    );
+    const totalCombos = get().combos.reduce(
+      (soma, item) => soma + item.combo.preco * item.quantidade,
+      0
+    );
+    return totalItens + totalCombos;
+  },
+
+  produtosNoCarrinho: () => {
+    const idsAvulso = get().itens.map((item) => item.produto.id);
+    const idsCombo = get().combos.flatMap((item) => item.combo.itens.map((i) => i.produto_id));
+    return Array.from(new Set([...idsAvulso, ...idsCombo]));
+  },
 }));

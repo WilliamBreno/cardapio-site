@@ -5,6 +5,18 @@ interface ItemPedidoInput {
   produto_id: number;
   variacao_id?: number;
   quantidade: number;
+  sugestao_produto_id?: number;
+}
+
+interface ComboItemPedidoInput {
+  combo_item_id: number;
+  variacao_id?: number;
+}
+
+interface ComboPedidoInput {
+  combo_id: number;
+  quantidade: number;
+  itens: ComboItemPedidoInput[];
 }
 
 interface CriarPedidoInput {
@@ -15,6 +27,7 @@ interface CriarPedidoInput {
   endereco_entrega?: string;
   cupom_codigo?: string;
   itens: ItemPedidoInput[];
+  combos?: ComboPedidoInput[];
 }
 
 export async function criarPedido(slug: string, input: CriarPedidoInput): Promise<Pedido> {

@@ -26,7 +26,7 @@ func (r *PedidoRepository) Criar(pedido *domain.Pedido) error {
 // com os itens de cada um já carregados.
 func (r *PedidoRepository) ListarPorLoja(lojaID uint) ([]domain.Pedido, error) {
 	var pedidos []domain.Pedido
-	if err := r.db.Where("loja_id = ?", lojaID).Preload("Itens").Order("id desc").Find(&pedidos).Error; err != nil {
+	if err := r.db.Where("loja_id = ?", lojaID).Preload("Itens").Preload("Combos.Itens").Order("id desc").Find(&pedidos).Error; err != nil {
 		return nil, err
 	}
 	return pedidos, nil
@@ -40,6 +40,7 @@ func (r *PedidoRepository) ListarPorTelefone(lojaID uint, telefone string, limit
 		Where("loja_id = ? AND cliente_telefone = ? AND status = ?",
 			lojaID, telefone, domain.StatusPago).
 		Preload("Itens").
+		Preload("Combos.Itens").
 		Order("id desc").
 		Limit(limite).
 		Find(&pedidos).Error
@@ -48,7 +49,7 @@ func (r *PedidoRepository) ListarPorTelefone(lojaID uint, telefone string, limit
 
 func (r *PedidoRepository) BuscarPorID(id uint) (*domain.Pedido, error) {
 	var pedido domain.Pedido
-	if err := r.db.Preload("Itens").First(&pedido, id).Error; err != nil {
+	if err := r.db.Preload("Itens").Preload("Combos.Itens").First(&pedido, id).Error; err != nil {
 		return nil, err
 	}
 	return &pedido, nil

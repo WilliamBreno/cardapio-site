@@ -39,19 +39,32 @@ func NewPedidoHandler(
 }
 
 type itemPedidoRequest struct {
-	ProdutoID  uint  `json:"produto_id" binding:"required"`
-	VariacaoID *uint `json:"variacao_id"`
-	Quantidade int   `json:"quantidade" binding:"required,gt=0"`
+	ProdutoID         uint  `json:"produto_id" binding:"required"`
+	VariacaoID        *uint `json:"variacao_id"`
+	Quantidade        int   `json:"quantidade" binding:"required,gt=0"`
+	SugestaoProdutoID *uint `json:"sugestao_produto_id"`
+}
+
+type comboItemPedidoRequest struct {
+	ComboItemID uint  `json:"combo_item_id" binding:"required"`
+	VariacaoID  *uint `json:"variacao_id"`
+}
+
+type comboPedidoRequest struct {
+	ComboID    uint                     `json:"combo_id" binding:"required"`
+	Quantidade int                      `json:"quantidade" binding:"required,gt=0"`
+	Itens      []comboItemPedidoRequest `json:"itens"`
 }
 
 type pedidoRequest struct {
-	ClienteNome     string              `json:"cliente_nome" binding:"required"`
-	ClienteTelefone string              `json:"cliente_telefone" binding:"required"`
-	DataRetirada    time.Time           `json:"data_retirada" binding:"required"`
-	ModoEntrega     string              `json:"modo_entrega"`
-	EnderecoEntrega string              `json:"endereco_entrega"`
-	CupomCodigo     string              `json:"cupom_codigo"`
-	Itens           []itemPedidoRequest `json:"itens" binding:"required,min=1,dive"`
+	ClienteNome     string               `json:"cliente_nome" binding:"required"`
+	ClienteTelefone string               `json:"cliente_telefone" binding:"required"`
+	DataRetirada    time.Time            `json:"data_retirada" binding:"required"`
+	ModoEntrega     string               `json:"modo_entrega"`
+	EnderecoEntrega string               `json:"endereco_entrega"`
+	CupomCodigo     string               `json:"cupom_codigo"`
+	Itens           []itemPedidoRequest  `json:"itens" binding:"dive"`
+	Combos          []comboPedidoRequest `json:"combos" binding:"dive"`
 }
 
 // Criar atende POST /lojas/:slug/pedidos — rota pública. O cliente final
@@ -68,9 +81,26 @@ func (h *PedidoHandler) Criar(c *gin.Context) {
 	itensInput := make([]service.ItemPedidoInput, len(req.Itens))
 	for i, item := range req.Itens {
 		itensInput[i] = service.ItemPedidoInput{
-			ProdutoID:  item.ProdutoID,
-			VariacaoID: item.VariacaoID,
-			Quantidade: item.Quantidade,
+			ProdutoID:         item.ProdutoID,
+			VariacaoID:        item.VariacaoID,
+			Quantidade:        item.Quantidade,
+			SugestaoProdutoID: item.SugestaoProdutoID,
+		}
+	}
+
+	combosInput := make([]service.ComboPedidoInput, len(req.Combos))
+	for i, combo := range req.Combos {
+		itensCombo := make([]service.ComboItemPedidoInput, len(combo.Itens))
+		for j, item := range combo.Itens {
+			itensCombo[j] = service.ComboItemPedidoInput{
+				ComboItemID: item.ComboItemID,
+				VariacaoID:  item.VariacaoID,
+			}
+		}
+		combosInput[i] = service.ComboPedidoInput{
+			ComboID:    combo.ComboID,
+			Quantidade: combo.Quantidade,
+			Itens:      itensCombo,
 		}
 	}
 
@@ -82,6 +112,7 @@ func (h *PedidoHandler) Criar(c *gin.Context) {
 		EnderecoEntrega: req.EnderecoEntrega,
 		CupomCodigo:     req.CupomCodigo,
 		Itens:           itensInput,
+		Combos:          combosInput,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})

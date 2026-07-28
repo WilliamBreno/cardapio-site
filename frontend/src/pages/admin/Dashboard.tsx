@@ -10,6 +10,8 @@ const linksBase = [
   { to: '/admin/produtos', label: 'Produtos' },
   { to: '/admin/categorias', label: 'Categorias' },
   { to: '/admin/cupons', label: 'Cupons' },
+  { to: '/admin/combos', label: 'Combos' },
+  { to: '/admin/sugestao-inteligente', label: 'Sugestão Inteligente' },
   { to: '/admin/configuracoes', label: 'Configurações' },
   { to: '/admin/meu-plano', label: 'Meu Plano' },
 ];

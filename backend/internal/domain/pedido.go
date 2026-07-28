@@ -63,16 +63,21 @@ type Pedido struct {
 	// (se houver), via Stripe Transfer. AfiliadoTransferID guarda o ID
 	// da Transfer no Stripe — serve de trava contra repasse em
 	// duplicidade se o webhook de pagamento disparar mais de uma vez.
-	ComissaoAfiliado       float64      `gorm:"default:0" json:"-"`
-	AfiliadoTransferID     string       `gorm:"size:100" json:"-"`
-	Itens                  []ItemPedido `gorm:"foreignKey:PedidoID" json:"itens"`
-	CreatedAt              time.Time    `json:"created_at"`
-	UpdatedAt              time.Time    `json:"updated_at"`
-	TaxaEntrega            float64      `gorm:"default:0" json:"taxa_entrega"`
-	StatusEntrega          string       `gorm:"size:30;default:''" json:"status_entrega"`
-	EntregadorLatitude     float64      `gorm:"default:0" json:"entregador_latitude"`
-	EntregadorLongitude    float64      `gorm:"default:0" json:"entregador_longitude"`
-	EntregadorAtualizadoEm *time.Time   `json:"entregador_atualizado_em"`
+	ComissaoAfiliado   float64      `gorm:"default:0" json:"-"`
+	AfiliadoTransferID string       `gorm:"size:100" json:"-"`
+	Itens              []ItemPedido `gorm:"foreignKey:PedidoID" json:"itens"`
+
+	// Combos (Fase 6) — snapshot dos combos comprados nesse pedido, à
+	// parte de Itens (que continua só produto avulso). Um pedido pode
+	// misturar os dois: produtos soltos + combos, na mesma compra.
+	Combos                 []PedidoCombo `gorm:"foreignKey:PedidoID;constraint:OnDelete:CASCADE" json:"combos,omitempty"`
+	CreatedAt              time.Time     `json:"created_at"`
+	UpdatedAt              time.Time     `json:"updated_at"`
+	TaxaEntrega            float64       `gorm:"default:0" json:"taxa_entrega"`
+	StatusEntrega          string        `gorm:"size:30;default:''" json:"status_entrega"`
+	EntregadorLatitude     float64       `gorm:"default:0" json:"entregador_latitude"`
+	EntregadorLongitude    float64       `gorm:"default:0" json:"entregador_longitude"`
+	EntregadorAtualizadoEm *time.Time    `json:"entregador_atualizado_em"`
 }
 
 func (Pedido) TableName() string {

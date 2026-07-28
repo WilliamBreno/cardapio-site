@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useCartStore } from '../store/cartStore';
 import { criarPedido, criarCheckout } from '../api/pedidos';
 import { validarCupom } from '../api/cupons';
 import { cotarFrete } from '../api/frete';
+import { buscarSugestoesCarrinho } from '../api/sugestoes';
 import { Campo } from './Campo';
 import { EnderecoCampos, enderecoVazio, enderecoParaTexto, enderecoPreenchido, type EnderecoValor } from './EnderecoCampos';
 import { precoItem } from '../lib/utils';
+import type { Produto } from '../api/types';
 
 interface Props {
   aberto: boolean;
@@ -19,6 +22,8 @@ interface Props {
   taxaEntregaTipo: string;
   taxaEntregaValor: number;
   valorMinimoPedido: number;
+  sugestaoInteligenteAtiva: boolean;
+  produtos: Produto[];
 }
 
 function formatarDataLocal(data: Date): string {
@@ -60,16 +65,36 @@ function normalizarTelefone(valor: string): string {
   return digitos.startsWith('55') ? digitos : `55${digitos}`;
 }
 
-export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenciaMinimaHoras, aceitaRetirada, aceitaEntrega, aceitaGuardarEntregar, taxaEntregaTipo, taxaEntregaValor, valorMinimoPedido }: Props) {
+export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenciaMinimaHoras, aceitaRetirada, aceitaEntrega, aceitaGuardarEntregar, taxaEntregaTipo, taxaEntregaValor, valorMinimoPedido, sugestaoInteligenteAtiva, produtos }: Props) {
   const itens = useCartStore((state) => state.itens);
+  const combos = useCartStore((state) => state.combos);
   const total = useCartStore((state) => state.total());
   const alterarQuantidade = useCartStore((state) => state.alterarQuantidade);
   const remover = useCartStore((state) => state.remover);
+  const alterarQuantidadeCombo = useCartStore((state) => state.alterarQuantidadeCombo);
+  const removerCombo = useCartStore((state) => state.removerCombo);
+  const adicionarSugestao = useCartStore((state) => state.adicionarSugestao);
+  const produtosNoCarrinho = useCartStore((state) => state.produtosNoCarrinho());
 
-  // "Guardar pra depois" só aparece se a loja ativou o recurso E todo
-  // mundo no carrinho é "mercadoria" — carrinho misto com item
-  // alimentício precisa ser finalizado em duas compras separadas.
-  const todosMercadoria = itens.length > 0 && itens.every((item) => item.produto.tipo_produto === 'mercadoria');
+  // Seção consolidada de sugestões — juntando os vínculos de TODOS os
+  // produtos já no carrinho (avulso ou componente de combo), exibida na
+  // revisão do carrinho antes do cliente finalizar (não popup a cada
+  // produto adicionado, ver docs/plano-melhorias-drenux.md Fase 6).
+  const { data: sugestoesCarrinho } = useQuery({
+    queryKey: ['sugestoes-carrinho', slug, produtosNoCarrinho],
+    queryFn: () => buscarSugestoesCarrinho(slug, produtosNoCarrinho),
+    enabled: sugestaoInteligenteAtiva && aberto && produtosNoCarrinho.length > 0,
+  });
+
+  // "Guardar pra depois" só aparece se a loja ativou o recurso, todo mundo
+  // no carrinho é "mercadoria" E não tem combo — combo não guarda pra
+  // entregar depois (ver o guard equivalente em PedidoService.CriarPorSlug,
+  // combo não tem TipoProduto/PesoGramas por componente pra sustentar esse
+  // fluxo).
+  const todosMercadoria =
+    combos.length === 0 &&
+    itens.length > 0 &&
+    itens.every((item) => item.produto.tipo_produto === 'mercadoria');
   const opcoesModoEntrega: { valor: 'retirada' | 'entrega' | 'guardar'; label: string }[] = [
     ...(aceitaRetirada ? [{ valor: 'retirada' as const, label: '🏪 Retirada' }] : []),
     ...(aceitaEntrega ? [{ valor: 'entrega' as const, label: '🛵 Entrega' }] : []),
@@ -237,6 +262,15 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
           produto_id: item.produto.id,
           variacao_id: item.variacao?.id,
           quantidade: item.quantidade,
+          sugestao_produto_id: item.sugestaoProdutoId,
+        })),
+        combos: combos.map((item) => ({
+          combo_id: item.combo.id,
+          quantidade: item.quantidade,
+          itens: item.selecoes.map((selecao) => ({
+            combo_item_id: selecao.comboItemId,
+            variacao_id: selecao.variacao?.id,
+          })),
         })),
       });
 
@@ -272,29 +306,80 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {etapa === 'carrinho' ? (
-            <ul className="space-y-4">
-              {itens.map((item) => {
-                const chave = item.variacao ? `${item.produto.id}-${item.variacao.id}` : `${item.produto.id}`;
-                const precoUnit = precoItem(item.produto, item.variacao);
-                return (
-                  <li key={chave} className="flex items-center gap-3">
+            <div className="space-y-6">
+              <ul className="space-y-4">
+                {itens.map((item) => {
+                  const chave = item.variacao ? `${item.produto.id}-${item.variacao.id}` : `${item.produto.id}`;
+                  const precoUnit = item.precoComDesconto ?? precoItem(item.produto, item.variacao);
+                  return (
+                    <li key={chave} className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <p className="font-medium text-tinta">
+                          {item.produto.nome}
+                          {item.variacao && (
+                            <span className="ml-1.5 rounded-full bg-fundo px-2 py-0.5 text-xs text-tinta-suave">
+                              {item.variacao.nome}
+                            </span>
+                          )}
+                          {item.sugestaoProdutoId && (
+                            <span className="ml-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                              Sugestão
+                            </span>
+                          )}
+                        </p>
+                        <p className="font-carimbo text-sm text-tinta-suave">
+                          R$ {precoUnit.toFixed(2).replace('.', ',')}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-full border border-tinta/15 px-2 py-1">
+                        <button
+                          onClick={() => alterarQuantidade(item.produto.id, item.quantidade - 1, item.variacao?.id)}
+                          className="h-6 w-6 rounded-full text-tinta hover:bg-fundo"
+                          aria-label="Diminuir quantidade"
+                        >
+                          −
+                        </button>
+                        <span className="w-5 text-center font-carimbo text-sm">
+                          {item.quantidade}
+                        </span>
+                        <button
+                          onClick={() => alterarQuantidade(item.produto.id, item.quantidade + 1, item.variacao?.id)}
+                          className="h-6 w-6 rounded-full text-tinta hover:bg-fundo"
+                          aria-label="Aumentar quantidade"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => remover(item.produto.id, item.variacao?.id)}
+                        className="text-sm text-acento/70 hover:text-acento"
+                        aria-label={`Remover ${item.produto.nome}`}
+                      >
+                        Remover
+                      </button>
+                    </li>
+                  );
+                })}
+
+                {combos.map((item) => (
+                  <li key={`combo-${item.combo.id}`} className="flex items-center gap-3">
                     <div className="flex-1">
                       <p className="font-medium text-tinta">
-                        {item.produto.nome}
-                        {item.variacao && (
-                          <span className="ml-1.5 rounded-full bg-fundo px-2 py-0.5 text-xs text-tinta-suave">
-                            {item.variacao.nome}
-                          </span>
-                        )}
+                        {item.combo.nome}
+                        <span className="ml-1.5 rounded-full bg-acento/10 px-2 py-0.5 text-xs text-acento">
+                          Combo
+                        </span>
                       </p>
                       <p className="font-carimbo text-sm text-tinta-suave">
-                        R$ {precoUnit.toFixed(2).replace('.', ',')}
+                        R$ {item.combo.preco.toFixed(2).replace('.', ',')}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2 rounded-full border border-tinta/15 px-2 py-1">
                       <button
-                        onClick={() => alterarQuantidade(item.produto.id, item.quantidade - 1, item.variacao?.id)}
+                        onClick={() => alterarQuantidadeCombo(item.combo.id, item.quantidade - 1)}
                         className="h-6 w-6 rounded-full text-tinta hover:bg-fundo"
                         aria-label="Diminuir quantidade"
                       >
@@ -304,7 +389,7 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
                         {item.quantidade}
                       </span>
                       <button
-                        onClick={() => alterarQuantidade(item.produto.id, item.quantidade + 1, item.variacao?.id)}
+                        onClick={() => alterarQuantidadeCombo(item.combo.id, item.quantidade + 1)}
                         className="h-6 w-6 rounded-full text-tinta hover:bg-fundo"
                         aria-label="Aumentar quantidade"
                       >
@@ -313,16 +398,52 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
                     </div>
 
                     <button
-                      onClick={() => remover(item.produto.id, item.variacao?.id)}
+                      onClick={() => removerCombo(item.combo.id)}
                       className="text-sm text-acento/70 hover:text-acento"
-                      aria-label={`Remover ${item.produto.nome}`}
+                      aria-label={`Remover ${item.combo.nome}`}
                     >
                       Remover
                     </button>
                   </li>
-                );
-              })}
-            </ul>
+                ))}
+              </ul>
+
+              {sugestaoInteligenteAtiva && sugestoesCarrinho && sugestoesCarrinho.length > 0 && (
+                <div className="space-y-2 rounded-2xl bg-fundo p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">
+                    Quem pediu isso também levou
+                  </p>
+                  <ul className="space-y-2">
+                    {sugestoesCarrinho.map((sugestao) => {
+                      const produto = produtos.find((p) => p.id === sugestao.produto_id);
+                      if (!produto) return null;
+                      const temDesconto = sugestao.preco_com_desconto < sugestao.preco;
+                      return (
+                        <li key={sugestao.sugestao_id} className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-tinta">{sugestao.nome}</p>
+                            <p className="font-carimbo text-xs text-tinta-suave">
+                              {temDesconto && (
+                                <span className="mr-1.5 line-through opacity-60">
+                                  R$ {sugestao.preco.toFixed(2).replace('.', ',')}
+                                </span>
+                              )}
+                              R$ {sugestao.preco_com_desconto.toFixed(2).replace('.', ',')}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => adicionarSugestao(sugestao, produto)}
+                            className="rounded-full bg-acento px-3 py-1.5 text-xs font-semibold text-superficie"
+                          >
+                            Adicionar
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="space-y-4">
               {opcoesModoEntrega.length > 1 && (
@@ -484,7 +605,7 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
               )}
               <button
                 onClick={() => setEtapa('dados')}
-                disabled={itens.length === 0 || (valorMinimoPedido > 0 && total < valorMinimoPedido)}
+                disabled={(itens.length === 0 && combos.length === 0) || (valorMinimoPedido > 0 && total < valorMinimoPedido)}
                 className="w-full rounded-full bg-acento py-3 font-semibold text-superficie transition disabled:opacity-40"
               >
                 Continuar

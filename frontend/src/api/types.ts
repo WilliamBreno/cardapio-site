@@ -97,6 +97,83 @@ export interface Produto {
   updated_at: string;
 }
 
+// Combo/Kit (Fase 6) — pacote fixo com preço definido diretamente pelo
+// lojista (não calculado por desconto sobre a soma dos itens). O cliente
+// escolhe a variação de cada componente ao montar no carrinho, igual
+// comprando avulso.
+export interface ComboItem {
+  id: number;
+  combo_id: number;
+  produto_id: number;
+  produto?: Produto;
+  quantidade: number;
+}
+
+export interface Combo {
+  id: number;
+  loja_id: number;
+  nome: string;
+  descricao: string;
+  foto_url: string;
+  preco: number;
+  disponivel: boolean;
+  ordem: number;
+  itens: ComboItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+// Cópia dos itens do combo no momento da compra — guardada no pedido pra
+// não depender do combo (que pode mudar ou ser excluído depois).
+export interface PedidoComboItem {
+  id: number;
+  pedido_combo_id: number;
+  produto_id: number;
+  produto_nome: string;
+  variacao_id: number | null;
+  variacao_nome: string;
+  quantidade: number;
+}
+
+export interface PedidoCombo {
+  id: number;
+  pedido_id: number;
+  combo_id: number;
+  nome: string;
+  foto_url: string;
+  preco: number;
+  quantidade: number;
+  itens: PedidoComboItem[];
+}
+
+// Sugestão Inteligente (Fase 6) — vínculo manual produto origem → produto
+// sugerido, configurado pelo lojista (não é algoritmo automático).
+export type TipoDesconto = 'percentual' | 'fixo';
+
+export interface SugestaoProduto {
+  id: number;
+  loja_id: number;
+  produto_origem_id: number;
+  produto_sugerido_id: number;
+  produto_sugerido?: Produto;
+  tipo_desconto: TipoDesconto | null;
+  valor_desconto: number | null;
+  created_at: string;
+}
+
+// Versão pronta pra exibir na revisão do carrinho — já resolvida (uma por
+// categoria, sem produto repetido) e com o preço com desconto calculado.
+export interface SugestaoCarrinhoItem {
+  sugestao_id: number;
+  produto_id: number;
+  nome: string;
+  foto_url: string;
+  preco: number;
+  preco_com_desconto: number;
+  tipo_desconto?: TipoDesconto;
+  valor_desconto?: number;
+}
+
 export interface DashboardData {
   total_semana: number;
   total_mes: number;
@@ -145,6 +222,12 @@ export interface Loja {
   updated_at: string;
   plano: string; // "start" | "pro" | "scale"
   plano_agendado: string | null;
+  // Sugestão Inteligente (Fase 6) — recurso pago à parte. "ativa" só pode
+  // ser true se "contratada" também for — o backend garante isso mesmo
+  // que o front tente mandar o contrário.
+  sugestao_inteligente_contratada: boolean;
+  sugestao_inteligente_contratada_em: string | null;
+  sugestao_inteligente_ativa: boolean;
 }
 
 export interface CardapioPublico {
@@ -169,11 +252,13 @@ export interface CardapioPublico {
     taxa_entrega_por_km: number;
     valor_minimo_pedido: number;
     tema: string;
+    sugestao_inteligente_ativa: boolean;
   };
   categorias: Categoria[];
   subcategorias: Subcategoria[];
   grupos_cor: GrupoCor[];
   produtos: Produto[];
+  combos: Combo[];
 }
 
 export type StatusPedido = 'aguardando_pagamento' | 'pago' | 'cancelado';
@@ -252,6 +337,7 @@ export interface Pedido {
   desconto: number;
   peso_pendente: boolean;
   itens: ItemPedido[];
+  combos?: PedidoCombo[];
   created_at: string;
   updated_at: string;
   status_entrega: string;
@@ -266,4 +352,25 @@ export interface ItemCarrinho {
   produto: Produto;
   variacao?: VariacaoProduto; // undefined = produto sem variação
   quantidade: number;
+  // Preenchidos só quando o item entrou no carrinho via Sugestão
+  // Inteligente (Fase 6) — o preço com desconto é calculado no backend
+  // (MontarSugestoesCarrinho) e só guardado aqui pra exibir/somar no
+  // carrinho; o backend recalcula e revalida tudo de novo no checkout.
+  sugestaoProdutoId?: number;
+  precoComDesconto?: number;
+}
+
+// Seleção de variação de um componente específico do combo, feita pelo
+// cliente ao montar o combo no carrinho (igual escolher variação de um
+// produto avulso).
+export interface SelecaoComboItem {
+  comboItemId: number;
+  produtoId: number;
+  variacao?: VariacaoProduto;
+}
+
+export interface ItemCarrinhoCombo {
+  combo: Combo;
+  quantidade: number;
+  selecoes: SelecaoComboItem[];
 }

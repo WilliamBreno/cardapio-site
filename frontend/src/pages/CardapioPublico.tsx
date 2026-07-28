@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { buscarCardapio } from '../api/catalogo';
 import { ProdutoCard } from '../components/ProdutoCard';
+import { ComboCard } from '../components/ComboCard';
 import { AbasCategorias } from '../components/AbasCategorias';
 import { CatalogoGrid } from '../components/CatalogoGrid';
 import { CarrinhoFlutuante } from '../components/CarrinhoFlutuante';
@@ -168,6 +169,15 @@ export function CardapioPublico() {
         </div>
       </header>
 
+      {data.combos.length > 0 && (
+        <section className="mx-auto max-w-2xl space-y-3 px-4 pt-4">
+          <h2 className="font-display text-lg tracking-wide text-tinta">Combos</h2>
+          {data.combos.map((combo) => (
+            <ComboCard key={combo.id} combo={combo} />
+          ))}
+        </section>
+      )}
+
       {ehMercadoria ? (
         <main className="mx-auto max-w-4xl">
           <CatalogoGrid
@@ -211,6 +221,8 @@ export function CardapioPublico() {
         taxaEntregaTipo={data.loja.taxa_entrega_tipo}
         taxaEntregaValor={data.loja.taxa_entrega_valor}
         valorMinimoPedido={data.loja.valor_minimo_pedido}
+        sugestaoInteligenteAtiva={data.loja.sugestao_inteligente_ativa}
+        produtos={data.produtos}
       />
 
       <HistoricoDrawer

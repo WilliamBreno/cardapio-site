@@ -33,6 +33,13 @@ type ItemPedido struct {
 	// reivindicado por um pedido de entrega — nil = ainda disponível
 	// pro cliente escolher depois.
 	SolicitacaoEntregaID *uint `gorm:"default:null;index" json:"solicitacao_entrega_id"`
+
+	// SugestaoProdutoID marca se esse item foi adicionado através da
+	// Sugestão Inteligente do carrinho (Fase 6) — nil = item normal. Só
+	// auditoria/analytics; o desconto já foi aplicado direto em
+	// PrecoUnit no momento da compra (ver PedidoService.CriarPorSlug),
+	// então não depende desse campo continuar existindo/válido depois.
+	SugestaoProdutoID *uint `gorm:"default:null" json:"sugestao_produto_id"`
 }
 
 func (ItemPedido) TableName() string {

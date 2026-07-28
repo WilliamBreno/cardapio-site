@@ -17,6 +17,8 @@ import { Categorias } from './pages/admin/Categorias';
 import { Pedidos } from './pages/admin/Pedidos';
 import { CompartilharLocalizacao } from './pages/admin/CompartilharLocalizacao';
 import { Cupons } from './pages/admin/Cupons';
+import { Combos } from './pages/admin/Combos';
+import { SugestaoInteligente } from './pages/admin/SugestaoInteligente';
 import { Configuracoes } from './pages/admin/Configuracoes';
 import { MeuPlano } from './pages/admin/MeuPlano';
 import { LoginAfiliado } from './pages/afiliado/Login';
@@ -54,6 +56,8 @@ function App() {
               <Route path="pedidos" element={<Pedidos />} />
               <Route path="pedidos/:id/localizacao" element={<CompartilharLocalizacao />} />
               <Route path="cupons" element={<Cupons />} />
+              <Route path="combos" element={<Combos />} />
+              <Route path="sugestao-inteligente" element={<SugestaoInteligente />} />
               <Route path="configuracoes" element={<Configuracoes />} />
               <Route path="meu-plano" element={<MeuPlano />} />
             </Route>

@@ -411,6 +411,91 @@ consistência (mas confirmados como **código morto hoje**, sem rota que os alca
 — os dois também usavam `pedido.Total` cheio. Fórmula da comissão em si não mudou em nenhum dos
 três — só a base sobre a qual ela é aplicada. Validado com `go build`/`go vet`/`gofmt`.
 
+### Fase 6 — Combos/Kits e Sugestão Inteligente de produtos
+Status: `[x] implementada — validada com go build/go vet e tsc -b/npm run build, sem teste manual
+em navegador real ainda`
+
+**Parte 1 — Combos/Kits:**
+- `domain/combo.go` (`Combo`, `ComboItem`) e `domain/pedido_combo.go` (`PedidoCombo`,
+  `PedidoComboItem` — cópia dos itens do combo no momento da compra, sem `TipoProduto`/
+  `PesoGramas` por componente de propósito: combo não suporta o fluxo "guardar e entregar
+  depois", ver decisão abaixo). `repository/combo_repository.go`, `service/combo_service.go`
+  (CRUD com checagem de dono), `handler/combo_handler.go`, rotas `admin.GET/POST/PUT/DELETE
+  /combos`.
+- `PedidoService.CriarPorSlug` ganhou `input.Combos []ComboPedidoInput` — valida dono/
+  disponibilidade do combo, resolve variação escolhida por componente (por `ComboItemID`, não
+  `ProdutoID`, pra não dar ambiguidade se o mesmo produto aparecer duas vezes no combo), checa
+  estoque de cada componente (sem decrementar — desconto real só depois do pagamento, mesmo
+  padrão dos itens avulsos) e soma `combo.Preço × quantidade` ao total.
+- **Decisão de escopo**: pedido em modo "guardar" com combo é bloqueado explicitamente
+  (`"combos não podem ser guardados pra entrega depois"`) — estender o fluxo de guardados pra
+  combo exigiria levar `TipoProduto`/`PesoGramas` até `PedidoComboItem` também, e isso não foi
+  pedido.
+- `PosPagamentoService.ProcessarPedidoPago` ganhou um segundo laço pra descontar estoque dos
+  componentes de cada `PedidoCombo` (reaproveitando a mesma função de desconto+alerta dos itens
+  avulsos, extraída pra `descontarEstoque`/`notificarAlertaEstoque`).
+- Cardápio público: `GET /lojas/:slug` agora devolve `combos` (só os disponíveis);
+  `ComboCard.tsx` novo (cliente escolhe variação de cada componente, igual comprando avulso),
+  seção "Combos" em `CardapioPublico.tsx` acima do cardápio normal, com selo "Combo".
+  `Combos.tsx` novo no admin (mesmo padrão visual de `Cupons.tsx`).
+
+**Parte 2 — Sugestão Inteligente:**
+- `domain/sugestao_produto.go` (`SugestaoProduto`, vínculo manual `ProdutoOrigemID` →
+  `ProdutoSugeridoID` por loja, com desconto opcional `percentual`/`fixo` que só se aplica via
+  sugestão). `service/sugestao_produto_service.go`: `Criar` bloqueia produto-sugere-a-si-mesmo e
+  uma segunda sugestão da mesma categoria pra mesma origem (mesma regra que o carrinho aplica na
+  exibição). `MontarSugestoesCarrinho(lojaID, produtosNoCarrinho)` monta a seção consolidada:
+  nunca sugere produto já no carrinho (avulso ou componente de combo), nunca duplica o mesmo
+  produto sugerido por origens diferentes, e no máximo uma sugestão por categoria — sempre a de
+  maior desconto em R$ quando há disputa pela mesma vaga (mesmo produto ou mesma categoria).
+- `GET /lojas/:slug/sugestoes-carrinho?produtos=1,2,3` (rota pública) devolve `[]` sem erro se a
+  loja não tiver a Sugestão Inteligente ativa — o frontend não precisa checar o flag antes de
+  chamar. Consumida em `CarrinhoDrawer.tsx` na revisão do carrinho (etapa "carrinho", antes de
+  ir pra "dados"), não em popup por produto.
+- `ItemPedidoInput.SugestaoProdutoID` — ao criar o pedido, o backend revalida o vínculo (pertence
+  à loja, aponta pra esse produto sugerido, e o produto de origem realmente está no pedido) antes
+  de aplicar o desconto; se não bater, ignora silenciosamente e cobra o preço cheio — proteção
+  contra alguém forjar esse campo direto na API pra ganhar desconto indevido.
+- `SugestaoInteligente.tsx` novo no admin: por produto, configura até 5 sugestões (limite fixo
+  V1), bloqueando na UI o próprio produto e produtos de categoria já usada por outra sugestão
+  daquela origem, com desconto opcional. O toggle geral "Sugestão Inteligente" (liga/desliga as
+  sugestões no carrinho do cliente) vive em `Configuracoes.tsx`, não nessa tela — motivo: `PUT
+  /admin/loja` substitui a configuração inteira da loja de uma vez (mesmo padrão de todo o resto
+  dessa tela), então o toggle precisa fazer o round-trip do valor atual junto com as outras
+  configurações pra não ser resetado pra `false` toda vez que o lojista salva qualquer outra
+  coisa — só faz sentido morar onde esse round-trip já acontece.
+
+**Parte 3 — Cobrança do recurso pago:**
+- `domain/configuracao_plataforma.go`: `ConfiguracaoPlataforma` — linha única (`ID: 1`,
+  garantida no boot via `FirstOrCreate` em `main.go`, sem sobrescrever se já existir) com
+  `SugestaoInteligentePrecoMensal` (padrão `19.90`). Lido em `GET /admin/configuracao-plataforma`
+  — nunca hardcoded no frontend, ajustável direto no console do Neon sem redeploy, como pedido.
+- `Loja.SugestaoInteligenteContratada`/`SugestaoInteligenteContratadaEm`/
+  `SugestaoInteligenteAtiva` — o toggle de ativar (Parte 2) só é aceito se `Contratada` for
+  `true` (`LojaService.AtualizarConfiguracoes` força `false` se não for, relendo o estado atual
+  da loja em vez de confiar no que veio do formulário).
+- **Mecanismo de cobrança da assinatura Drenux existente, conforme pedido**: a assinatura de
+  plano (Pro/Scale) já usa cobrança recorrente de verdade via Stripe Subscriptions
+  (`StripeService.CriarCheckoutAssinatura`/`MudarPlano`, webhook de renovação atualizando
+  `Loja.Plano` a cada ciclo). Esse mecanismo **poderia** ser reaproveitado pra Sugestão
+  Inteligente (um segundo Price/Subscription na mesma conta Stripe do lojista), mas isso não foi
+  implementado nessa fase, conforme pedido explicitamente. **Hoje, `SugestaoInteligenteContratada`
+  não tem nenhuma tela ou fluxo que o ligue** — é um campo puro no banco, pensado pra ser
+  ligado manualmente (ex: direto no Neon) até uma decisão sobre reaproveitar o Stripe de
+  assinatura ou cobrar separado. Nenhuma cobrança automática foi criada.
+
+**Ressalvas antes de confiar em produção:**
+1. Nenhum teste manual em navegador real foi feito — só `go build`/`go vet`/`tsc -b`/`npm run
+   build`, todos limpos. Testar o fluxo completo (montar combo com variação, aplicar sugestão no
+   carrinho, checkout com combo+sugestão juntos) antes de anunciar pro lojista.
+2. Cupom de desconto aplicado sobre pedido com combo: a lógica de cupom opera sobre a variável
+   `total` (que já soma itens avulsos + combos antes do cupom ser aplicado) — não foi criado
+   nenhum caso especial pra combo, deveria funcionar igual a um pedido só de itens avulsos, mas
+   não foi testado com combinação real.
+3. `SugestaoInteligenteContratada` não tem fluxo de contratação nenhum (nem manual documentado
+   além de "mexer direto no banco") — William precisa decidir como/quando uma loja passa a ter
+   esse campo `true` antes de vender o recurso de verdade.
+
 ## Backlog mais antigo, fora de escopo por enquanto (não iniciar sem o William pedir)
 
 Esses itens já existiam antes do roadmap atual e não fazem parte da sequência das 4 fases — só

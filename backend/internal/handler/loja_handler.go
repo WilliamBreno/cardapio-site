@@ -33,26 +33,27 @@ func (h *LojaHandler) Buscar(c *gin.Context) {
 }
 
 type configuracoesRequest struct {
-	WhatsappNumero          string  `json:"whatsapp_numero" binding:"required"`
-	LogoURL                 string  `json:"logo_url"`
-	ModoPedido              string  `json:"modo_pedido"`
-	AntecedenciaMinimaHoras int     `json:"antecedencia_minima_horas"`
-	HorarioAbertura         string  `json:"horario_abertura"`
-	HorarioFechamento       string  `json:"horario_fechamento"`
-	MargemFechamentoMinutos int     `json:"margem_fechamento_minutos"`
-	Pausado                 bool    `json:"pausado"`
-	MensagemPausa           string  `json:"mensagem_pausa"`
-	AceitaRetirada          bool    `json:"aceita_retirada"`
-	AceitaEntrega           bool    `json:"aceita_entrega"`
-	TaxaEntregaTipo         string  `json:"taxa_entrega_tipo"`
-	TaxaEntregaValor        float64 `json:"taxa_entrega_valor"`
-	TaxaEntregaBase         float64 `json:"taxa_entrega_base"`
-	TaxaEntregaPorKm        float64 `json:"taxa_entrega_por_km"`
-	ValorMinimoPedido       float64 `json:"valor_minimo_pedido"`
-	Tema                    string  `json:"tema"`
-	Endereco                string  `json:"endereco"`
-	AceitaGuardarEntregar   bool    `json:"aceita_guardar_entregar"`
-	SegmentoPrincipal       string  `json:"segmento_principal" binding:"required,oneof=alimenticio mercadoria"`
+	WhatsappNumero           string  `json:"whatsapp_numero" binding:"required"`
+	LogoURL                  string  `json:"logo_url"`
+	ModoPedido               string  `json:"modo_pedido"`
+	AntecedenciaMinimaHoras  int     `json:"antecedencia_minima_horas"`
+	HorarioAbertura          string  `json:"horario_abertura"`
+	HorarioFechamento        string  `json:"horario_fechamento"`
+	MargemFechamentoMinutos  int     `json:"margem_fechamento_minutos"`
+	Pausado                  bool    `json:"pausado"`
+	MensagemPausa            string  `json:"mensagem_pausa"`
+	AceitaRetirada           bool    `json:"aceita_retirada"`
+	AceitaEntrega            bool    `json:"aceita_entrega"`
+	TaxaEntregaTipo          string  `json:"taxa_entrega_tipo"`
+	TaxaEntregaValor         float64 `json:"taxa_entrega_valor"`
+	TaxaEntregaBase          float64 `json:"taxa_entrega_base"`
+	TaxaEntregaPorKm         float64 `json:"taxa_entrega_por_km"`
+	ValorMinimoPedido        float64 `json:"valor_minimo_pedido"`
+	Tema                     string  `json:"tema"`
+	Endereco                 string  `json:"endereco"`
+	AceitaGuardarEntregar    bool    `json:"aceita_guardar_entregar"`
+	SegmentoPrincipal        string  `json:"segmento_principal" binding:"required,oneof=alimenticio mercadoria"`
+	SugestaoInteligenteAtiva bool    `json:"sugestao_inteligente_ativa"`
 }
 
 // AtualizarConfiguracoes atende PUT /admin/loja
@@ -92,30 +93,31 @@ func (h *LojaHandler) AtualizarConfiguracoes(c *gin.Context) {
 	}
 
 	cfg := repository.ConfiguracoesLoja{
-		WhatsappNumero:          req.WhatsappNumero,
-		LogoURL:                 req.LogoURL,
-		ModoPedido:              modo,
-		AntecedenciaMinimaHoras: req.AntecedenciaMinimaHoras,
-		HorarioAbertura:         req.HorarioAbertura,
-		HorarioFechamento:       req.HorarioFechamento,
-		MargemFechamentoMinutos: req.MargemFechamentoMinutos,
-		Pausado:                 req.Pausado,
-		MensagemPausa:           req.MensagemPausa,
-		AceitaRetirada:          req.AceitaRetirada,
-		AceitaEntrega:           req.AceitaEntrega,
-		TaxaEntregaTipo:         req.TaxaEntregaTipo,
-		TaxaEntregaValor:        req.TaxaEntregaValor,
-		TaxaEntregaBase:         req.TaxaEntregaBase,
-		TaxaEntregaPorKm:        req.TaxaEntregaPorKm,
-		ValorMinimoPedido:       req.ValorMinimoPedido,
-		Tema:                    req.Tema,
-		AceitaGuardarEntregar:   req.AceitaGuardarEntregar,
-		SegmentoPrincipal:       req.SegmentoPrincipal,
-		Endereco:                req.Endereco,
-		Latitude:                latitude,
-		Longitude:               longitude,
-		Cidade:                  cidade,
-		Estado:                  estado,
+		WhatsappNumero:           req.WhatsappNumero,
+		LogoURL:                  req.LogoURL,
+		ModoPedido:               modo,
+		AntecedenciaMinimaHoras:  req.AntecedenciaMinimaHoras,
+		HorarioAbertura:          req.HorarioAbertura,
+		HorarioFechamento:        req.HorarioFechamento,
+		MargemFechamentoMinutos:  req.MargemFechamentoMinutos,
+		Pausado:                  req.Pausado,
+		MensagemPausa:            req.MensagemPausa,
+		AceitaRetirada:           req.AceitaRetirada,
+		AceitaEntrega:            req.AceitaEntrega,
+		TaxaEntregaTipo:          req.TaxaEntregaTipo,
+		TaxaEntregaValor:         req.TaxaEntregaValor,
+		TaxaEntregaBase:          req.TaxaEntregaBase,
+		TaxaEntregaPorKm:         req.TaxaEntregaPorKm,
+		ValorMinimoPedido:        req.ValorMinimoPedido,
+		Tema:                     req.Tema,
+		AceitaGuardarEntregar:    req.AceitaGuardarEntregar,
+		SegmentoPrincipal:        req.SegmentoPrincipal,
+		SugestaoInteligenteAtiva: req.SugestaoInteligenteAtiva,
+		Endereco:                 req.Endereco,
+		Latitude:                 latitude,
+		Longitude:                longitude,
+		Cidade:                   cidade,
+		Estado:                   estado,
 	}
 
 	if err := h.lojaService.AtualizarConfiguracoes(lojaID, cfg); err != nil {

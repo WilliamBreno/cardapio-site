@@ -145,6 +145,20 @@ function PedidoCard({ pedido }: { pedido: Pedido }) {
             </span>
           </p>
         ))}
+        {pedido.combos?.map((combo) => (
+          <div key={combo.id} className="text-sm text-tinta">
+            <p>
+              {combo.quantidade}x {combo.nome}{' '}
+              <span className="rounded-full bg-acento/10 px-1.5 py-0.5 text-xs text-acento">Combo</span>{' '}
+              <span className="text-tinta-suave">
+                · R$ {(combo.preco * combo.quantidade).toFixed(2).replace('.', ',')}
+              </span>
+            </p>
+            <p className="pl-3 text-xs text-tinta-suave">
+              {combo.itens.map((item) => `${item.quantidade}x ${item.produto_nome}${item.variacao_nome ? ` (${item.variacao_nome})` : ''}`).join(', ')}
+            </p>
+          </div>
+        ))}
       </div>
 
       <div className="mt-3 flex items-center justify-between border-t border-tinta/10 pt-3 text-sm">

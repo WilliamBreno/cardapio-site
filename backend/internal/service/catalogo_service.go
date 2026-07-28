@@ -15,6 +15,7 @@ type CatalogoService struct {
 	subcategoriaRepo *repository.SubcategoriaRepository
 	grupoCorRepo     *repository.GrupoCorRepository
 	produtoRepo      *repository.ProdutoRepository
+	comboRepo        *repository.ComboRepository
 }
 
 func NewCatalogoService(db *gorm.DB) *CatalogoService {
@@ -24,19 +25,21 @@ func NewCatalogoService(db *gorm.DB) *CatalogoService {
 		subcategoriaRepo: repository.NewSubcategoriaRepository(db),
 		grupoCorRepo:     repository.NewGrupoCorRepository(db),
 		produtoRepo:      repository.NewProdutoRepository(db),
+		comboRepo:        repository.NewComboRepository(db),
 	}
 }
 
 // CardapioPublico é tudo que a página pública de uma loja precisa pra
-// renderizar de uma vez: dados da loja, abas (categorias) e os produtos.
-// Subcategorias/GruposCor só têm conteúdo pra lojas "mercadoria" — o
-// catálogo em formato lista (alimentício) simplesmente ignora os campos.
+// renderizar de uma vez: dados da loja, abas (categorias), produtos e
+// combos. Subcategorias/GruposCor só têm conteúdo pra lojas "mercadoria" —
+// o catálogo em formato lista (alimentício) simplesmente ignora os campos.
 type CardapioPublico struct {
 	Loja          domain.Loja
 	Categorias    []domain.Categoria
 	Subcategorias []domain.Subcategoria
 	GruposCor     []domain.GrupoCor
 	Produtos      []domain.Produto
+	Combos        []domain.Combo
 }
 
 // BuscarCardapioPorSlug é o que alimenta a rota pública GET /lojas/:slug.
@@ -68,11 +71,17 @@ func (s *CatalogoService) BuscarCardapioPorSlug(slug string) (*CardapioPublico, 
 		return nil, fmt.Errorf("listando produtos: %w", err)
 	}
 
+	combos, err := s.comboRepo.ListarDisponiveisPorLoja(loja.ID)
+	if err != nil {
+		return nil, fmt.Errorf("listando combos: %w", err)
+	}
+
 	return &CardapioPublico{
 		Loja:          *loja,
 		Categorias:    categorias,
 		Subcategorias: subcategorias,
 		GruposCor:     gruposCor,
 		Produtos:      produtos,
+		Combos:        combos,
 	}, nil
 }

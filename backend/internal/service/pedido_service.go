@@ -15,6 +15,29 @@ type ItemPedidoInput struct {
 	ProdutoID  uint
 	VariacaoID *uint
 	Quantidade int
+
+	// SugestaoProdutoID marca que esse item foi adicionado através da
+	// Sugestão Inteligente do carrinho (Fase 6) — o desconto configurado
+	// só é aplicado se, ao validar, o produto de origem daquela sugestão
+	// realmente estiver no pedido (item avulso ou componente de combo).
+	// Se não bater, o item entra pelo preço cheio, sem erro — proteção
+	// contra alguém forjar esse campo pra ganhar desconto indevido.
+	SugestaoProdutoID *uint
+}
+
+// ComboItemPedidoInput é a variação escolhida (se houver) pra um item
+// específico do combo — referenciado pelo ComboItemID (não ProdutoID,
+// pra não dar ambiguidade se o mesmo produto aparecer duas vezes no
+// combo).
+type ComboItemPedidoInput struct {
+	ComboItemID uint
+	VariacaoID  *uint
+}
+
+type ComboPedidoInput struct {
+	ComboID    uint
+	Quantidade int
+	Itens      []ComboItemPedidoInput
 }
 
 type PedidoInput struct {
@@ -25,6 +48,7 @@ type PedidoInput struct {
 	EnderecoEntrega string
 	CupomCodigo     string
 	Itens           []ItemPedidoInput
+	Combos          []ComboPedidoInput
 }
 
 type PedidoService struct {
@@ -32,6 +56,8 @@ type PedidoService struct {
 	lojaRepo         *repository.LojaRepository
 	pedidoRepo       *repository.PedidoRepository
 	cupomRepo        *repository.CupomRepository
+	comboRepo        *repository.ComboRepository
+	sugestaoRepo     *repository.SugestaoProdutoRepository
 	distanciaService *DistanciaService
 }
 
@@ -41,6 +67,8 @@ func NewPedidoService(db *gorm.DB, distanciaService *DistanciaService) *PedidoSe
 		lojaRepo:         repository.NewLojaRepository(db),
 		pedidoRepo:       repository.NewPedidoRepository(db),
 		cupomRepo:        repository.NewCupomRepository(db),
+		comboRepo:        repository.NewComboRepository(db),
+		sugestaoRepo:     repository.NewSugestaoProdutoRepository(db),
 		distanciaService: distanciaService,
 	}
 }
@@ -51,7 +79,7 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 		return nil, errors.New("loja não encontrada")
 	}
 
-	if len(input.Itens) == 0 {
+	if len(input.Itens) == 0 && len(input.Combos) == 0 {
 		return nil, errors.New("o pedido precisa ter pelo menos um item")
 	}
 
@@ -77,6 +105,14 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 		if !loja.AceitaRetirada {
 			return nil, errors.New("essa loja não aceita retirada — só entrega em domicílio")
 		}
+	}
+
+	// Combo não tem TipoProduto/PesoGramas por componente (ver
+	// domain.PedidoComboItem) — estender o fluxo de "guardar e entregar
+	// depois" pra combo exigiria levar esses campos até lá também, então
+	// por ora um combo só pode ser comprado pra retirada/entrega imediata.
+	if modoEntrega == domain.ModoEntregaGuardar && len(input.Combos) > 0 {
+		return nil, errors.New("combos não podem ser guardados pra entrega depois — peça os produtos avulsos pra isso")
 	}
 
 	// Validações da loja antes de aceitar o pedido
@@ -137,6 +173,37 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 		produtoRepo := repository.NewProdutoRepository(tx)
 		pedidoRepo := repository.NewPedidoRepository(tx)
 		variacaoRepo := repository.NewVariacaoRepository(tx)
+		comboRepo := repository.NewComboRepository(tx)
+		sugestaoRepo := repository.NewSugestaoProdutoRepository(tx)
+
+		// Pré-carrega os combos pedidos (validando dono/disponibilidade já
+		// aqui) pra montar o conjunto de produtos presentes no pedido ANTES
+		// de processar os itens avulsos — a Sugestão Inteligente (abaixo)
+		// considera componente de combo como "já no carrinho" também.
+		combosMap := make(map[uint]*domain.Combo, len(input.Combos))
+		produtosNoCarrinho := make(map[uint]bool)
+		for _, comboInput := range input.Combos {
+			if comboInput.Quantidade <= 0 {
+				return fmt.Errorf("quantidade inválida pro combo %d", comboInput.ComboID)
+			}
+			combo, err := comboRepo.BuscarPorID(comboInput.ComboID)
+			if err != nil {
+				return fmt.Errorf("combo %d não encontrado", comboInput.ComboID)
+			}
+			if combo.LojaID != loja.ID {
+				return fmt.Errorf("combo %d não pertence a essa loja", comboInput.ComboID)
+			}
+			if !combo.Disponivel {
+				return fmt.Errorf("combo %q está indisponível no momento", combo.Nome)
+			}
+			combosMap[comboInput.ComboID] = combo
+			for _, comboItem := range combo.Itens {
+				produtosNoCarrinho[comboItem.ProdutoID] = true
+			}
+		}
+		for _, itemInput := range input.Itens {
+			produtosNoCarrinho[itemInput.ProdutoID] = true
+		}
 
 		var total float64
 		itens := make([]domain.ItemPedido, 0, len(input.Itens))
@@ -196,6 +263,25 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 				}
 			}
 
+			// Sugestão Inteligente: só aplica o desconto do vínculo se ele
+			// existir de verdade, pertencer a essa loja, apontar pra esse
+			// produto como sugerido, e o produto de origem realmente estar
+			// no pedido (avulso ou componente de combo) — sem essas três
+			// checagens, dava pra forjar o campo e ganhar desconto indevido.
+			// Se não bater, ignora silenciosamente e cobra o preço cheio,
+			// sem travar o pedido por isso.
+			var sugestaoAplicadaID *uint
+			if itemInput.SugestaoProdutoID != nil {
+				sugestao, err := sugestaoRepo.BuscarPorID(*itemInput.SugestaoProdutoID)
+				if err == nil &&
+					sugestao.LojaID == loja.ID &&
+					sugestao.ProdutoSugeridoID == produto.ID &&
+					produtosNoCarrinho[sugestao.ProdutoOrigemID] {
+					precoUnit = sugestao.PrecoComDesconto(precoUnit)
+					sugestaoAplicadaID = itemInput.SugestaoProdutoID
+				}
+			}
+
 			subtotal := precoUnit * float64(itemInput.Quantidade)
 			total += subtotal
 
@@ -205,14 +291,83 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 			}
 
 			itens = append(itens, domain.ItemPedido{
-				ProdutoID:    produto.ID,
-				ProdutoNome:  produto.Nome,
-				Quantidade:   itemInput.Quantidade,
-				PrecoUnit:    precoUnit,
-				VariacaoID:   itemInput.VariacaoID,
-				VariacaoNome: variacaoNome,
-				TipoProduto:  produto.TipoProduto,
-				PesoGramas:   pesoGramas,
+				ProdutoID:         produto.ID,
+				ProdutoNome:       produto.Nome,
+				Quantidade:        itemInput.Quantidade,
+				PrecoUnit:         precoUnit,
+				VariacaoID:        itemInput.VariacaoID,
+				VariacaoNome:      variacaoNome,
+				TipoProduto:       produto.TipoProduto,
+				PesoGramas:        pesoGramas,
+				SugestaoProdutoID: sugestaoAplicadaID,
+			})
+		}
+
+		// Combos — pacote fixo, com o preço final definido diretamente pelo
+		// lojista (não recalculado a partir da soma dos itens). O cliente
+		// escolhe a variação de cada componente igual comprando avulso; o
+		// estoque só é CHECADO aqui, nunca decrementado na criação do
+		// pedido — isso só acontece depois que o pagamento é confirmado
+		// (ver PosPagamentoService), mesmo padrão já usado pros itens
+		// avulsos acima.
+		combos := make([]domain.PedidoCombo, 0, len(input.Combos))
+		for _, comboInput := range input.Combos {
+			combo := combosMap[comboInput.ComboID]
+
+			selecoes := make(map[uint]ComboItemPedidoInput, len(comboInput.Itens))
+			for _, selecao := range comboInput.Itens {
+				selecoes[selecao.ComboItemID] = selecao
+			}
+
+			pedidoComboItens := make([]domain.PedidoComboItem, 0, len(combo.Itens))
+			for _, comboItem := range combo.Itens {
+				produto, err := produtoRepo.BuscarPorID(comboItem.ProdutoID)
+				if err != nil {
+					return fmt.Errorf("produto do combo %q não encontrado", combo.Nome)
+				}
+				if !produto.Disponivel {
+					return fmt.Errorf("produto %q do combo %q está indisponível no momento", produto.Nome, combo.Nome)
+				}
+
+				qtdNecessaria := comboItem.Quantidade * comboInput.Quantidade
+				var variacaoID *uint
+				variacaoNome := ""
+
+				if selecao, ok := selecoes[comboItem.ID]; ok && selecao.VariacaoID != nil {
+					variacao, err := variacaoRepo.BuscarPorID(*selecao.VariacaoID)
+					if err != nil || variacao.ProdutoID != produto.ID {
+						return fmt.Errorf("variação inválida pro produto %q do combo %q", produto.Nome, combo.Nome)
+					}
+					if !variacao.Disponivel {
+						return fmt.Errorf("variação %q do produto %q está indisponível", variacao.Nome, produto.Nome)
+					}
+					if variacao.EstoqueAtual != nil && *variacao.EstoqueAtual < qtdNecessaria {
+						return fmt.Errorf("variação %q do produto %q não tem estoque suficiente pro combo %q", variacao.Nome, produto.Nome, combo.Nome)
+					}
+					variacaoID = selecao.VariacaoID
+					variacaoNome = variacao.Nome
+				} else if produto.EstoqueAtual != nil && *produto.EstoqueAtual < qtdNecessaria {
+					return fmt.Errorf("produto %q não tem estoque suficiente pro combo %q", produto.Nome, combo.Nome)
+				}
+
+				pedidoComboItens = append(pedidoComboItens, domain.PedidoComboItem{
+					ProdutoID:    produto.ID,
+					ProdutoNome:  produto.Nome,
+					VariacaoID:   variacaoID,
+					VariacaoNome: variacaoNome,
+					Quantidade:   comboItem.Quantidade,
+				})
+			}
+
+			total += combo.Preco * float64(comboInput.Quantidade)
+
+			combos = append(combos, domain.PedidoCombo{
+				ComboID:    combo.ID,
+				Nome:       combo.Nome,
+				FotoURL:    combo.FotoURL,
+				Preco:      combo.Preco,
+				Quantidade: comboInput.Quantidade,
+				Itens:      pedidoComboItens,
 			})
 		}
 
@@ -269,6 +424,7 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 		}
 
 		pedido.Itens = itens
+		pedido.Combos = combos
 
 		// Aviso preventivo: só faz sentido em modo "guardar" — é o único
 		// modo em que a entrega pode acabar fora da região da loja depois

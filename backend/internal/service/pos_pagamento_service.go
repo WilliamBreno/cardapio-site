@@ -60,52 +60,22 @@ func (s *PosPagamentoService) ProcessarPedidoPago(pedidoID uint) {
 	produtoRepo := repository.NewProdutoRepository(s.db)
 
 	for _, item := range pedido.Itens {
-		var restante int
-		var erroEstoque error
-		var alerta bool
-		var nomeItem string
-
-		if item.VariacaoID != nil {
-			variacaoRepo := repository.NewVariacaoRepository(s.db)
-			restante, erroEstoque = variacaoRepo.SubtrairEstoque(*item.VariacaoID, item.Quantidade)
-			if erroEstoque != nil {
-				log.Printf("erro ao subtrair estoque da variação %d: %v", *item.VariacaoID, erroEstoque)
-				continue
-			}
-			if restante < 0 {
-				continue
-			}
-			v, emAlerta := variacaoRepo.BuscarEstoqueAlerta(*item.VariacaoID)
-			if emAlerta {
-				alerta = true
-				nomeItem = fmt.Sprintf("%s (%s)", item.ProdutoNome, v.Nome)
-			}
-		} else {
-			restante, erroEstoque = produtoRepo.SubtrairEstoque(item.ProdutoID, item.Quantidade)
-			if erroEstoque != nil {
-				log.Printf("erro ao subtrair estoque do produto %d: %v", item.ProdutoID, erroEstoque)
-				continue
-			}
-			if restante < 0 {
-				continue
-			}
-			_, emAlerta := produtoRepo.BuscarEstoqueAlerta(item.ProdutoID)
-			if emAlerta {
-				alerta = true
-				nomeItem = item.ProdutoNome
-			}
+		if alerta := s.descontarEstoque(produtoRepo, item.ProdutoID, item.VariacaoID, item.ProdutoNome, item.Quantidade); alerta != nil {
+			s.notificarAlertaEstoque(pedido, loja, alerta.nome, alerta.restante)
 		}
+	}
 
-		if alerta && s.notificationSender != nil && loja.WhatsappNumero != "" {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			aviso := fmt.Sprintf("⚠️ Alerta de estoque — %s\n\nO produto *%s* chegou a %d unidade(s) restante(s).", loja.Nome, nomeItem, restante)
-			if restante == 0 {
-				aviso = fmt.Sprintf("⚠️ Estoque esgotado — %s\n\nO produto *%s* acabou e foi marcado como indisponível automaticamente.", loja.Nome, nomeItem)
+	// Combo: cada componente desconta estoque igual um item avulso — a
+	// quantidade real subtraída é a do componente dentro do combo
+	// multiplicada por quantos combos foram pedidos (ver
+	// domain.PedidoComboItem.Quantidade, que guarda só a quantidade "por
+	// combo", não a total do pedido).
+	for _, combo := range pedido.Combos {
+		for _, item := range combo.Itens {
+			qtd := item.Quantidade * combo.Quantidade
+			if alerta := s.descontarEstoque(produtoRepo, item.ProdutoID, item.VariacaoID, item.ProdutoNome, qtd); alerta != nil {
+				s.notificarAlertaEstoque(pedido, loja, alerta.nome, alerta.restante)
 			}
-			if err := s.notificationSender.EnviarNotificacaoAdmin(ctx, pedido, aviso, loja.WhatsappNumero); err != nil {
-				log.Printf("falha ao enviar alerta de estoque: %v", err)
-			}
-			cancel()
 		}
 	}
 
@@ -125,6 +95,66 @@ func (s *PosPagamentoService) ProcessarPedidoPago(pedidoID uint) {
 	}
 
 	log.Printf("pós-pagamento do pedido %d: concluído", pedidoID)
+}
+
+// itemEmAlerta carrega o suficiente pra montar o aviso de estoque baixo —
+// devolvido por descontarEstoque só quando o alerta configurado foi
+// atingido, senão nil.
+type itemEmAlerta struct {
+	nome     string
+	restante int
+}
+
+// descontarEstoque subtrai a quantidade do produto ou, se houver
+// variação, da variação — mesma função usada tanto pra item avulso quanto
+// pra componente de combo (ver chamadas em ProcessarPedidoPago). Erros de
+// subtração só são logados (nunca interrompem o pós-pagamento inteiro por
+// causa de um item).
+func (s *PosPagamentoService) descontarEstoque(produtoRepo *repository.ProdutoRepository, produtoID uint, variacaoID *uint, produtoNome string, quantidade int) *itemEmAlerta {
+	if variacaoID != nil {
+		variacaoRepo := repository.NewVariacaoRepository(s.db)
+		restante, err := variacaoRepo.SubtrairEstoque(*variacaoID, quantidade)
+		if err != nil {
+			log.Printf("erro ao subtrair estoque da variação %d: %v", *variacaoID, err)
+			return nil
+		}
+		if restante < 0 {
+			return nil
+		}
+		v, emAlerta := variacaoRepo.BuscarEstoqueAlerta(*variacaoID)
+		if !emAlerta {
+			return nil
+		}
+		return &itemEmAlerta{nome: fmt.Sprintf("%s (%s)", produtoNome, v.Nome), restante: restante}
+	}
+
+	restante, err := produtoRepo.SubtrairEstoque(produtoID, quantidade)
+	if err != nil {
+		log.Printf("erro ao subtrair estoque do produto %d: %v", produtoID, err)
+		return nil
+	}
+	if restante < 0 {
+		return nil
+	}
+	if _, emAlerta := produtoRepo.BuscarEstoqueAlerta(produtoID); !emAlerta {
+		return nil
+	}
+	return &itemEmAlerta{nome: produtoNome, restante: restante}
+}
+
+func (s *PosPagamentoService) notificarAlertaEstoque(pedido *domain.Pedido, loja *domain.Loja, nomeItem string, restante int) {
+	if s.notificationSender == nil || loja.WhatsappNumero == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	aviso := fmt.Sprintf("⚠️ Alerta de estoque — %s\n\nO produto *%s* chegou a %d unidade(s) restante(s).", loja.Nome, nomeItem, restante)
+	if restante == 0 {
+		aviso = fmt.Sprintf("⚠️ Estoque esgotado — %s\n\nO produto *%s* acabou e foi marcado como indisponível automaticamente.", loja.Nome, nomeItem)
+	}
+	if err := s.notificationSender.EnviarNotificacaoAdmin(ctx, pedido, aviso, loja.WhatsappNumero); err != nil {
+		log.Printf("falha ao enviar alerta de estoque: %v", err)
+	}
 }
 
 func (s *PosPagamentoService) notificarPagamento(pedido *domain.Pedido, lojaNome, whatsappNumero string) {

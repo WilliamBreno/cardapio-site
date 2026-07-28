@@ -132,6 +132,12 @@ export interface ConfiguracoesInput {
   taxa_entrega_valor: number;
   valor_minimo_pedido: number;
   tema: string;
+  // Precisa ir em TODO save (mesmo que a tela não mexa nisso) — o PUT
+  // /admin/loja substitui a configuração inteira de uma vez, e um bool
+  // omitido chega como "false" no backend, o que desligaria a Sugestão
+  // Inteligente silenciosamente a cada salvamento de qualquer outra
+  // configuração se esse campo não fosse explicitamente re-enviado.
+  sugestao_inteligente_ativa: boolean;
 }
 
 export async function atualizarConfiguracoes(input: ConfiguracoesInput): Promise<void> {

@@ -70,6 +70,17 @@ type Loja struct {
 	MercadoPagoUserID        string     `gorm:"size:50;index" json:"-"`
 	MercadoPagoTokenExpiraEm *time.Time `json:"-"`
 
+	// Sugestão Inteligente (Fase 6) — upsell manual configurado pelo
+	// lojista, cobrado como recurso pago à parte (ver
+	// domain.ConfiguracaoPlataforma). Contratada é quem controla se a
+	// loja PODE ligar o recurso (hoje setado manualmente, sem cobrança
+	// automática ainda — ver docs/plano-melhorias-drenux.md, Fase 6);
+	// Ativa é o toggle do próprio lojista, só efetivo se Contratada for
+	// true (reforçado em LojaService.AtualizarConfiguracoes).
+	SugestaoInteligenteContratada   bool       `gorm:"default:false" json:"sugestao_inteligente_contratada"`
+	SugestaoInteligenteContratadaEm *time.Time `json:"sugestao_inteligente_contratada_em"`
+	SugestaoInteligenteAtiva        bool       `gorm:"default:false" json:"sugestao_inteligente_ativa"`
+
 	AfiliadoID *uint `gorm:"index" json:"-"`
 
 	CreatedAt time.Time `json:"created_at"`

@@ -7,6 +7,7 @@ import {
   iniciarOnboardingMercadoPago,
 } from '../../api/admin';
 import { enviarImagem, logoMiniatura } from '../../api/upload';
+import { buscarConfiguracaoPlataforma } from '../../api/sugestoes';
 import { TEMAS } from '../../themes';
 import { Campo } from '../../components/Campo';
 import { QRCodeCardapio } from '../../components/QRCodeCardapio';
@@ -20,6 +21,7 @@ export function Configuracoes() {
 
   const { data: loja, isLoading } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
   const { data: mercadoPagoStatus } = useQuery({ queryKey: ['mercadopago-status'], queryFn: statusMercadoPago });
+  const { data: configuracaoPlataforma } = useQuery({ queryKey: ['configuracao-plataforma'], queryFn: buscarConfiguracaoPlataforma });
 
   const [whatsapp, setWhatsapp] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -42,6 +44,7 @@ export function Configuracoes() {
   const [enderecoSalvo, setEnderecoSalvo] = useState('');
   const [valorMinimo, setValorMinimo] = useState(0);
   const [tema, setTema] = useState('kraft');
+  const [sugestaoInteligenteAtiva, setSugestaoInteligenteAtiva] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [conectandoMercadoPago, setConectandoMercadoPago] = useState(false);
@@ -70,6 +73,7 @@ export function Configuracoes() {
       setEnderecoSalvo(loja.endereco ?? '');
       setValorMinimo(loja.valor_minimo_pedido ?? 0);
       setTema(loja.tema ?? 'kraft');
+      setSugestaoInteligenteAtiva(loja.sugestao_inteligente_ativa ?? false);
     }
   }, [loja]);
 
@@ -106,6 +110,7 @@ export function Configuracoes() {
       endereco: enderecoPreenchido(enderecoValor) ? enderecoParaTexto(enderecoValor) : enderecoSalvo,
       valor_minimo_pedido: valorMinimo,
       tema,
+      sugestao_inteligente_ativa: sugestaoInteligenteAtiva,
     };
   }
 
@@ -396,6 +401,39 @@ export function Configuracoes() {
           <p className="text-xs text-tinta-suave">
             O cliente compra e paga produtos do tipo "Mercadoria" agora, você guarda por tempo indeterminado, e ele volta depois pra escolher o que quer receber e pagar só o frete. Não disponível pra produtos alimentícios (risco de segurança alimentar). Marque o tipo de cada produto em Produtos.
           </p>
+        </div>
+
+        {/* Sugestão Inteligente — recurso pago à parte (Fase 6), taxa fixa
+            mensal em qualquer plano. O toggle só liga se a loja tiver
+            contratado (loja.sugestao_inteligente_contratada) — sem
+            contratação, mostra só o preço e uma explicação, sem controle
+            nenhum pra ativar (contratação hoje é manual, fora do sistema). */}
+        <div className="space-y-3 rounded-xl border border-tinta/10 bg-fundo p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Sugestão Inteligente</p>
+          {loja?.sugestao_inteligente_contratada ? (
+            <>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sugestaoInteligenteAtiva}
+                  onChange={(e) => setSugestaoInteligenteAtiva(e.target.checked)}
+                  className="h-4 w-4 accent-acento"
+                />
+                <span className="text-sm font-medium text-tinta">Mostrar sugestões no carrinho do cliente</span>
+              </label>
+              <p className="text-xs text-tinta-suave">
+                Sugere produtos complementares (estilo totem de fastfood) quando o cliente revisa o carrinho antes de finalizar, com base nos vínculos configurados em "Sugestão Inteligente" no menu.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-tinta-suave">
+              Recurso pago à parte
+              {configuracaoPlataforma && (
+                <> — R$ {configuracaoPlataforma.sugestao_inteligente_preco_mensal.toFixed(2).replace('.', ',')}/mês</>
+              )}
+              , não incluído no seu plano atual. Sugere produtos complementares ao cliente na revisão do carrinho, estilo totem de fastfood. Fale com a Drenux pra contratar.
+            </p>
+          )}
         </div>
 
         {/* Endereço de origem — usado pelo frete por km da entrega imediata e pelo frete de itens guardados */}
