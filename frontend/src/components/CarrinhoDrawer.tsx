@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useCartStore } from '../store/cartStore';
 import { criarPedido, criarCheckout } from '../api/pedidos';
@@ -74,7 +74,20 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
   const alterarQuantidadeCombo = useCartStore((state) => state.alterarQuantidadeCombo);
   const removerCombo = useCartStore((state) => state.removerCombo);
   const adicionarSugestao = useCartStore((state) => state.adicionarSugestao);
-  const produtosNoCarrinho = useCartStore((state) => state.produtosNoCarrinho());
+
+  // Calculado localmente (não via seletor do Zustand) de propósito: a
+  // versão anterior chamava state.produtosNoCarrinho() dentro do seletor,
+  // que devolve um array novo a cada chamada — o useSyncExternalStore por
+  // baixo do Zustand detecta a referência diferente a cada render como
+  // "mudou de novo" e entra em loop infinito de atualização (React error
+  // #185, "Maximum update depth exceeded"), quebrando a página pública
+  // inteira sem nenhum ErrorBoundary pra conter. useMemo aqui só recalcula
+  // quando itens/combos (já selecionados de forma estável) realmente mudam.
+  const produtosNoCarrinho = useMemo(() => {
+    const idsAvulso = itens.map((item) => item.produto.id);
+    const idsCombo = combos.flatMap((item) => item.combo.itens.map((i) => i.produto_id));
+    return Array.from(new Set([...idsAvulso, ...idsCombo]));
+  }, [itens, combos]);
 
   // Seção consolidada de sugestões — juntando os vínculos de TODOS os
   // produtos já no carrinho (avulso ou componente de combo), exibida na

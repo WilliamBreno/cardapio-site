@@ -27,11 +27,6 @@ interface CartState {
   alterarQuantidadeCombo: (comboId: number, quantidade: number) => void;
   limpar: () => void;
   total: () => number;
-  // produtosNoCarrinho reúne os IDs de produto avulsos + componentes de
-  // combo presentes no carrinho agora — é exatamente o que a Sugestão
-  // Inteligente precisa pra montar a seção de sugestões (nunca sugerir
-  // algo que já está no carrinho, seja avulso ou dentro de um combo).
-  produtosNoCarrinho: () => number[];
 }
 
 function precoItemCarrinho(item: ItemCarrinho): number {
@@ -156,11 +151,5 @@ export const useCartStore = create<CartState>((set, get) => ({
       0
     );
     return totalItens + totalCombos;
-  },
-
-  produtosNoCarrinho: () => {
-    const idsAvulso = get().itens.map((item) => item.produto.id);
-    const idsCombo = get().combos.flatMap((item) => item.combo.itens.map((i) => i.produto_id));
-    return Array.from(new Set([...idsAvulso, ...idsCombo]));
   },
 }));
