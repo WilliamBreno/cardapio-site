@@ -132,11 +132,13 @@ func main() {
 	// (pedido, ver Fase 5 do roadmap) pra não duplicar essa lógica.
 	posPagamentoService := service.NewPosPagamentoService(db, whatsappSender)
 
-	// StripeService agora também recebe emailSender e frontendURL — usados
-	// pro fluxo de assinatura de plano (Pro/Scale).
+	// StripeService continua no repositório (MudarPlano/CancelarMudancaAgendada,
+	// usados pela troca de plano de uma loja JÁ existente em MeuPlano.tsx),
+	// mas o checkout de assinatura NOVA (CriarCheckoutAssinatura) parou de
+	// ser chamado — migrado pro Mercado Pago (Fase 6 Parte 3). Ver
+	// mercadoPagoAssinaturaService abaixo.
 	stripeService := service.NewStripeService(cfg.StripeSecretKey, cfg.StripeWebhookSecret, db, whatsappSender, emailSender, cfg.FrontendURLs[0], posPagamentoService)
 	stripeHandler := handler.NewStripeHandler(stripeService, cfg.FrontendURLs[0])
-	planoHandler := handler.NewPlanoHandler(stripeService)
 
 	// repasseAfiliadoService controla o repasse manual de comissão de
 	// afiliado pra pedidos pagos via Mercado Pago (Fase 5.5 — split 1:N
@@ -144,14 +146,23 @@ func main() {
 	// manual/Pix, só o controle é automático).
 	repasseAfiliadoService := service.NewRepasseAfiliadoService(db)
 
-	// MercadoPagoService assume o checkout de PEDIDO (não o de assinatura
-	// de plano, que continua na Stripe) — ver Fase 5 do roadmap em
-	// docs/plano-melhorias-drenux.md.
+	// MercadoPagoService cobre o checkout de PEDIDO (split 1:1 via OAuth
+	// de cada loja) — ver Fase 5 do roadmap em docs/plano-melhorias-drenux.md.
 	mercadoPagoService := service.NewMercadoPagoService(
 		cfg.MercadoPagoClientID, cfg.MercadoPagoClientSecret, cfg.MercadoPagoWebhookSecret,
 		cfg.JWTSecret, cfg.APIPublicURL, cfg.FrontendURLs[0], db, posPagamentoService, repasseAfiliadoService,
 	)
 	mercadoPagoHandler := handler.NewMercadoPagoHandler(mercadoPagoService, cfg.FrontendURLs[0], cfg.CronSecret)
+
+	// mercadoPagoAssinaturaService cobre a cobrança recorrente CONSOLIDADA
+	// (plano da loja + Sugestão Inteligente), direto na conta da própria
+	// Drenux — sem OAuth, sem split (Fase 6 Parte 3, diferente do
+	// mercadoPagoService acima, que é por-loja).
+	mercadoPagoAssinaturaService := service.NewMercadoPagoAssinaturaService(
+		cfg.MercadoPagoAccessToken, cfg.MercadoPagoAssinaturaWebhookSecret, cfg.FrontendURLs[0], db, emailSender,
+	)
+	planoHandler := handler.NewPlanoHandler(stripeService, mercadoPagoAssinaturaService)
+	assinaturaHandler := handler.NewAssinaturaHandler(mercadoPagoAssinaturaService)
 
 	lojaHandler := handler.NewLojaHandler(lojaService, distanciaService)
 
@@ -227,6 +238,10 @@ func main() {
 
 	router.POST("/webhooks/stripe", stripeHandler.Webhook)
 	router.POST("/webhooks/mercadopago", mercadoPagoHandler.Webhook)
+	// Endpoint novo e separado do webhook de pagamento de pedido acima —
+	// eventos de assinatura (plano da loja + Sugestão Inteligente, Fase 6
+	// Parte 3), secret de validação próprio.
+	router.POST("/webhooks/mercadopago/assinaturas", assinaturaHandler.Webhook)
 
 	// Callback do OAuth do Mercado Pago — rota pública de propósito (é o
 	// próprio Mercado Pago que redireciona o navegador do dono pra cá,
@@ -314,6 +329,9 @@ func main() {
 	admin.DELETE("/sugestoes-produto/:id", sugestaoProdutoHandler.Deletar)
 
 	admin.GET("/configuracao-plataforma", configuracaoPlataformaHandler.Buscar)
+
+	admin.POST("/sugestao-inteligente/assinatura", assinaturaHandler.AssinarSugestaoInteligente)
+	admin.DELETE("/sugestao-inteligente/assinatura", assinaturaHandler.CancelarSugestaoInteligente)
 
 	afiliado := router.Group("/afiliado")
 	afiliado.Use(middleware.AfiliadoRequired(cfg.JWTSecret))

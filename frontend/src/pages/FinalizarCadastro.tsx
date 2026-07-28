@@ -9,6 +9,7 @@ export function FinalizarCadastro() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const token = searchParams.get('token');
   const sessionId = searchParams.get('session_id');
@@ -24,9 +25,21 @@ export function FinalizarCadastro() {
       );
     }
 
-    async function viaToken(t: string) {
+    async function viaToken(t: string, tentativa = 1) {
       try {
         const dados = await verificarToken(t);
+        if ('pendente' in dados) {
+          // Assinatura ainda não confirmada pelo webhook do Mercado Pago
+          // (assíncrono) — tenta de novo por um tempo curto antes de
+          // desistir, mesmo padrão já usado no fluxo por session_id.
+          if (cancelado) return;
+          if (tentativa < TENTATIVAS_MAX) {
+            setTimeout(() => viaToken(t, tentativa + 1), INTERVALO_MS);
+          } else {
+            setErro('Confirmação demorou mais que o esperado. Verifique seu email — mandamos o link de finalização por lá também.');
+          }
+          return;
+        }
         await irParaCadastro(dados.email, dados.plano, dados.token);
       } catch {
         if (!cancelado) setErro('Esse link já foi usado ou é inválido.');
@@ -52,7 +65,13 @@ export function FinalizarCadastro() {
     } else if (sessionId) {
       viaSessao(sessionId);
     } else {
-      setErro('Link incompleto.');
+      // Pode acontecer de verdade com o checkout de assinatura do
+      // Mercado Pago (diferente do antigo checkout da Stripe, o retorno
+      // pro site não necessariamente carrega um identificador na URL) —
+      // não é obrigatoriamente um link quebrado, o pagamento pode ter
+      // sido aprovado mesmo assim. O email com o link de finalização é
+      // sempre enviado pelo webhook, então é a fonte confiável aqui.
+      setAviso('Se você acabou de pagar, confirmamos por email — o link de finalização de cadastro chega em instantes na sua caixa de entrada.');
     }
 
     return () => {
@@ -64,10 +83,10 @@ export function FinalizarCadastro() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-fundo px-4">
       <div className="w-full max-w-sm space-y-3 rounded-2xl bg-superficie p-8 text-center shadow-sm">
-        {erro ? (
+        {erro || aviso ? (
           <>
-            <h1 className="font-display text-xl tracking-wide text-tinta">Ops</h1>
-            <p className="text-sm text-tinta-suave">{erro}</p>
+            <h1 className="font-display text-xl tracking-wide text-tinta">{erro ? 'Ops' : 'Quase lá'}</h1>
+            <p className="text-sm text-tinta-suave">{erro ?? aviso}</p>
             <Link to="/" className="inline-block pt-2 text-sm font-medium text-acento">
               Voltar pra página de planos
             </Link>

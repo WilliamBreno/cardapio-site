@@ -159,6 +159,10 @@ export interface SugestaoProduto {
   tipo_desconto: TipoDesconto | null;
   valor_desconto: number | null;
   created_at: string;
+  // Sem a Sugestão Inteligente contratada, só o vínculo mais antigo da
+  // loja fica ativo (o "gostinho grátis") — os demais continuam salvos,
+  // só ficam ocultos até uma nova assinatura.
+  ativo: boolean;
 }
 
 // Versão pronta pra exibir na revisão do carrinho — já resolvida (uma por
@@ -222,9 +226,10 @@ export interface Loja {
   updated_at: string;
   plano: string; // "start" | "pro" | "scale"
   plano_agendado: string | null;
-  // Sugestão Inteligente (Fase 6) — recurso pago à parte. "ativa" só pode
-  // ser true se "contratada" também for — o backend garante isso mesmo
-  // que o front tente mandar o contrário.
+  // Sugestão Inteligente (Fase 6) — recurso pago à parte. "ativa" liga/
+  // desliga a exibição no carrinho do cliente livremente, contratada ou
+  // não (sem contratar, a loja tem direito a 1 vínculo grátis que
+  // aparece de verdade se "ativa" estiver true — ver SugestaoProduto.ativo).
   sugestao_inteligente_contratada: boolean;
   sugestao_inteligente_contratada_em: string | null;
   sugestao_inteligente_ativa: boolean;

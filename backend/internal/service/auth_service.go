@@ -95,6 +95,7 @@ func (s *AuthService) Cadastrar(input CadastroInput) (string, error) {
 			loja.Plano = assinatura.Plano
 			loja.StripeCustomerID = assinatura.StripeCustomerID
 			loja.StripeSubscriptionID = assinatura.StripeSubscriptionID
+			loja.MercadoPagoPreapprovalIDPlano = assinatura.MercadoPagoPreapprovalID
 
 			if err := assinaturaRepo.MarcarUsado(assinatura.ID); err != nil {
 				return fmt.Errorf("marcando assinatura como usada: %w", err)

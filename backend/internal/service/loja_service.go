@@ -29,20 +29,12 @@ func (s *LojaService) AtualizarConfiguracoes(lojaID uint, cfg repository.Configu
 	// lojista, sem erro nenhum visível pra ele. Ver NormalizarTelefone.
 	cfg.WhatsappNumero = NormalizarTelefone(cfg.WhatsappNumero)
 
-	// Sugestão Inteligente (Fase 6) é um recurso pago à parte — o toggle só
-	// pode ficar ligado se a loja realmente contratou. Não confia no que
-	// veio do form: relê o estado atual da loja e força desligado se
-	// SugestaoInteligenteContratada for false, em vez de rejeitar a
-	// atualização inteira (o resto do form continua salvando normalmente).
-	if cfg.SugestaoInteligenteAtiva {
-		loja, err := s.lojaRepo.BuscarPorID(lojaID)
-		if err != nil {
-			return err
-		}
-		if !loja.SugestaoInteligenteContratada {
-			cfg.SugestaoInteligenteAtiva = false
-		}
-	}
+	// Sugestão Inteligente (Fase 6): o toggle liga/desliga a exibição no
+	// carrinho do cliente livremente, contratada ou não — mesmo sem
+	// contratar, a loja tem direito a 1 vínculo grátis que precisa
+	// aparecer de verdade se o toggle estiver ligado (ver
+	// SugestaoProdutoService, que já limita a QUANTIDADE de vínculos, não
+	// a exibição). Não há mais trava aqui.
 
 	return s.lojaRepo.AtualizarConfiguracoes(lojaID, cfg)
 }

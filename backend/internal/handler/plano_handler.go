@@ -8,11 +8,12 @@ import (
 )
 
 type PlanoHandler struct {
-	stripeService *service.StripeService
+	stripeService                *service.StripeService
+	mercadoPagoAssinaturaService *service.MercadoPagoAssinaturaService
 }
 
-func NewPlanoHandler(stripeService *service.StripeService) *PlanoHandler {
-	return &PlanoHandler{stripeService: stripeService}
+func NewPlanoHandler(stripeService *service.StripeService, mercadoPagoAssinaturaService *service.MercadoPagoAssinaturaService) *PlanoHandler {
+	return &PlanoHandler{stripeService: stripeService, mercadoPagoAssinaturaService: mercadoPagoAssinaturaService}
 }
 
 type checkoutAssinaturaRequest struct {
@@ -21,6 +22,11 @@ type checkoutAssinaturaRequest struct {
 
 // CriarCheckout atende POST /planos/checkout — rota pública, chamada
 // quando o cliente clica em "Escolher Pro/Scale" na página de planos.
+// Migrado da Stripe pro Mercado Pago (Fase 6 Parte 3, consolidando com a
+// assinatura da Sugestão Inteligente no mesmo mecanismo) — o código da
+// Stripe pra isso continua no repositório (stripeService.CriarCheckoutAssinatura),
+// só parou de ser chamado por aqui, mesmo padrão já usado na migração do
+// checkout de pedido (Fase 5.2).
 func (h *PlanoHandler) CriarCheckout(c *gin.Context) {
 	var req checkoutAssinaturaRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -28,7 +34,7 @@ func (h *PlanoHandler) CriarCheckout(c *gin.Context) {
 		return
 	}
 
-	url, err := h.stripeService.CriarCheckoutAssinatura(c.Request.Context(), req.Plano)
+	url, err := h.mercadoPagoAssinaturaService.CriarCheckoutPlano(c.Request.Context(), req.Plano)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
 		return
@@ -40,7 +46,10 @@ func (h *PlanoHandler) CriarCheckout(c *gin.Context) {
 // VerificarToken atende GET /planos/verificar-token?token=XXX — usado
 // pela tela "/cadastro/finalizar" pra confirmar que o pagamento já foi
 // feito e pré-preencher email/plano antes do cliente completar o
-// cadastro.
+// cadastro. Como a confirmação do Mercado Pago é assíncrona (webhook), o
+// registro pode existir mas ainda não estar confirmado — devolve 202
+// nesse caso pra o frontend saber que precisa tentar de novo em vez de
+// mostrar erro (ver FinalizarCadastro.tsx).
 func (h *PlanoHandler) VerificarToken(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
@@ -48,9 +57,13 @@ func (h *PlanoHandler) VerificarToken(c *gin.Context) {
 		return
 	}
 
-	assinatura, err := h.stripeService.BuscarAssinaturaPendentePorToken(token)
+	assinatura, err := h.mercadoPagoAssinaturaService.VerificarToken(token)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"erro": "link inválido ou já utilizado"})
+		return
+	}
+	if !assinatura.Confirmada {
+		c.JSON(http.StatusAccepted, gin.H{"pendente": true})
 		return
 	}
 

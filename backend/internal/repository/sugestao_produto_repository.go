@@ -39,6 +39,26 @@ func (r *SugestaoProdutoRepository) ListarPorProdutosOrigem(lojaID uint, produto
 	return sugestoes, err
 }
 
+// ContarPorLoja devolve quantos vínculos a loja já tem no total — usado
+// pra aplicar o limite de 1 vínculo grátis quando a Sugestão Inteligente
+// não está contratada (ver SugestaoProdutoService.Criar).
+func (r *SugestaoProdutoRepository) ContarPorLoja(lojaID uint) (int64, error) {
+	var total int64
+	err := r.db.Model(&domain.SugestaoProduto{}).Where("loja_id = ?", lojaID).Count(&total).Error
+	return total, err
+}
+
+// PrimeiraID devolve o ID do vínculo mais antigo da loja (o "vínculo
+// grátis" quando a loja não tem a Sugestão Inteligente contratada) — ver
+// SugestaoProdutoService.MontarSugestoesCarrinho e Listar.
+func (r *SugestaoProdutoRepository) PrimeiraID(lojaID uint) (uint, error) {
+	var sugestao domain.SugestaoProduto
+	if err := r.db.Where("loja_id = ?", lojaID).Order("id asc").First(&sugestao).Error; err != nil {
+		return 0, err
+	}
+	return sugestao.ID, nil
+}
+
 func (r *SugestaoProdutoRepository) BuscarPorID(id uint) (*domain.SugestaoProduto, error) {
 	var sugestao domain.SugestaoProduto
 	if err := r.db.First(&sugestao, id).Error; err != nil {

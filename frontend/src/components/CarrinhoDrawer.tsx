@@ -5,6 +5,7 @@ import { criarPedido, criarCheckout } from '../api/pedidos';
 import { validarCupom } from '../api/cupons';
 import { cotarFrete } from '../api/frete';
 import { buscarSugestoesCarrinho } from '../api/sugestoes';
+import { SugestaoPreviewItem } from './SugestaoPreviewItem';
 import { Campo } from './Campo';
 import { EnderecoCampos, enderecoVazio, enderecoParaTexto, enderecoPreenchido, type EnderecoValor } from './EnderecoCampos';
 import { precoItem } from '../lib/utils';
@@ -430,27 +431,14 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
                     {sugestoesCarrinho.map((sugestao) => {
                       const produto = produtos.find((p) => p.id === sugestao.produto_id);
                       if (!produto) return null;
-                      const temDesconto = sugestao.preco_com_desconto < sugestao.preco;
                       return (
-                        <li key={sugestao.sugestao_id} className="flex items-center gap-3">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-tinta">{sugestao.nome}</p>
-                            <p className="font-carimbo text-xs text-tinta-suave">
-                              {temDesconto && (
-                                <span className="mr-1.5 line-through opacity-60">
-                                  R$ {sugestao.preco.toFixed(2).replace('.', ',')}
-                                </span>
-                              )}
-                              R$ {sugestao.preco_com_desconto.toFixed(2).replace('.', ',')}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => adicionarSugestao(sugestao, produto)}
-                            className="rounded-full bg-acento px-3 py-1.5 text-xs font-semibold text-superficie"
-                          >
-                            Adicionar
-                          </button>
-                        </li>
+                        <SugestaoPreviewItem
+                          key={sugestao.sugestao_id}
+                          nome={sugestao.nome}
+                          preco={sugestao.preco}
+                          precoComDesconto={sugestao.preco_com_desconto}
+                          onAdicionar={() => adicionarSugestao(sugestao, produto)}
+                        />
                       );
                     })}
                   </ul>

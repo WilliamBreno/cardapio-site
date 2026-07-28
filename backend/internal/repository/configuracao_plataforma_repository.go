@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+
 	"github.com/WilliamBreno/cardapio-backend/internal/domain"
 	"gorm.io/gorm"
 )
@@ -22,4 +24,19 @@ func (r *ConfiguracaoPlataformaRepository) Buscar() (*domain.ConfiguracaoPlatafo
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// SalvarPreapprovalPlanID cacheia o ID do preapproval_plan do Mercado
+// Pago criado sob demanda (get-or-create) pra "pro", "scale" ou
+// "sugestao" — ver MercadoPagoAssinaturaService.obterOuCriarPreapprovalPlan.
+func (r *ConfiguracaoPlataformaRepository) SalvarPreapprovalPlanID(plano, id string) error {
+	coluna := map[string]string{
+		"pro":      "mercado_pago_preapproval_plan_pro_id",
+		"scale":    "mercado_pago_preapproval_plan_scale_id",
+		"sugestao": "mercado_pago_preapproval_plan_sugestao_id",
+	}[plano]
+	if coluna == "" {
+		return fmt.Errorf("plano desconhecido pra salvar preapproval_plan: %q", plano)
+	}
+	return r.db.Model(&domain.ConfiguracaoPlataforma{}).Where("id = 1").Update(coluna, id).Error
 }

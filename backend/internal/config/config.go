@@ -30,6 +30,20 @@ type Config struct {
 	MercadoPagoClientSecret  string
 	MercadoPagoWebhookSecret string
 
+	// MercadoPagoAccessToken é o access_token da PRÓPRIA conta Mercado
+	// Pago da Drenux (não é OAuth de loja nenhuma) — usado só pra
+	// assinaturas recorrentes (plano da loja + Sugestão Inteligente, Fase
+	// 6 Parte 3), já que esse dinheiro é receita direta da plataforma, sem
+	// split. Pego direto no painel do Mercado Pago ("Suas integrações" →
+	// credenciais de produção/teste da aplicação), diferente do
+	// CLIENT_ID/CLIENT_SECRET acima (esses autenticam OUTRAS contas via
+	// OAuth). MercadoPagoAssinaturaWebhookSecret é a chave configurada
+	// pra validar a notificação da URL /webhooks/mercadopago/assinaturas
+	// especificamente — separada da MercadoPagoWebhookSecret do checkout
+	// de pedido, de propósito (não reaproveitar).
+	MercadoPagoAccessToken             string
+	MercadoPagoAssinaturaWebhookSecret string
+
 	// APIPublicURL é o endereço público desta própria API (não o do
 	// frontend) — precisa bater exatamente com o redirect_uri cadastrado
 	// na aplicação do Mercado Pago, já que é pra cá que o OAuth redireciona
@@ -72,8 +86,11 @@ func Load() *Config {
 		MercadoPagoClientID:      getEnv("MERCADOPAGO_CLIENT_ID", ""),
 		MercadoPagoClientSecret:  getEnv("MERCADOPAGO_CLIENT_SECRET", ""),
 		MercadoPagoWebhookSecret: getEnv("MERCADOPAGO_WEBHOOK_SECRET", ""),
-		APIPublicURL:             getEnv("API_PUBLIC_URL", "http://localhost:8080"),
-		DrenuxAdminSecret:        getEnv("DRENUX_ADMIN_SECRET", ""),
+
+		MercadoPagoAccessToken:             getEnv("MERCADOPAGO_ACCESS_TOKEN", ""),
+		MercadoPagoAssinaturaWebhookSecret: getEnv("MERCADOPAGO_ASSINATURA_WEBHOOK_SECRET", ""),
+		APIPublicURL:                       getEnv("API_PUBLIC_URL", "http://localhost:8080"),
+		DrenuxAdminSecret:                  getEnv("DRENUX_ADMIN_SECRET", ""),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -98,6 +115,14 @@ func Load() *Config {
 
 	if cfg.MercadoPagoWebhookSecret == "" {
 		log.Println("aviso: MERCADOPAGO_WEBHOOK_SECRET não definida — o webhook do Mercado Pago vai rejeitar todas as notificações")
+	}
+
+	if cfg.MercadoPagoAccessToken == "" {
+		log.Println("aviso: MERCADOPAGO_ACCESS_TOKEN não definida — checkout de assinatura (plano/Sugestão Inteligente) vai falhar")
+	}
+
+	if cfg.MercadoPagoAssinaturaWebhookSecret == "" {
+		log.Println("aviso: MERCADOPAGO_ASSINATURA_WEBHOOK_SECRET não definida — o webhook de assinaturas vai rejeitar todas as notificações")
 	}
 
 	if cfg.DrenuxAdminSecret == "" {

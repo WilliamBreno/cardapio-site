@@ -32,6 +32,18 @@ export async function buscarConfiguracaoPlataforma(): Promise<ConfiguracaoPlataf
   return data;
 }
 
+// Assinatura da Sugestão Inteligente via Mercado Pago (Fase 6 Parte 3) —
+// cobrança recorrente direto na conta da Drenux, independente do plano
+// da loja.
+export async function assinarSugestaoInteligente(): Promise<{ url: string }> {
+  const { data } = await api.post<{ url: string }>('/admin/sugestao-inteligente/assinatura');
+  return data;
+}
+
+export async function cancelarAssinaturaSugestaoInteligente(): Promise<void> {
+  await api.delete('/admin/sugestao-inteligente/assinatura');
+}
+
 // Público — seção consolidada de sugestões exibida na revisão do
 // carrinho antes do cliente finalizar (ver CarrinhoDrawer).
 export async function buscarSugestoesCarrinho(slug: string, produtoIds: number[]): Promise<SugestaoCarrinhoItem[]> {

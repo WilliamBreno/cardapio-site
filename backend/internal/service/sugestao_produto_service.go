@@ -19,27 +19,77 @@ type SugestaoProdutoInput struct {
 type SugestaoProdutoService struct {
 	sugestaoRepo *repository.SugestaoProdutoRepository
 	produtoRepo  *repository.ProdutoRepository
+	lojaRepo     *repository.LojaRepository
 }
 
 func NewSugestaoProdutoService(db *gorm.DB) *SugestaoProdutoService {
 	return &SugestaoProdutoService{
 		sugestaoRepo: repository.NewSugestaoProdutoRepository(db),
 		produtoRepo:  repository.NewProdutoRepository(db),
+		lojaRepo:     repository.NewLojaRepository(db),
 	}
 }
 
-func (s *SugestaoProdutoService) Listar(lojaID uint) ([]domain.SugestaoProduto, error) {
-	return s.sugestaoRepo.ListarPorLoja(lojaID)
+// SugestaoProdutoComStatus é a versão da tela de configuração — mostra se
+// o vínculo está "ativo" de verdade (ver regra do gostinho grátis abaixo).
+type SugestaoProdutoComStatus struct {
+	domain.SugestaoProduto
+	Ativo bool `json:"ativo"`
+}
+
+// Listar devolve todos os vínculos da loja, marcando quais estão
+// realmente ativos hoje. Sem a Sugestão Inteligente contratada, só o
+// vínculo mais antigo (o "grátis") fica ativo — os demais (cadastrados
+// enquanto a loja tinha o recurso contratado e depois cancelou, ver
+// Fase 6 Parte 3) continuam salvos, só ficam ocultos/inativos até uma
+// nova assinatura, sem precisar recadastrar nada.
+func (s *SugestaoProdutoService) Listar(lojaID uint) ([]SugestaoProdutoComStatus, error) {
+	loja, err := s.lojaRepo.BuscarPorID(lojaID)
+	if err != nil {
+		return nil, fmt.Errorf("buscando loja: %w", err)
+	}
+	sugestoes, err := s.sugestaoRepo.ListarPorLoja(lojaID)
+	if err != nil {
+		return nil, err
+	}
+
+	var primeiraID uint
+	if !loja.SugestaoInteligenteContratada {
+		primeiraID, _ = s.sugestaoRepo.PrimeiraID(lojaID)
+	}
+
+	resultado := make([]SugestaoProdutoComStatus, len(sugestoes))
+	for i, sugestao := range sugestoes {
+		ativo := loja.SugestaoInteligenteContratada || sugestao.ID == primeiraID
+		resultado[i] = SugestaoProdutoComStatus{SugestaoProduto: sugestao, Ativo: ativo}
+	}
+	return resultado, nil
 }
 
 // Criar valida a regra central da Fase 6: nunca sugerir o próprio
 // produto, e nunca deixar dois produtos sugeridos da MESMA categoria
 // vinculados à mesma origem — isso reforça, já na configuração, a regra
 // de exibição que só mostra uma sugestão por categoria no carrinho (ver
-// MontarSugestoesCarrinho).
+// MontarSugestoesCarrinho). Sem a Sugestão Inteligente contratada, a loja
+// só pode ter 1 vínculo no total — o "gostinho grátis" que funciona de
+// verdade pro cliente final, sem limite de uso, só de quantidade.
 func (s *SugestaoProdutoService) Criar(lojaID uint, input SugestaoProdutoInput) (*domain.SugestaoProduto, error) {
 	if input.ProdutoOrigemID == input.ProdutoSugeridoID {
 		return nil, errors.New("um produto não pode sugerir ele mesmo")
+	}
+
+	loja, err := s.lojaRepo.BuscarPorID(lojaID)
+	if err != nil {
+		return nil, fmt.Errorf("buscando loja: %w", err)
+	}
+	if !loja.SugestaoInteligenteContratada {
+		total, err := s.sugestaoRepo.ContarPorLoja(lojaID)
+		if err != nil {
+			return nil, fmt.Errorf("verificando limite de vínculos: %w", err)
+		}
+		if total >= 1 {
+			return nil, errors.New("você já testou grátis — assine a Sugestão Inteligente pra liberar sem limite")
+		}
 	}
 
 	origem, err := s.produtoRepo.BuscarPorID(input.ProdutoOrigemID)
@@ -119,9 +169,32 @@ func (s *SugestaoProdutoService) MontarSugestoesCarrinho(lojaID uint, produtosNo
 		return nil, nil
 	}
 
+	loja, err := s.lojaRepo.BuscarPorID(lojaID)
+	if err != nil {
+		return nil, fmt.Errorf("buscando loja: %w", err)
+	}
+
 	sugestoes, err := s.sugestaoRepo.ListarPorProdutosOrigem(lojaID, produtosNoCarrinho)
 	if err != nil {
 		return nil, fmt.Errorf("buscando sugestões: %w", err)
+	}
+
+	// Sem a Sugestão Inteligente contratada, só o vínculo mais antigo da
+	// loja (o "gostinho grátis") pode aparecer de verdade pro cliente —
+	// os demais, se existirem (loja que já foi assinante e cancelou),
+	// ficam ocultos até uma nova assinatura, mas continuam salvos.
+	if !loja.SugestaoInteligenteContratada {
+		primeiraID, err := s.sugestaoRepo.PrimeiraID(lojaID)
+		if err != nil {
+			return nil, nil
+		}
+		filtradas := make([]domain.SugestaoProduto, 0, 1)
+		for _, sugestao := range sugestoes {
+			if sugestao.ID == primeiraID {
+				filtradas = append(filtradas, sugestao)
+			}
+		}
+		sugestoes = filtradas
 	}
 
 	noCarrinho := make(map[uint]bool, len(produtosNoCarrinho))

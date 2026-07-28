@@ -13,6 +13,14 @@ type ConfiguracaoPlataforma struct {
 	ID                             uint      `gorm:"primaryKey" json:"id"`
 	SugestaoInteligentePrecoMensal float64   `gorm:"not null;default:19.90" json:"sugestao_inteligente_preco_mensal"`
 	UpdatedAt                      time.Time `json:"updated_at"`
+
+	// IDs de preapproval_plan do Mercado Pago (Fase 6 Parte 3) — criados
+	// uma única vez sob demanda (get-or-create) e cacheados aqui pra não
+	// duplicar Product/Plan a cada checkout de assinatura. Vazio = ainda
+	// não criado.
+	MercadoPagoPreapprovalPlanProID      string `gorm:"size:100" json:"-"`
+	MercadoPagoPreapprovalPlanScaleID    string `gorm:"size:100" json:"-"`
+	MercadoPagoPreapprovalPlanSugestaoID string `gorm:"size:100" json:"-"`
 }
 
 func (ConfiguracaoPlataforma) TableName() string {

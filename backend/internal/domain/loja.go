@@ -70,16 +70,28 @@ type Loja struct {
 	MercadoPagoUserID        string     `gorm:"size:50;index" json:"-"`
 	MercadoPagoTokenExpiraEm *time.Time `json:"-"`
 
+	// MercadoPagoPreapprovalIDPlano é o preapproval ATIVO da assinatura de
+	// plano (Pro/Scale) dessa loja — cobrança recorrente direto na conta
+	// da própria Drenux (não é OAuth/split, ver
+	// service.MercadoPagoAssinaturaService). Vazio = loja no plano Start,
+	// sem assinatura ativa.
+	MercadoPagoPreapprovalIDPlano string `gorm:"size:100;index" json:"-"`
+
 	// Sugestão Inteligente (Fase 6) — upsell manual configurado pelo
 	// lojista, cobrado como recurso pago à parte (ver
 	// domain.ConfiguracaoPlataforma). Contratada é quem controla se a
-	// loja PODE ligar o recurso (hoje setado manualmente, sem cobrança
-	// automática ainda — ver docs/plano-melhorias-drenux.md, Fase 6);
-	// Ativa é o toggle do próprio lojista, só efetivo se Contratada for
-	// true (reforçado em LojaService.AtualizarConfiguracoes).
+	// loja tem o recurso completo (sem limite de vínculos) — sem
+	// contratar, a loja tem direito a 1 vínculo grátis funcional (ver
+	// SugestaoProdutoService). Ativa é o toggle do lojista pra
+	// mostrar/esconder a seção no carrinho do cliente, livre mesmo sem
+	// contratar.
 	SugestaoInteligenteContratada   bool       `gorm:"default:false" json:"sugestao_inteligente_contratada"`
 	SugestaoInteligenteContratadaEm *time.Time `json:"sugestao_inteligente_contratada_em"`
 	SugestaoInteligenteAtiva        bool       `gorm:"default:false" json:"sugestao_inteligente_ativa"`
+	// SugestaoInteligenteMercadoPagoPreapprovalID é o preapproval ATIVO da
+	// assinatura da Sugestão Inteligente — independente da assinatura de
+	// plano acima. Vazio = sem assinatura ativa desse recurso.
+	SugestaoInteligenteMercadoPagoPreapprovalID string `gorm:"size:100;index" json:"-"`
 
 	AfiliadoID *uint `gorm:"index" json:"-"`
 

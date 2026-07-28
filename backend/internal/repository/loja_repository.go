@@ -85,6 +85,74 @@ func (r *LojaRepository) ListarComMercadoPagoExpirandoAte(limite time.Time) ([]d
 	return lojas, nil
 }
 
+// BuscarPorMercadoPagoPreapprovalIDPlano é usado pelo webhook de
+// assinaturas (Fase 6 Parte 3) pra achar de qual loja é um evento de
+// renovação/cancelamento da assinatura de PLANO — o preapproval_id não
+// muda durante a vida da assinatura, então dá pra usar como chave estável
+// depois da confirmação inicial (que usa AssinaturaPendente, antes da
+// loja existir).
+func (r *LojaRepository) BuscarPorMercadoPagoPreapprovalIDPlano(preapprovalID string) (*domain.Loja, error) {
+	var loja domain.Loja
+	if err := r.db.Where("mercado_pago_preapproval_id_plano = ?", preapprovalID).First(&loja).Error; err != nil {
+		return nil, err
+	}
+	return &loja, nil
+}
+
+// AtualizarAssinaturaPlano aplica uma assinatura de plano confirmada
+// (Pro/Scale) — usado tanto na finalização do cadastro quanto, futuramente,
+// numa troca de plano de loja já existente.
+func (r *LojaRepository) AtualizarAssinaturaPlano(lojaID uint, plano, preapprovalID string) error {
+	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Updates(map[string]interface{}{
+		"plano":                             plano,
+		"mercado_pago_preapproval_id_plano": preapprovalID,
+	}).Error
+}
+
+// CancelarAssinaturaPlano volta a loja pro Start — chamado quando o
+// webhook de assinatura reporta a assinatura de plano cancelada ou pausada
+// (pagamento recorrente falhou).
+func (r *LojaRepository) CancelarAssinaturaPlano(lojaID uint) error {
+	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Updates(map[string]interface{}{
+		"plano":                             "start",
+		"mercado_pago_preapproval_id_plano": "",
+	}).Error
+}
+
+// BuscarPorSugestaoInteligenteMercadoPagoPreapprovalID é o equivalente
+// acima, só que pra assinatura da Sugestão Inteligente (independente da
+// assinatura de plano).
+func (r *LojaRepository) BuscarPorSugestaoInteligenteMercadoPagoPreapprovalID(preapprovalID string) (*domain.Loja, error) {
+	var loja domain.Loja
+	if err := r.db.Where("sugestao_inteligente_mercado_pago_preapproval_id = ?", preapprovalID).First(&loja).Error; err != nil {
+		return nil, err
+	}
+	return &loja, nil
+}
+
+// AtivarSugestaoInteligente marca a loja como tendo contratado o recurso
+// completo — chamado pelo webhook quando o preapproval é aprovado.
+func (r *LojaRepository) AtivarSugestaoInteligente(lojaID uint, preapprovalID string, contratadaEm time.Time) error {
+	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Updates(map[string]interface{}{
+		"sugestao_inteligente_contratada":                  true,
+		"sugestao_inteligente_contratada_em":               contratadaEm,
+		"sugestao_inteligente_mercado_pago_preapproval_id": preapprovalID,
+	}).Error
+}
+
+// DesativarSugestaoInteligente volta a loja pro limite de 1 vínculo
+// grátis — chamado tanto pelo botão "Cancelar assinatura" quanto pelo
+// webhook (cancelamento ou pagamento recorrente falhou). Não apaga
+// ContratadaEm (histórico de quando contratou da primeira vez) nem os
+// vínculos já cadastrados — só os que passam do limite ficam
+// inativos/ocultos (ver SugestaoProdutoService).
+func (r *LojaRepository) DesativarSugestaoInteligente(lojaID uint) error {
+	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Updates(map[string]interface{}{
+		"sugestao_inteligente_contratada":                  false,
+		"sugestao_inteligente_mercado_pago_preapproval_id": "",
+	}).Error
+}
+
 // AtualizarPlano aplica uma troca de plano imediatamente (upgrade ou
 // troca entre planos pagos) — usado tanto na confirmação do checkout de
 // nova assinatura quanto na troca direta de Price numa assinatura já

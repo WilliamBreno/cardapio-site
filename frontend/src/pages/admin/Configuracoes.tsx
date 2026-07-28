@@ -7,7 +7,7 @@ import {
   iniciarOnboardingMercadoPago,
 } from '../../api/admin';
 import { enviarImagem, logoMiniatura } from '../../api/upload';
-import { buscarConfiguracaoPlataforma } from '../../api/sugestoes';
+import { buscarConfiguracaoPlataforma, assinarSugestaoInteligente, cancelarAssinaturaSugestaoInteligente } from '../../api/sugestoes';
 import { TEMAS } from '../../themes';
 import { Campo } from '../../components/Campo';
 import { QRCodeCardapio } from '../../components/QRCodeCardapio';
@@ -48,6 +48,7 @@ export function Configuracoes() {
   const [salvo, setSalvo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [conectandoMercadoPago, setConectandoMercadoPago] = useState(false);
+  const [assinandoSugestao, setAssinandoSugestao] = useState(false);
   const [enviandoLogo, setEnviandoLogo] = useState(false);
   const [erroLogo, setErroLogo] = useState<string | null>(null);
 
@@ -145,6 +146,26 @@ export function Configuracoes() {
       setConectandoMercadoPago(false);
     }
   }
+
+  async function assinarSugestao() {
+    setAssinandoSugestao(true);
+    try {
+      const { url } = await assinarSugestaoInteligente();
+      window.location.href = url;
+    } catch {
+      setAssinandoSugestao(false);
+      setErro('Não foi possível iniciar a assinatura. Tenta de novo em instantes.');
+    }
+  }
+
+  const mutCancelarSugestao = useMutation({
+    mutationFn: cancelarAssinaturaSugestaoInteligente,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['loja'] });
+      setSugestaoInteligenteAtiva(false);
+    },
+    onError: () => setErro('Não foi possível cancelar a assinatura. Tenta de novo em instantes.'),
+  });
 
   if (isLoading) return <p className="text-tinta-suave">Carregando...</p>;
 
@@ -404,35 +425,54 @@ export function Configuracoes() {
         </div>
 
         {/* Sugestão Inteligente — recurso pago à parte (Fase 6), taxa fixa
-            mensal em qualquer plano. O toggle só liga se a loja tiver
-            contratado (loja.sugestao_inteligente_contratada) — sem
-            contratação, mostra só o preço e uma explicação, sem controle
-            nenhum pra ativar (contratação hoje é manual, fora do sistema). */}
+            mensal em qualquer plano. O toggle liga/desliga a exibição pro
+            cliente final livremente, contratada ou não — sem contratar, a
+            loja tem direito a 1 vínculo grátis que aparece de verdade se
+            o toggle estiver ligado (a quantidade é limitada em "Sugestão
+            Inteligente" no menu, não a exibição aqui). */}
         <div className="space-y-3 rounded-xl border border-tinta/10 bg-fundo p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Sugestão Inteligente</p>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={sugestaoInteligenteAtiva}
+              onChange={(e) => setSugestaoInteligenteAtiva(e.target.checked)}
+              className="h-4 w-4 accent-acento"
+            />
+            <span className="text-sm font-medium text-tinta">Mostrar sugestões no carrinho do cliente</span>
+          </label>
           {loja?.sugestao_inteligente_contratada ? (
             <>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={sugestaoInteligenteAtiva}
-                  onChange={(e) => setSugestaoInteligenteAtiva(e.target.checked)}
-                  className="h-4 w-4 accent-acento"
-                />
-                <span className="text-sm font-medium text-tinta">Mostrar sugestões no carrinho do cliente</span>
-              </label>
               <p className="text-xs text-tinta-suave">
                 Sugere produtos complementares (estilo totem de fastfood) quando o cliente revisa o carrinho antes de finalizar, com base nos vínculos configurados em "Sugestão Inteligente" no menu.
               </p>
+              <button
+                type="button"
+                onClick={() => { if (confirm('Cancelar a assinatura da Sugestão Inteligente? Os vínculos além do limite grátis ficam ocultos até você assinar de novo.')) mutCancelarSugestao.mutate(); }}
+                disabled={mutCancelarSugestao.isPending}
+                className="rounded-full border border-acento/30 px-4 py-2 text-sm font-semibold text-acento disabled:opacity-60"
+              >
+                {mutCancelarSugestao.isPending ? 'Cancelando...' : 'Cancelar assinatura'}
+              </button>
             </>
           ) : (
-            <p className="text-xs text-tinta-suave">
-              Recurso pago à parte
-              {configuracaoPlataforma && (
-                <> — R$ {configuracaoPlataforma.sugestao_inteligente_preco_mensal.toFixed(2).replace('.', ',')}/mês</>
-              )}
-              , não incluído no seu plano atual. Sugere produtos complementares ao cliente na revisão do carrinho, estilo totem de fastfood. Fale com a Drenux pra contratar.
-            </p>
+            <>
+              <p className="text-xs text-tinta-suave">
+                Você pode testar grátis com 1 vínculo (configura em "Sugestão Inteligente" no menu) — funciona de verdade pro cliente final. Recurso completo, sem limite de vínculos, é pago à parte
+                {configuracaoPlataforma && (
+                  <> — R$ {configuracaoPlataforma.sugestao_inteligente_preco_mensal.toFixed(2).replace('.', ',')}/mês</>
+                )}
+                .
+              </p>
+              <button
+                type="button"
+                onClick={assinarSugestao}
+                disabled={assinandoSugestao}
+                className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+              >
+                {assinandoSugestao ? 'Abrindo pagamento...' : 'Assinar'}
+              </button>
+            </>
           )}
         </div>
 
