@@ -169,7 +169,7 @@ export function CardapioPublico() {
         </div>
       </header>
 
-      {data.combos.length > 0 && (
+      {(data.combos?.length ?? 0) > 0 && (
         <section className="mx-auto max-w-2xl space-y-3 px-4 pt-4">
           <h2 className="font-display text-lg tracking-wide text-tinta">Combos</h2>
           {data.combos.map((combo) => (
