@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/WilliamBreno/cardapio-backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -10,13 +11,15 @@ import (
 
 type MercadoPagoHandler struct {
 	mercadoPagoService *service.MercadoPagoService
+	assinaturaService  *service.MercadoPagoAssinaturaService
 	frontendURL        string
 	cronSecret         string
 }
 
-func NewMercadoPagoHandler(mercadoPagoService *service.MercadoPagoService, frontendURL, cronSecret string) *MercadoPagoHandler {
+func NewMercadoPagoHandler(mercadoPagoService *service.MercadoPagoService, assinaturaService *service.MercadoPagoAssinaturaService, frontendURL, cronSecret string) *MercadoPagoHandler {
 	return &MercadoPagoHandler{
 		mercadoPagoService: mercadoPagoService,
+		assinaturaService:  assinaturaService,
 		frontendURL:        frontendURL,
 		cronSecret:         cronSecret,
 	}
@@ -119,6 +122,17 @@ func (h *MercadoPagoHandler) Checkout(c *gin.Context) {
 // MercadoPagoService.ProcessarMerchantOrder). Ignorar "merchant_order"
 // (como o código fazia antes) significava nunca processar pagamento
 // nenhum de verdade — não é opcional tratar os dois tipos.
+//
+// IMPORTANTE 2 (achado configurando o painel real em 28/07/2026): a
+// aplicação do Mercado Pago só aceita UMA URL de notificação por
+// ambiente — não dá pra ter uma URL separada pra eventos de assinatura
+// (Fase 6 Parte 3, "Planos e assinaturas"). Por isso esse mesmo endpoint
+// também trata notificações de preapproval (tipo ainda não confirmado
+// contra um evento real — o código aceita qualquer tipo contendo
+// "subscription" ou "preapproval", e loga o tipo exato recebido pra
+// facilitar o ajuste se o nome vier diferente do esperado, mesma lição
+// do merchant_order acima). A assinatura (x-signature) é validada com o
+// MESMO secret do checkout de pedido, já que é a mesma URL/aplicação.
 func (h *MercadoPagoHandler) Webhook(c *gin.Context) {
 	tipo := c.Query("type")
 	if tipo == "" {
@@ -136,7 +150,8 @@ func (h *MercadoPagoHandler) Webhook(c *gin.Context) {
 
 	log.Printf("webhook Mercado Pago recebido — type/topic=%q id=%s", tipo, dataID)
 
-	if tipo != "payment" && tipo != "merchant_order" {
+	ehAssinatura := strings.Contains(tipo, "subscription") || strings.Contains(tipo, "preapproval")
+	if tipo != "payment" && tipo != "merchant_order" && !ehAssinatura {
 		log.Printf("webhook Mercado Pago ignorado — type/topic=%q ainda não tratado (id=%s)", tipo, dataID)
 		c.JSON(http.StatusOK, gin.H{"received": true})
 		return
@@ -152,9 +167,12 @@ func (h *MercadoPagoHandler) Webhook(c *gin.Context) {
 	log.Printf("assinatura do webhook Mercado Pago validada (id=%s)", dataID)
 
 	var err error
-	if tipo == "merchant_order" {
+	switch {
+	case tipo == "merchant_order":
 		err = h.mercadoPagoService.ProcessarMerchantOrder(c.Request.Context(), dataID)
-	} else {
+	case ehAssinatura:
+		err = h.assinaturaService.ProcessarWebhook(c.Request.Context(), dataID)
+	default:
 		err = h.mercadoPagoService.ProcessarNotificacaoPagamento(c.Request.Context(), dataID)
 	}
 	if err != nil {

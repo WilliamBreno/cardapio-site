@@ -47,8 +47,13 @@ export function Produtos() {
   const { data: categorias } = useQuery({ queryKey: ['categorias'], queryFn: listarCategorias });
   const { data: loja } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
   const ehMercadoria = loja?.segmento_principal === 'mercadoria';
-  const { data: subcategorias } = useQuery({ queryKey: ['subcategorias'], queryFn: listarSubcategorias, enabled: ehMercadoria });
-  const { data: gruposCor } = useQuery({ queryKey: ['grupos-cor'], queryFn: listarGruposCor, enabled: ehMercadoria });
+  // Subcategoria/Grupo (Fase 6): liberado como ferramenta de organização
+  // pra qualquer segmento — o agrupamento na lista abaixo só aparece de
+  // fato se a categoria tiver subcategoria cadastrada (ver
+  // renderProdutosDaCategoria), então não precisa mais gate por segmento
+  // aqui na busca.
+  const { data: subcategorias } = useQuery({ queryKey: ['subcategorias'], queryFn: listarSubcategorias });
+  const { data: gruposCor } = useQuery({ queryKey: ['grupos-cor'], queryFn: listarGruposCor });
 
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -381,9 +386,11 @@ export function Produtos() {
   }
 
   // Agrupa os produtos de uma categoria pela hierarquia Subcategoria →
-  // Grupo de Cor — exclusiva do segmento "mercadoria". Cada nível só
-  // aparece se a loja realmente cadastrou subcategorias/grupos de cor;
-  // produtos sem subcategoria/grupo continuam aparecendo soltos.
+  // Grupo (Fase 6: liberado pra qualquer segmento, não só "mercadoria").
+  // Cada nível só aparece se a loja realmente cadastrou subcategorias/
+  // grupos; produtos sem subcategoria/grupo continuam aparecendo soltos,
+  // e uma categoria sem nenhuma subcategoria cadastrada degrada pra lista
+  // plana normal — por isso não precisa de nenhum gate de segmento aqui.
   function renderProdutosDaCategoria(produtosDaCategoria: Produto[], categoriaId: number) {
     const subsDaCategoria = (subcategorias ?? []).filter((s) => s.categoria_id === categoriaId);
     if (subsDaCategoria.length === 0) {
@@ -475,22 +482,18 @@ export function Produtos() {
       {isLoading ? (
         <p className="text-tinta-suave">Carregando produtos...</p>
       ) : produtos && produtos.length > 0 ? (
-        ehMercadoria ? (
-          <div className="space-y-6">
-            {categorias?.map((categoria) => {
-              const produtosDaCategoria = produtos.filter((p) => p.categoria_id === categoria.id);
-              if (produtosDaCategoria.length === 0) return null;
-              return (
-                <div key={categoria.id} className="space-y-3">
-                  <h2 className="font-display text-base tracking-wide text-tinta">{categoria.nome}</h2>
-                  {renderProdutosDaCategoria(produtosDaCategoria, categoria.id)}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <ul className="space-y-3">{produtos.map(renderProduto)}</ul>
-        )
+        <div className="space-y-6">
+          {categorias?.map((categoria) => {
+            const produtosDaCategoria = produtos.filter((p) => p.categoria_id === categoria.id);
+            if (produtosDaCategoria.length === 0) return null;
+            return (
+              <div key={categoria.id} className="space-y-3">
+                <h2 className="font-display text-base tracking-wide text-tinta">{categoria.nome}</h2>
+                {renderProdutosDaCategoria(produtosDaCategoria, categoria.id)}
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <p className="text-tinta-suave">Nenhum produto cadastrado ainda.</p>
       )}

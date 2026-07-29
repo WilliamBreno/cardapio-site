@@ -37,12 +37,18 @@ type Config struct {
 	// split. Pego direto no painel do Mercado Pago ("Suas integrações" →
 	// credenciais de produção/teste da aplicação), diferente do
 	// CLIENT_ID/CLIENT_SECRET acima (esses autenticam OUTRAS contas via
-	// OAuth). MercadoPagoAssinaturaWebhookSecret é a chave configurada
-	// pra validar a notificação da URL /webhooks/mercadopago/assinaturas
-	// especificamente — separada da MercadoPagoWebhookSecret do checkout
-	// de pedido, de propósito (não reaproveitar).
-	MercadoPagoAccessToken             string
-	MercadoPagoAssinaturaWebhookSecret string
+	// OAuth).
+	//
+	// Achado configurando o painel real do Mercado Pago (28/07/2026): a
+	// aplicação só aceita UMA URL de notificação por ambiente (teste ou
+	// produção), com os tópicos marcados por checkbox apontando todos pra
+	// ela — não dá pra ter uma URL/secret separada por tópico como o
+	// desenho original desta fase previa. Por isso as notificações de
+	// assinatura ("Planos e assinaturas") chegam na MESMA URL
+	// /webhooks/mercadopago do checkout de pedido, validadas com o MESMO
+	// MercadoPagoWebhookSecret acima — não existe mais um secret
+	// separado pra assinatura.
+	MercadoPagoAccessToken string
 
 	// APIPublicURL é o endereço público desta própria API (não o do
 	// frontend) — precisa bater exatamente com o redirect_uri cadastrado
@@ -87,10 +93,9 @@ func Load() *Config {
 		MercadoPagoClientSecret:  getEnv("MERCADOPAGO_CLIENT_SECRET", ""),
 		MercadoPagoWebhookSecret: getEnv("MERCADOPAGO_WEBHOOK_SECRET", ""),
 
-		MercadoPagoAccessToken:             getEnv("MERCADOPAGO_ACCESS_TOKEN", ""),
-		MercadoPagoAssinaturaWebhookSecret: getEnv("MERCADOPAGO_ASSINATURA_WEBHOOK_SECRET", ""),
-		APIPublicURL:                       getEnv("API_PUBLIC_URL", "http://localhost:8080"),
-		DrenuxAdminSecret:                  getEnv("DRENUX_ADMIN_SECRET", ""),
+		MercadoPagoAccessToken: getEnv("MERCADOPAGO_ACCESS_TOKEN", ""),
+		APIPublicURL:           getEnv("API_PUBLIC_URL", "http://localhost:8080"),
+		DrenuxAdminSecret:      getEnv("DRENUX_ADMIN_SECRET", ""),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -119,10 +124,6 @@ func Load() *Config {
 
 	if cfg.MercadoPagoAccessToken == "" {
 		log.Println("aviso: MERCADOPAGO_ACCESS_TOKEN não definida — checkout de assinatura (plano/Sugestão Inteligente) vai falhar")
-	}
-
-	if cfg.MercadoPagoAssinaturaWebhookSecret == "" {
-		log.Println("aviso: MERCADOPAGO_ASSINATURA_WEBHOOK_SECRET não definida — o webhook de assinaturas vai rejeitar todas as notificações")
 	}
 
 	if cfg.DrenuxAdminSecret == "" {

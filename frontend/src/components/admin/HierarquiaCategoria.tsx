@@ -14,10 +14,10 @@ interface Props {
   onDeletarGrupo: (id: number) => void;
 }
 
-// Gerencia a hierarquia Categoria → Subcategoria → Grupo de Cor de uma
-// categoria específica — exclusiva do segmento "mercadoria". Cada nível é
+// Gerencia a hierarquia Categoria → Subcategoria → Grupo de uma categoria
+// específica — disponível pra qualquer segmento (Fase 6). Cada nível é
 // opcional: o lojista pode deixar uma categoria sem nenhuma subcategoria,
-// ou uma subcategoria sem nenhum grupo de cor.
+// ou uma subcategoria sem nenhum grupo.
 export function HierarquiaCategoria({
   categoria, subcategorias, gruposCor,
   onCriarSub, onAtualizarSub, onDeletarSub,
@@ -103,7 +103,7 @@ export function HierarquiaCategoria({
                           onClick={() => setSubExpandida(subExpandida === sub.id ? null : sub.id)}
                           className="text-xs font-medium text-tinta-suave hover:text-acento"
                         >
-                          Grupos de cor {gruposDaSub.length > 0 && `(${gruposDaSub.length})`}
+                          Grupos {gruposDaSub.length > 0 && `(${gruposDaSub.length})`}
                         </button>
                         <button onClick={() => abrirEdicaoSub(sub)} className="text-xs font-medium text-acento hover:underline">Editar</button>
                         <button
@@ -135,7 +135,7 @@ export function HierarquiaCategoria({
                             ))}
                           </ul>
                         ) : (
-                          <p className="text-xs text-tinta-suave">Nenhum grupo de cor ainda.</p>
+                          <p className="text-xs text-tinta-suave">Nenhum grupo ainda.</p>
                         )}
 
                         {mostrarFormGrupo && subExpandida === sub.id ? (
@@ -153,7 +153,7 @@ export function HierarquiaCategoria({
                           </form>
                         ) : (
                           <button onClick={() => abrirNovoGrupo(sub.id)} className="text-xs font-semibold text-acento hover:underline">
-                            + Novo grupo de cor
+                            + Novo grupo
                           </button>
                         )}
                       </div>

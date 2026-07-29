@@ -21,8 +21,9 @@ export async function deletarCategoria(id: number): Promise<void> {
   await api.delete(`/admin/categorias/${id}`);
 }
 
-// Subcategorias e Grupos de Cor — exclusivos do segmento "mercadoria"
-// (Categoria → Subcategoria → Grupo de Cor, ver plano-melhorias-drenux.md Fase 3).
+// Subcategorias e Grupos — hierarquia Categoria → Subcategoria → Grupo,
+// disponível pra qualquer segmento (ver plano-melhorias-drenux.md Fase 3
+// e Fase 6, que liberou de "mercadoria" pra geral).
 export async function listarSubcategorias(): Promise<Subcategoria[]> {
   const { data } = await api.get<Subcategoria[]>('/admin/subcategorias');
   return data;

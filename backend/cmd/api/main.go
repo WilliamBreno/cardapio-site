@@ -152,15 +152,21 @@ func main() {
 		cfg.MercadoPagoClientID, cfg.MercadoPagoClientSecret, cfg.MercadoPagoWebhookSecret,
 		cfg.JWTSecret, cfg.APIPublicURL, cfg.FrontendURLs[0], db, posPagamentoService, repasseAfiliadoService,
 	)
-	mercadoPagoHandler := handler.NewMercadoPagoHandler(mercadoPagoService, cfg.FrontendURLs[0], cfg.CronSecret)
 
 	// mercadoPagoAssinaturaService cobre a cobrança recorrente CONSOLIDADA
 	// (plano da loja + Sugestão Inteligente), direto na conta da própria
 	// Drenux — sem OAuth, sem split (Fase 6 Parte 3, diferente do
-	// mercadoPagoService acima, que é por-loja).
+	// mercadoPagoService acima, que é por-loja). A aplicação do Mercado
+	// Pago só aceita uma URL de webhook por ambiente, então as
+	// notificações de assinatura chegam no MESMO endpoint
+	// /webhooks/mercadopago do checkout de pedido — por isso esse serviço
+	// é injetado no mercadoPagoHandler abaixo, não tem handler/rota de
+	// webhook próprios.
 	mercadoPagoAssinaturaService := service.NewMercadoPagoAssinaturaService(
-		cfg.MercadoPagoAccessToken, cfg.MercadoPagoAssinaturaWebhookSecret, cfg.FrontendURLs[0], db, emailSender,
+		cfg.MercadoPagoAccessToken, cfg.FrontendURLs[0], db, emailSender,
 	)
+	mercadoPagoHandler := handler.NewMercadoPagoHandler(mercadoPagoService, mercadoPagoAssinaturaService, cfg.FrontendURLs[0], cfg.CronSecret)
+
 	planoHandler := handler.NewPlanoHandler(stripeService, mercadoPagoAssinaturaService)
 	assinaturaHandler := handler.NewAssinaturaHandler(mercadoPagoAssinaturaService)
 
@@ -237,11 +243,11 @@ func main() {
 	router.POST("/solicitacoes/:id/checkout", stripeHandler.CheckoutFrete)
 
 	router.POST("/webhooks/stripe", stripeHandler.Webhook)
+	// Também recebe eventos de assinatura (plano da loja + Sugestão
+	// Inteligente, Fase 6 Parte 3) — a aplicação do Mercado Pago só aceita
+	// uma URL de notificação por ambiente, então não dá pra ter um
+	// endpoint separado pra isso (ver MercadoPagoHandler.Webhook).
 	router.POST("/webhooks/mercadopago", mercadoPagoHandler.Webhook)
-	// Endpoint novo e separado do webhook de pagamento de pedido acima —
-	// eventos de assinatura (plano da loja + Sugestão Inteligente, Fase 6
-	// Parte 3), secret de validação próprio.
-	router.POST("/webhooks/mercadopago/assinaturas", assinaturaHandler.Webhook)
 
 	// Callback do OAuth do Mercado Pago — rota pública de propósito (é o
 	// próprio Mercado Pago que redireciona o navegador do dono pra cá,

@@ -28,17 +28,19 @@ export function Categorias() {
     queryFn: listarCategorias,
   });
   const { data: loja } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
+  // Subcategoria/Grupo já foi restrito ao segmento "mercadoria" (Fase 3),
+  // mas o William pediu pra liberar como ferramenta de organização pra
+  // qualquer segmento (Fase 6) — o cardápio público do alimentício
+  // continua no formato lista de sempre, isso aqui é só admin.
   const ehMercadoria = loja?.segmento_principal === 'mercadoria';
 
   const { data: subcategorias } = useQuery({
     queryKey: ['subcategorias'],
     queryFn: listarSubcategorias,
-    enabled: ehMercadoria,
   });
   const { data: gruposCor } = useQuery({
     queryKey: ['grupos-cor'],
     queryFn: listarGruposCor,
-    enabled: ehMercadoria,
   });
 
   const invalidarSubcategorias = () => queryClient.invalidateQueries({ queryKey: ['subcategorias'] });
@@ -159,8 +161,8 @@ export function Categorias() {
 
       <p className="text-sm text-tinta-suave">
         {ehMercadoria
-          ? 'São as categorias que organizam seu catálogo (ex: Tênis, Camisetas) — o cliente navega por elas no catálogo público, e você pode detalhar cada uma em subcategorias e grupos de cor logo abaixo.'
-          : 'São as abas que o cliente vê no cardápio (ex: Salgados, Doces). Toda loja já nasce com essas duas — adiciona mais se quiser organizar diferente.'}
+          ? 'São as categorias que organizam seu catálogo (ex: Tênis, Camisetas) — o cliente navega por elas no catálogo público, e você pode detalhar cada uma em subcategorias e grupos logo abaixo.'
+          : 'São as abas que o cliente vê no cardápio (ex: Salgados, Doces). Toda loja já nasce com essas duas — adiciona mais se quiser organizar diferente. Se quiser mais detalhe (ex: tamanhos, tipos), dá pra usar subcategorias e grupos logo abaixo — é só uma ferramenta de organização interna, não muda nada no que o cliente vê.'}
       </p>
 
       {mostrarForm && (
@@ -232,19 +234,17 @@ export function Categorias() {
                 </div>
               </div>
 
-              {ehMercadoria && (
-                <HierarquiaCategoria
-                  categoria={categoria}
-                  subcategorias={subcategorias ?? []}
-                  gruposCor={gruposCor ?? []}
-                  onCriarSub={(nome) => mutCriarSub.mutate({ categoriaId: categoria.id, nome })}
-                  onAtualizarSub={(id, nome) => mutAtualizarSub.mutate({ id, nome })}
-                  onDeletarSub={(id) => mutDeletarSub.mutate(id)}
-                  onCriarGrupo={(subcategoriaId, nome) => mutCriarGrupo.mutate({ subcategoriaId, nome })}
-                  onAtualizarGrupo={(id, nome) => mutAtualizarGrupo.mutate({ id, nome })}
-                  onDeletarGrupo={(id) => mutDeletarGrupo.mutate(id)}
-                />
-              )}
+              <HierarquiaCategoria
+                categoria={categoria}
+                subcategorias={subcategorias ?? []}
+                gruposCor={gruposCor ?? []}
+                onCriarSub={(nome) => mutCriarSub.mutate({ categoriaId: categoria.id, nome })}
+                onAtualizarSub={(id, nome) => mutAtualizarSub.mutate({ id, nome })}
+                onDeletarSub={(id) => mutDeletarSub.mutate(id)}
+                onCriarGrupo={(subcategoriaId, nome) => mutCriarGrupo.mutate({ subcategoriaId, nome })}
+                onAtualizarGrupo={(id, nome) => mutAtualizarGrupo.mutate({ id, nome })}
+                onDeletarGrupo={(id) => mutDeletarGrupo.mutate(id)}
+              />
             </li>
           ))}
         </ul>

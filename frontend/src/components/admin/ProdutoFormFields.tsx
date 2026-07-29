@@ -22,10 +22,12 @@ interface Props {
 // (Produtos.tsx) quanto no wizard de cadastro em massa, pra não duplicar
 // essa lógica nos dois lugares.
 export function ProdutoFormFields({ form, onChange, categorias, subcategorias, gruposCor, enviandoFoto, onSelecionarFoto, segmentoLoja }: Props) {
-  // Subcategoria/Grupo de Cor são exclusivos do segmento "mercadoria" e
-  // formam uma cadeia — trocar a categoria ou a subcategoria limpa o que
-  // vinha "embaixo" na hierarquia, pra nunca ficar um produto com
-  // subcategoria/grupo de cor de outra categoria.
+  // Subcategoria/Grupo (Fase 6: disponível pra qualquer segmento, não só
+  // "mercadoria") formam uma cadeia — trocar a categoria ou a
+  // subcategoria limpa o que vinha "embaixo" na hierarquia, pra nunca
+  // ficar um produto com subcategoria/grupo de outra categoria. Só
+  // aparecem se a categoria escolhida realmente tiver subcategoria
+  // cadastrada — não depende do tipo do produto.
   const subcategoriasDaCategoria = subcategorias?.filter((s) => s.categoria_id === form.categoria_id) ?? [];
   const gruposCorDaSubcategoria = gruposCor?.filter((g) => g.subcategoria_id === form.subcategoria_id) ?? [];
 
@@ -49,7 +51,7 @@ export function ProdutoFormFields({ form, onChange, categorias, subcategorias, g
         </Campo>
       </div>
 
-      {form.tipo_produto === 'mercadoria' && subcategoriasDaCategoria.length > 0 && (
+      {subcategoriasDaCategoria.length > 0 && (
         <div className="flex gap-3">
           <Campo label="Subcategoria (opcional)" className="flex-1">
             <select
@@ -62,7 +64,7 @@ export function ProdutoFormFields({ form, onChange, categorias, subcategorias, g
             </select>
           </Campo>
           {form.subcategoria_id !== null && gruposCorDaSubcategoria.length > 0 && (
-            <Campo label="Grupo de cor (opcional)" className="flex-1">
+            <Campo label="Grupo (opcional)" className="flex-1">
               <select
                 value={form.grupo_cor_id ?? ''}
                 onChange={(e) => onChange({ ...form, grupo_cor_id: e.target.value === '' ? null : Number(e.target.value) })}

@@ -3,10 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -33,6 +30,14 @@ import (
 // receita direta da plataforma, diferente de MercadoPagoService (Fase 5),
 // que lida com o checkout de PEDIDO na conta de cada loja.
 //
+// A validação de assinatura do webhook NÃO mora aqui — a aplicação do
+// Mercado Pago só aceita uma URL de notificação por ambiente (achado
+// configurando o painel real em 28/07/2026), então os eventos de
+// "Planos e assinaturas" chegam na MESMA URL /webhooks/mercadopago do
+// checkout de pedido, validados pelo MercadoPagoService.ValidarAssinaturaWebhook
+// já existente (mesmo secret, MERCADOPAGO_WEBHOOK_SECRET) — ver
+// MercadoPagoHandler.Webhook, que despacha pra cá depois de validar.
+//
 // IMPORTANTE: nunca testado contra a API real do Mercado Pago (sem
 // credenciais de teste nesse ambiente) — em especial, o mecanismo de
 // correlação via external_reference no link de checkout hospedado
@@ -43,10 +48,9 @@ import (
 // derruba nada — mas a confirmação automática não vai funcionar até isso
 // ser corrigido.
 type MercadoPagoAssinaturaService struct {
-	accessToken   string
-	webhookSecret string
-	frontendURL   string
-	httpClient    *http.Client
+	accessToken string
+	frontendURL string
+	httpClient  *http.Client
 
 	lojaRepo         *repository.LojaRepository
 	assinaturaRepo   *repository.AssinaturaPendenteRepository
@@ -54,10 +58,9 @@ type MercadoPagoAssinaturaService struct {
 	emailSender      *notification.EmailSender
 }
 
-func NewMercadoPagoAssinaturaService(accessToken, webhookSecret, frontendURL string, db *gorm.DB, emailSender *notification.EmailSender) *MercadoPagoAssinaturaService {
+func NewMercadoPagoAssinaturaService(accessToken, frontendURL string, db *gorm.DB, emailSender *notification.EmailSender) *MercadoPagoAssinaturaService {
 	return &MercadoPagoAssinaturaService{
 		accessToken:      accessToken,
-		webhookSecret:    webhookSecret,
 		frontendURL:      frontendURL,
 		httpClient:       &http.Client{Timeout: 20 * time.Second},
 		lojaRepo:         repository.NewLojaRepository(db),
@@ -393,49 +396,4 @@ func (s *MercadoPagoAssinaturaService) chamarAPI(ctx context.Context, metodo, ur
 	}
 
 	return resultado, nil
-}
-
-// ValidarAssinaturaWebhook segue o mesmo algoritmo documentado pelo
-// Mercado Pago usado em MercadoPagoService (Fase 5) — HMAC-SHA256 sobre
-// o manifest "id:{data_id};request-id:{x_request_id};ts:{ts};" — mas com
-// o secret PRÓPRIO dessa URL de webhook (MERCADOPAGO_ASSINATURA_WEBHOOK_SECRET),
-// configurado separadamente no painel do Mercado Pago pra essa notificação
-// específica. Duplicado em vez de reaproveitado de propósito: são
-// concerns diferentes (assinatura vs. pagamento de pedido), com secrets
-// diferentes.
-func (s *MercadoPagoAssinaturaService) ValidarAssinaturaWebhook(signatureHeader, requestID, dataID string) error {
-	if s.webhookSecret == "" {
-		return errors.New("MERCADOPAGO_ASSINATURA_WEBHOOK_SECRET não configurada")
-	}
-	if signatureHeader == "" {
-		return errors.New("notificação sem header x-signature")
-	}
-
-	var ts, v1 string
-	for _, parte := range strings.Split(signatureHeader, ",") {
-		partes := strings.SplitN(strings.TrimSpace(parte), "=", 2)
-		if len(partes) != 2 {
-			continue
-		}
-		switch partes[0] {
-		case "ts":
-			ts = partes[1]
-		case "v1":
-			v1 = partes[1]
-		}
-	}
-	if ts == "" || v1 == "" {
-		return errors.New("header x-signature em formato inesperado")
-	}
-
-	manifest := fmt.Sprintf("id:%s;request-id:%s;ts:%s;", strings.ToLower(dataID), requestID, ts)
-
-	mac := hmac.New(sha256.New, []byte(s.webhookSecret))
-	mac.Write([]byte(manifest))
-	esperado := hex.EncodeToString(mac.Sum(nil))
-
-	if subtle.ConstantTimeCompare([]byte(esperado), []byte(v1)) != 1 {
-		return errors.New("assinatura do webhook não confere")
-	}
-	return nil
 }

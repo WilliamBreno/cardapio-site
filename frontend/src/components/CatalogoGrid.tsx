@@ -63,7 +63,7 @@ export function CatalogoGrid({ produtos, categorias, subcategorias, gruposCor }:
 
       {gruposDaSubcategoria.length > 0 && (
         <div className="flex gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <FiltroChip pequeno ativo={grupoCorAtivo === null} onClick={() => setGrupoCorAtivo(null)}>Todas as cores</FiltroChip>
+          <FiltroChip pequeno ativo={grupoCorAtivo === null} onClick={() => setGrupoCorAtivo(null)}>Todos os grupos</FiltroChip>
           {gruposDaSubcategoria.map((g) => (
             <FiltroChip key={g.id} pequeno ativo={grupoCorAtivo === g.id} onClick={() => setGrupoCorAtivo(grupoCorAtivo === g.id ? null : g.id)}>
               {g.nome}
