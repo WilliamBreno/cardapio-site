@@ -233,6 +233,11 @@ export interface Loja {
   sugestao_inteligente_contratada: boolean;
   sugestao_inteligente_contratada_em: string | null;
   sugestao_inteligente_ativa: boolean;
+  // segmento_principal é definitivo desde o cadastro — só true pra um
+  // punhado de contas de teste/administração (ver LojaService no
+  // backend). Pra qualquer outra loja, o seletor de segmento em
+  // Configurações fica travado.
+  pode_editar_segmento: boolean;
 }
 
 export interface CardapioPublico {

@@ -10,8 +10,8 @@ import { CarrinhoFlutuante } from '../components/CarrinhoFlutuante';
 import { CarrinhoDrawer } from '../components/CarrinhoDrawer';
 import { HistoricoDrawer } from '../components/HistoricoDrawer';
 import { GuardadosDrawer } from '../components/GuardadosDrawer';
-import { rotuloCatalogo } from '../lib/utils';
-import type { TipoProduto } from '../api/types';
+import { rotuloCatalogo, rotuloCombo } from '../lib/utils';
+import type { TipoProduto, Produto, Subcategoria, GrupoCor } from '../api/types';
 
 // Lembra o segmento da loja (cardápio/catálogo) de uma visita anterior,
 // só pra acertar a palavra certa na tela de "abrindo..." — nesse momento
@@ -51,6 +51,59 @@ function lojaEstaAberta(loja: {
   }
 
   return hhmm >= loja.horario_abertura && hhmm < fechamento;
+}
+
+// renderProdutosAgrupados exibe os produtos de UMA categoria já filtrada
+// no cardápio público — se a loja cadastrou Subcategoria/Grupo pra essa
+// categoria (Fase 6, agora disponível pra qualquer segmento, não só
+// "mercadoria"), agrupa por subcategoria e, dentro dela, por grupo, com
+// um cabeçalho pra cada nível. Produto sem subcategoria/grupo continua
+// aparecendo solto. Categoria sem nenhuma subcategoria cadastrada
+// degrada pra lista simples de sempre — mesmo espírito do agrupamento já
+// usado no admin (ver Produtos.tsx, renderProdutosDaCategoria).
+function renderProdutosAgrupados(produtos: Produto[], categoriaId: number, subcategorias: Subcategoria[], gruposCor: GrupoCor[]) {
+  const subsDaCategoria = subcategorias.filter((s) => s.categoria_id === categoriaId);
+  if (subsDaCategoria.length === 0) {
+    return produtos.map((produto) => <ProdutoCard key={produto.id} produto={produto} />);
+  }
+
+  const semSubcategoria = produtos.filter((p) => p.subcategoria_id === null);
+
+  return (
+    <>
+      {semSubcategoria.map((produto) => <ProdutoCard key={produto.id} produto={produto} />)}
+      {subsDaCategoria.map((sub) => {
+        const produtosDaSub = produtos.filter((p) => p.subcategoria_id === sub.id);
+        if (produtosDaSub.length === 0) return null;
+
+        const gruposDaSub = gruposCor.filter((g) => g.subcategoria_id === sub.id);
+        const semGrupo = produtosDaSub.filter((p) => p.grupo_cor_id === null);
+
+        return (
+          <div key={sub.id} className="space-y-3 pt-2">
+            <h3 className="font-display text-base tracking-wide text-tinta">{sub.nome}</h3>
+            {gruposDaSub.length === 0 ? (
+              produtosDaSub.map((produto) => <ProdutoCard key={produto.id} produto={produto} />)
+            ) : (
+              <>
+                {semGrupo.map((produto) => <ProdutoCard key={produto.id} produto={produto} />)}
+                {gruposDaSub.map((grupo) => {
+                  const produtosDoGrupo = produtosDaSub.filter((p) => p.grupo_cor_id === grupo.id);
+                  if (produtosDoGrupo.length === 0) return null;
+                  return (
+                    <div key={grupo.id} className="space-y-3 border-l-2 border-tinta/10 pl-3">
+                      <h4 className="text-sm font-medium text-acento">{grupo.nome}</h4>
+                      {produtosDoGrupo.map((produto) => <ProdutoCard key={produto.id} produto={produto} />)}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 export function CardapioPublico() {
@@ -169,15 +222,6 @@ export function CardapioPublico() {
         </div>
       </header>
 
-      {(data.combos?.length ?? 0) > 0 && (
-        <section className="mx-auto max-w-2xl space-y-3 px-4 pt-4">
-          <h2 className="font-display text-lg tracking-wide text-tinta">Combos</h2>
-          {data.combos.map((combo) => (
-            <ComboCard key={combo.id} combo={combo} />
-          ))}
-        </section>
-      )}
-
       {ehMercadoria ? (
         <main className="mx-auto max-w-4xl">
           <CatalogoGrid
@@ -186,6 +230,14 @@ export function CardapioPublico() {
             subcategorias={data.subcategorias}
             gruposCor={data.grupos_cor}
           />
+          {(data.combos?.length ?? 0) > 0 && (
+            <section className="mx-auto max-w-2xl space-y-3 px-4 pb-4 pt-2">
+              <h2 className="font-display text-lg tracking-wide text-tinta">{rotuloCombo(data.loja.segmento_principal)}s</h2>
+              {data.combos.map((combo) => (
+                <ComboCard key={combo.id} combo={combo} segmentoLoja={data.loja.segmento_principal} />
+              ))}
+            </section>
+          )}
         </main>
       ) : (
         <>
@@ -198,8 +250,24 @@ export function CardapioPublico() {
           </div>
 
           <main className="mx-auto max-w-2xl space-y-3 px-4 pt-2">
+            {(data.combos?.length ?? 0) > 0 && (
+              <section className="space-y-3 pb-2">
+                <h2 className="font-display text-lg tracking-wide text-tinta">{rotuloCombo(data.loja.segmento_principal)}s</h2>
+                {data.combos.map((combo) => (
+                  <ComboCard key={combo.id} combo={combo} segmentoLoja={data.loja.segmento_principal} />
+                ))}
+              </section>
+            )}
+
             {produtosFiltrados.length === 0 ? (
               <p className="py-12 text-center text-tinta-suave">Nenhum produto por aqui ainda.</p>
+            ) : categoriaAtiva !== null ? (
+              // Só agrupa por Subcategoria/Grupo quando uma categoria
+              // específica está selecionada — com "Tudo" ativo, os
+              // produtos vêm de várias categorias diferentes e cada
+              // subcategoria só faz sentido dentro da sua própria
+              // categoria, então a lista continua solta nesse caso.
+              renderProdutosAgrupados(produtosFiltrados, categoriaAtiva, data.subcategorias, data.grupos_cor)
             ) : (
               produtosFiltrados.map((produto) => <ProdutoCard key={produto.id} produto={produto} />)
             )}
@@ -223,6 +291,7 @@ export function CardapioPublico() {
         valorMinimoPedido={data.loja.valor_minimo_pedido}
         sugestaoInteligenteAtiva={data.loja.sugestao_inteligente_ativa}
         produtos={data.produtos}
+        segmentoLoja={data.loja.segmento_principal}
       />
 
       <HistoricoDrawer

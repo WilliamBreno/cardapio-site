@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/WilliamBreno/cardapio-backend/internal/domain"
 	"github.com/WilliamBreno/cardapio-backend/internal/repository"
 	"github.com/WilliamBreno/cardapio-backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -21,15 +22,30 @@ func NewLojaHandler(lojaService *service.LojaService, distanciaService *service.
 	}
 }
 
+// lojaResponse agrega o domain.Loja com campos computados que não vêm do
+// banco — hoje só PodeEditarSegmento, que diz pro frontend se mostra o
+// seletor de segmento como editável ou travado (ver
+// LojaService.PodeEditarSegmento).
+type lojaResponse struct {
+	domain.Loja
+	PodeEditarSegmento bool `json:"pode_editar_segmento"`
+}
+
 // Buscar atende GET /admin/loja
 func (h *LojaHandler) Buscar(c *gin.Context) {
 	lojaID := c.GetUint("loja_id")
+	usuarioID := c.GetUint("usuario_id")
+
 	loja, err := h.lojaService.Buscar(lojaID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"erro": "loja não encontrada"})
 		return
 	}
-	c.JSON(http.StatusOK, loja)
+
+	c.JSON(http.StatusOK, lojaResponse{
+		Loja:               *loja,
+		PodeEditarSegmento: h.lojaService.PodeEditarSegmento(usuarioID),
+	})
 }
 
 type configuracoesRequest struct {
@@ -59,6 +75,7 @@ type configuracoesRequest struct {
 // AtualizarConfiguracoes atende PUT /admin/loja
 func (h *LojaHandler) AtualizarConfiguracoes(c *gin.Context) {
 	lojaID := c.GetUint("loja_id")
+	usuarioID := c.GetUint("usuario_id")
 
 	var req configuracoesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -120,7 +137,7 @@ func (h *LojaHandler) AtualizarConfiguracoes(c *gin.Context) {
 		Estado:                   estado,
 	}
 
-	if err := h.lojaService.AtualizarConfiguracoes(lojaID, cfg); err != nil {
+	if err := h.lojaService.AtualizarConfiguracoes(lojaID, usuarioID, cfg); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
 		return
 	}

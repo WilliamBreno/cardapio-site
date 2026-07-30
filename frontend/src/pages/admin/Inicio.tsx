@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { buscarDashboard, buscarLoja } from '../../api/admin';
+import { buscarDashboard, buscarLoja, listarProdutos, statusMercadoPago } from '../../api/admin';
 import { PLANOS, planoMaisBarato, custoPlano } from '../../lib/planos';
 import {
   LineChart, Line, BarChart, Bar,
@@ -14,6 +14,34 @@ function moeda(v: number) {
 
 const NOME_PLANO: Record<string, string> = { start: 'Start', pro: 'Pro', scale: 'Scale' };
 
+// PassoOnboarding é uma linha do checklist "Primeiros passos" — feito
+// (com risco) ou pendente (clicável, leva pra tela de resolver).
+function PassoOnboarding({ feito, titulo, descricao, to, cta }: { feito: boolean; titulo: string; descricao: string; to: string; cta: string }) {
+  if (feito) {
+    return (
+      <div className="flex items-center gap-2.5 px-1 py-1 text-sm text-tinta-suave">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs text-emerald-700">✓</span>
+        <span className="line-through opacity-70">{titulo}</span>
+      </div>
+    );
+  }
+  return (
+    <Link
+      to={to}
+      className="flex items-center justify-between gap-3 rounded-xl bg-superficie px-3 py-2.5 shadow-sm transition hover:-translate-y-0.5"
+    >
+      <div className="flex items-center gap-2.5">
+        <span className="h-5 w-5 shrink-0 rounded-full border-2 border-acento/50" />
+        <div>
+          <p className="text-sm font-medium text-tinta">{titulo}</p>
+          <p className="text-xs text-tinta-suave">{descricao}</p>
+        </div>
+      </div>
+      <span className="shrink-0 text-xs font-semibold text-acento">{cta} →</span>
+    </Link>
+  );
+}
+
 export function Inicio() {
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard'],
@@ -21,6 +49,8 @@ export function Inicio() {
     refetchInterval: 60_000, // atualiza a cada 1 min
   });
   const { data: loja } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
+  const { data: produtos } = useQuery({ queryKey: ['produtos'], queryFn: listarProdutos });
+  const { data: mercadoPagoStatus } = useQuery({ queryKey: ['mercadopago-status'], queryFn: statusMercadoPago });
 
   if (isLoading) return <p className="text-tinta-suave">Carregando...</p>;
   if (!data) return null;
@@ -41,9 +71,40 @@ export function Inicio() {
     : 0;
   const mostrarAlertaPlano = !!(recomendado && planoAtual && recomendado.id !== planoAtual.id && economiaMensal > 0);
 
+  // Checklist "Primeiros passos" — proativo, não espera um cliente
+  // esbarrar no checkout quebrado pra avisar (ver conversa sobre isso).
+  // Só aparece enquanto tiver algo pendente; some sozinho quando os dois
+  // passos estiverem feitos. Espera as duas queries carregarem antes de
+  // decidir se mostra, pra não piscar um passo "pendente" que na
+  // verdade já foi feito só porque a resposta ainda não chegou.
+  const pagamentoConectado = mercadoPagoStatus?.mercadopago_conectado ?? false;
+  const temProdutos = (produtos?.length ?? 0) > 0;
+  const onboardingCarregado = mercadoPagoStatus !== undefined && produtos !== undefined;
+  const mostrarOnboarding = onboardingCarregado && (!pagamentoConectado || !temProdutos);
+
   return (
     <div className="space-y-6">
       <h1 className="font-display text-2xl tracking-wide text-tinta">Visão geral</h1>
+
+      {mostrarOnboarding && (
+        <div className="space-y-2 rounded-2xl border border-acento/30 bg-acento/5 p-4">
+          <p className="text-sm font-semibold text-tinta">Primeiros passos</p>
+          <PassoOnboarding
+            feito={pagamentoConectado}
+            titulo="Conectar Mercado Pago"
+            descricao="O mais importante — sem isso, nenhum cliente consegue pagar um pedido."
+            to="/admin/configuracoes"
+            cta="Conectar"
+          />
+          <PassoOnboarding
+            feito={temProdutos}
+            titulo="Cadastrar produtos"
+            descricao="Seu cardápio ainda está vazio."
+            to="/admin/produtos"
+            cta="Cadastrar"
+          />
+        </div>
+      )}
 
       {mostrarAlertaPlano && recomendado && (
         <Link

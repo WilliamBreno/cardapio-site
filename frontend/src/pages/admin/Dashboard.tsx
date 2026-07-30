@@ -1,8 +1,8 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { buscarLoja } from '../../api/admin';
+import { buscarLoja, statusMercadoPago } from '../../api/admin';
 import { useAuthStore } from '../../store/authStore';
-import { rotuloCatalogo } from '../../lib/utils';
+import { rotuloCatalogo, rotuloCombo } from '../../lib/utils';
 
 const linksBase = [
   { to: '/admin', label: 'Início' },
@@ -21,12 +21,19 @@ export function Dashboard() {
   const logout = useAuthStore((state) => state.logout);
 
   const { data: loja } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
+  const { data: mercadoPagoStatus } = useQuery({ queryKey: ['mercadopago-status'], queryFn: statusMercadoPago });
 
   // Só aparece pra loja que ativou o recurso — pra maioria (lojas de
   // comida) esse link não faz sentido.
-  const links = loja?.aceita_guardar_entregar
+  const comGuardados = loja?.aceita_guardar_entregar
     ? [...linksBase.slice(0, 2), { to: '/admin/solicitacoes', label: 'Guardados' }, ...linksBase.slice(2)]
     : linksBase;
+
+  // "Combo" vira "Kit" pra loja "mercadoria" (ver rotuloCombo).
+  const rotuloCombos = `${rotuloCombo(loja?.segmento_principal)}s`;
+  const links = comGuardados.map((link) =>
+    link.to === '/admin/combos' ? { ...link, label: rotuloCombos } : link
+  );
 
   function sair() {
     logout();
@@ -55,6 +62,15 @@ export function Dashboard() {
           Sair
         </button>
       </header>
+
+      {mercadoPagoStatus && !mercadoPagoStatus.mercadopago_conectado && (
+        <NavLink
+          to="/admin/configuracoes"
+          className="block bg-acento px-6 py-2 text-center text-sm font-medium text-superficie hover:bg-acento/90"
+        >
+          ⚠️ Pagamento não configurado — seus clientes não conseguem finalizar pedidos até você conectar sua conta do Mercado Pago. Clica aqui pra resolver.
+        </NavLink>
+      )}
 
       <nav className="flex gap-1 overflow-x-auto border-b border-tinta/10 bg-superficie px-6">
         {links.map((link) => (

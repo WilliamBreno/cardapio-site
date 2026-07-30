@@ -8,8 +8,8 @@ import { buscarSugestoesCarrinho } from '../api/sugestoes';
 import { SugestaoPreviewItem } from './SugestaoPreviewItem';
 import { Campo } from './Campo';
 import { EnderecoCampos, enderecoVazio, enderecoParaTexto, enderecoPreenchido, type EnderecoValor } from './EnderecoCampos';
-import { precoItem } from '../lib/utils';
-import type { Produto } from '../api/types';
+import { precoItem, rotuloCombo } from '../lib/utils';
+import type { Produto, TipoProduto } from '../api/types';
 
 interface Props {
   aberto: boolean;
@@ -25,6 +25,7 @@ interface Props {
   valorMinimoPedido: number;
   sugestaoInteligenteAtiva: boolean;
   produtos: Produto[];
+  segmentoLoja?: TipoProduto;
 }
 
 function formatarDataLocal(data: Date): string {
@@ -66,7 +67,7 @@ function normalizarTelefone(valor: string): string {
   return digitos.startsWith('55') ? digitos : `55${digitos}`;
 }
 
-export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenciaMinimaHoras, aceitaRetirada, aceitaEntrega, aceitaGuardarEntregar, taxaEntregaTipo, taxaEntregaValor, valorMinimoPedido, sugestaoInteligenteAtiva, produtos }: Props) {
+export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenciaMinimaHoras, aceitaRetirada, aceitaEntrega, aceitaGuardarEntregar, taxaEntregaTipo, taxaEntregaValor, valorMinimoPedido, sugestaoInteligenteAtiva, produtos, segmentoLoja }: Props) {
   const itens = useCartStore((state) => state.itens);
   const combos = useCartStore((state) => state.combos);
   const total = useCartStore((state) => state.total());
@@ -383,7 +384,7 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
                       <p className="font-medium text-tinta">
                         {item.combo.nome}
                         <span className="ml-1.5 rounded-full bg-acento/10 px-2 py-0.5 text-xs text-acento">
-                          Combo
+                          {rotuloCombo(segmentoLoja)}
                         </span>
                       </p>
                       <p className="font-carimbo text-sm text-tinta-suave">
@@ -435,6 +436,7 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
                         <SugestaoPreviewItem
                           key={sugestao.sugestao_id}
                           nome={sugestao.nome}
+                          fotoUrl={sugestao.foto_url}
                           preco={sugestao.preco}
                           precoComDesconto={sugestao.preco_com_desconto}
                           onAdicionar={() => adicionarSugestao(sugestao, produto)}

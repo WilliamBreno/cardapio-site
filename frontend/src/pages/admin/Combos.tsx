@@ -1,10 +1,19 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { listarCombos, criarCombo, atualizarCombo, deletarCombo, type ComboInput } from '../../api/combos';
-import { listarProdutos } from '../../api/admin';
+import { listarProdutos, buscarLoja } from '../../api/admin';
+import { enviarImagem, logoMiniatura } from '../../api/upload';
 import type { Combo } from '../../api/types';
 import { Campo } from '../../components/Campo';
+import { rotuloCombo, rotuloCatalogo } from '../../lib/utils';
+
+// Arredonda pra centavos — evita que o valor guardado saia com sobras de
+// ponto flutuante (ex: 29.999999999997 em vez de 30) e garante que o que
+// o lojista digita bate exatamente com o que é registrado e exibido.
+function arredondarCentavos(valor: number): number {
+  return Math.round(valor * 100) / 100;
+}
 
 const formVazio: ComboInput = {
   nome: '',
@@ -20,18 +29,25 @@ export function Combos() {
   const queryClient = useQueryClient();
   const { data: combos, isLoading } = useQuery({ queryKey: ['combos'], queryFn: listarCombos });
   const { data: produtos } = useQuery({ queryKey: ['produtos'], queryFn: listarProdutos });
+  const { data: loja } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
+
+  // "Combo" vira "Kit" pra loja "mercadoria" — só o texto muda, o
+  // domain/API/rotas continuam se chamando Combo (ver rotuloCombo).
+  const rotulo = rotuloCombo(loja?.segmento_principal);
+  const rotuloMin = rotulo.toLowerCase();
 
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [form, setForm] = useState<ComboInput>(formVazio);
   const [erro, setErro] = useState<string | null>(null);
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
 
   const invalidar = () => queryClient.invalidateQueries({ queryKey: ['combos'] });
 
   function mensagemErro(err: unknown): string {
     return axios.isAxiosError(err) && err.response?.data?.erro
       ? err.response.data.erro
-      : 'Não foi possível salvar o combo.';
+      : `Não foi possível salvar o ${rotuloMin}.`;
   }
 
   const mutCriar = useMutation({
@@ -70,6 +86,21 @@ export function Combos() {
 
   function fecharForm() { setMostrarForm(false); setEditandoId(null); }
 
+  async function selecionarFoto(e: ChangeEvent<HTMLInputElement>) {
+    const arquivo = e.target.files?.[0];
+    if (!arquivo) return;
+    setEnviandoFoto(true);
+    setErro(null);
+    try {
+      const url = await enviarImagem(arquivo);
+      setForm((atual) => ({ ...atual, foto_url: url }));
+    } catch {
+      setErro('Não foi possível enviar a foto.');
+    } finally {
+      setEnviandoFoto(false);
+    }
+  }
+
   function adicionarItem() {
     if (!produtos || produtos.length === 0) return;
     setForm((atual) => ({
@@ -91,8 +122,8 @@ export function Combos() {
 
   function salvar(e: FormEvent) {
     e.preventDefault();
-    if (!form.nome.trim() || form.preco <= 0) { setErro('Preenche o nome e o preço do combo.'); return; }
-    if (form.itens.length === 0) { setErro('Adiciona pelo menos um produto ao combo.'); return; }
+    if (!form.nome.trim() || form.preco <= 0) { setErro(`Preenche o nome e o preço do ${rotuloMin}.`); return; }
+    if (form.itens.length === 0) { setErro(`Adiciona pelo menos um produto ao ${rotuloMin}.`); return; }
     setErro(null);
     if (editandoId) mutAtualizar.mutate({ id: editandoId, input: form });
     else mutCriar.mutate(form);
@@ -103,30 +134,30 @@ export function Combos() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl tracking-wide text-tinta">Combos e Kits</h1>
+        <h1 className="font-display text-2xl tracking-wide text-tinta">{rotulo}s</h1>
         {!mostrarForm && (
           <button onClick={abrirNovo} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie">
-            + Novo combo
+            + Novo {rotuloMin}
           </button>
         )}
       </div>
 
       <p className="text-sm text-tinta-suave">
-        Monte um pacote fixo de produtos com um preço final único (não é calculado por desconto sobre a soma dos itens — você define o valor direto). O cliente escolhe a variação de cada produto ao adicionar o combo no carrinho, igual comprando avulso.
+        Monte um pacote fixo de produtos com um preço final único (não é calculado por desconto sobre a soma dos itens — você define o valor direto). O cliente escolhe a variação de cada produto ao adicionar o {rotuloMin} no carrinho, igual comprando avulso.
       </p>
 
       {mostrarForm && (
         <form onSubmit={salvar} className="space-y-4 rounded-2xl bg-superficie p-5 shadow-sm">
           <h2 className="font-display text-lg tracking-wide text-tinta">
-            {editandoId ? 'Editar combo' : 'Novo combo'}
+            {editandoId ? `Editar ${rotuloMin}` : `Novo ${rotuloMin}`}
           </h2>
 
-          <Campo label="Nome do combo">
+          <Campo label={`Nome do ${rotuloMin}`}>
             <input
               required
               value={form.nome}
               onChange={(e) => setForm({ ...form, nome: e.target.value })}
-              placeholder="Combo X-Tudo"
+              placeholder={rotulo === 'Kit' ? 'Kit Presente' : 'Combo X-Tudo'}
               className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento"
             />
           </Campo>
@@ -140,30 +171,43 @@ export function Combos() {
             />
           </Campo>
 
-          <Campo label="URL da foto (opcional)">
+          <Campo label={`Foto do ${rotuloMin} (opcional)`}>
             <input
               value={form.foto_url}
               onChange={(e) => setForm({ ...form, foto_url: e.target.value })}
               placeholder="https://..."
               className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento"
             />
+            <div className="mt-2 flex items-center gap-3">
+              {form.foto_url && (
+                <img
+                  src={logoMiniatura(form.foto_url)}
+                  alt={`Prévia do ${rotuloMin}`}
+                  className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                />
+              )}
+              <label className="cursor-pointer rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta hover:border-acento">
+                {enviandoFoto ? 'Enviando...' : 'Ou envia uma imagem do computador'}
+                <input type="file" accept="image/*" onChange={selecionarFoto} disabled={enviandoFoto} className="hidden" />
+              </label>
+            </div>
           </Campo>
 
-          <Campo label="Preço final do combo (R$)">
+          <Campo label={`Preço final do ${rotuloMin} (R$)`}>
             <input
               type="number"
-              step="0.50"
+              step="0.01"
               min="0.01"
               required
               value={form.preco || ''}
-              onChange={(e) => setForm({ ...form, preco: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => setForm({ ...form, preco: arredondarCentavos(parseFloat(e.target.value) || 0) })}
               className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento"
             />
           </Campo>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Produtos do combo</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Produtos do {rotuloMin}</span>
               <button type="button" onClick={adicionarItem} className="text-sm font-medium text-acento hover:underline">
                 + Adicionar produto
               </button>
@@ -203,7 +247,7 @@ export function Combos() {
               onChange={(e) => setForm({ ...form, disponivel: e.target.checked })}
               className="h-4 w-4 accent-acento"
             />
-            Combo disponível no cardápio
+            {rotulo} disponível no {rotuloCatalogo(loja?.segmento_principal)}
           </label>
 
           {erro && <p className="text-sm text-acento">{erro}</p>}
@@ -247,7 +291,7 @@ export function Combos() {
           ))}
         </ul>
       ) : (
-        <p className="text-tinta-suave">Nenhum combo cadastrado ainda.</p>
+        <p className="text-tinta-suave">Nenhum {rotuloMin} cadastrado ainda.</p>
       )}
     </div>
   );

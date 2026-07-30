@@ -70,6 +70,13 @@ type Loja struct {
 	MercadoPagoUserID        string     `gorm:"size:50;index" json:"-"`
 	MercadoPagoTokenExpiraEm *time.Time `json:"-"`
 
+	// AvisoPagamentoNaoConfiguradoEm registra a última vez que o dono foi
+	// avisado por WhatsApp de que um cliente tentou pagar mas a loja ainda
+	// não conectou o Mercado Pago (ver MercadoPagoService.CriarCheckout) —
+	// evita mandar essa mensagem de novo a cada tentativa de checkout
+	// enquanto o problema não é resolvido.
+	AvisoPagamentoNaoConfiguradoEm *time.Time `json:"-"`
+
 	// MercadoPagoPreapprovalIDPlano é o preapproval ATIVO da assinatura de
 	// plano (Pro/Scale) dessa loja — cobrança recorrente direto na conta
 	// da própria Drenux (não é OAuth/split, ver

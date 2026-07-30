@@ -1,5 +1,6 @@
 interface Props {
   nome: string;
+  fotoUrl?: string;
   preco: number;
   precoComDesconto: number;
   // Sem onAdicionar, o botão fica só decorativo — usado no admin como
@@ -13,11 +14,22 @@ interface Props {
 // "Quem pediu isso também levou" do carrinho real quanto na prévia
 // estática da tela de admin — pra o lojista ver exatamente como o cliente
 // final vai ver, sem duplicar o layout em dois lugares.
-export function SugestaoPreviewItem({ nome, preco, precoComDesconto, onAdicionar }: Props) {
+export function SugestaoPreviewItem({ nome, fotoUrl, preco, precoComDesconto, onAdicionar }: Props) {
   const temDesconto = precoComDesconto < preco;
 
   return (
     <li className="flex items-center gap-3">
+      {fotoUrl ? (
+        <img
+          src={fotoUrl}
+          alt={nome}
+          className="h-10 w-10 shrink-0 rounded-full object-cover"
+        />
+      ) : (
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-tinta/25 bg-fundo">
+          <span className="font-display text-sm text-tinta/40">{nome.charAt(0).toUpperCase()}</span>
+        </div>
+      )}
       <div className="flex-1">
         <p className="text-sm font-medium text-tinta">{nome}</p>
         <p className="font-carimbo text-xs text-tinta-suave">

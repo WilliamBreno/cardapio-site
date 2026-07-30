@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/WilliamBreno/cardapio-backend/internal/domain"
+	"github.com/WilliamBreno/cardapio-backend/internal/notification"
 	"github.com/WilliamBreno/cardapio-backend/internal/repository"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
@@ -46,21 +47,28 @@ type MercadoPagoService struct {
 	pedidoRepo     *repository.PedidoRepository
 	posPagamento   *PosPagamentoService
 	repasseService *RepasseAfiliadoService
+
+	// notificationSender avisa o dono por WhatsApp quando um cliente tenta
+	// pagar e a loja ainda não conectou o Mercado Pago (ver
+	// avisarPagamentoNaoConfigurado) — nil-safe, igual ao resto do
+	// projeto: se o WhatsApp não estiver conectado, só pula o aviso.
+	notificationSender notification.NotificationSender
 }
 
-func NewMercadoPagoService(clientID, clientSecret, webhookSecret, jwtSecret, apiPublicURL, frontendURL string, db *gorm.DB, posPagamento *PosPagamentoService, repasseService *RepasseAfiliadoService) *MercadoPagoService {
+func NewMercadoPagoService(clientID, clientSecret, webhookSecret, jwtSecret, apiPublicURL, frontendURL string, db *gorm.DB, posPagamento *PosPagamentoService, repasseService *RepasseAfiliadoService, notificationSender notification.NotificationSender) *MercadoPagoService {
 	return &MercadoPagoService{
-		clientID:       clientID,
-		clientSecret:   clientSecret,
-		webhookSecret:  webhookSecret,
-		jwtSecret:      jwtSecret,
-		apiPublicURL:   apiPublicURL,
-		frontendURL:    frontendURL,
-		httpClient:     &http.Client{Timeout: 20 * time.Second},
-		lojaRepo:       repository.NewLojaRepository(db),
-		pedidoRepo:     repository.NewPedidoRepository(db),
-		posPagamento:   posPagamento,
-		repasseService: repasseService,
+		clientID:           clientID,
+		clientSecret:       clientSecret,
+		webhookSecret:      webhookSecret,
+		jwtSecret:          jwtSecret,
+		apiPublicURL:       apiPublicURL,
+		frontendURL:        frontendURL,
+		httpClient:         &http.Client{Timeout: 20 * time.Second},
+		lojaRepo:           repository.NewLojaRepository(db),
+		pedidoRepo:         repository.NewPedidoRepository(db),
+		posPagamento:       posPagamento,
+		repasseService:     repasseService,
+		notificationSender: notificationSender,
 	}
 }
 
@@ -298,6 +306,7 @@ func (s *MercadoPagoService) CriarCheckout(ctx context.Context, pedidoID uint) (
 		return "", errors.New("loja não encontrada")
 	}
 	if loja.MercadoPagoAccessToken == "" {
+		s.avisarPagamentoNaoConfigurado(loja)
 		return "", errors.New("essa loja ainda não conectou uma conta de pagamento")
 	}
 
@@ -389,6 +398,45 @@ func (s *MercadoPagoService) CriarCheckout(ctx context.Context, pedidoID uint) (
 	}
 
 	return initPoint, nil
+}
+
+// avisoPagamentoNaoConfiguradoIntervalo evita mandar o aviso de novo a
+// cada tentativa de checkout enquanto a loja não resolve — se o dono
+// receber a primeira mensagem e demorar pra conectar, não faz sentido
+// tomar uma mensagem por cliente que tentar pagar nesse meio tempo.
+const avisoPagamentoNaoConfiguradoIntervalo = 12 * time.Hour
+
+// avisarPagamentoNaoConfigurado dispara um WhatsApp pro dono quando um
+// cliente esbarra no checkout porque a loja ainda não conectou o Mercado
+// Pago — sem isso, o lojista só ia descobrir que está perdendo venda se
+// um cliente reclamasse diretamente. Roda em goroutine (não atrasa o erro
+// devolvido pro cliente) e é silenciosa em qualquer falha — um aviso
+// perdido não pode derrubar o fluxo de checkout.
+func (s *MercadoPagoService) avisarPagamentoNaoConfigurado(loja *domain.Loja) {
+	if s.notificationSender == nil || loja.WhatsappNumero == "" {
+		return
+	}
+	if loja.AvisoPagamentoNaoConfiguradoEm != nil && time.Since(*loja.AvisoPagamentoNaoConfiguradoEm) < avisoPagamentoNaoConfiguradoIntervalo {
+		return
+	}
+
+	agora := time.Now()
+	if err := s.lojaRepo.AtualizarAvisoPagamentoNaoConfigurado(loja.ID, agora); err != nil {
+		log.Printf("aviso: não foi possível registrar o aviso de pagamento não configurado da loja %d: %v", loja.ID, err)
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		texto := fmt.Sprintf(
+			"⚠️ Pagamento não configurado — %s\n\nUm cliente tentou finalizar um pedido mas você ainda não conectou sua conta do Mercado Pago. Enquanto isso não for feito, ninguém consegue pagar e você está perdendo venda.\n\nConecta agora em Configurações no painel da Drenux.",
+			loja.Nome,
+		)
+		if err := s.notificationSender.EnviarTextoAdmin(ctx, loja.WhatsappNumero, texto); err != nil {
+			log.Printf("falha ao enviar aviso de pagamento não configurado da loja %d: %v", loja.ID, err)
+		}
+	}()
 }
 
 func (s *MercadoPagoService) chamarComTokenDaLoja(ctx context.Context, accessToken, metodo, url string, corpo map[string]interface{}) (map[string]interface{}, error) {

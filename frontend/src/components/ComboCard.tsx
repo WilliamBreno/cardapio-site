@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { useCartStore } from '../store/cartStore';
-import type { Combo, SelecaoComboItem, VariacaoProduto } from '../api/types';
+import type { Combo, SelecaoComboItem, TipoProduto, VariacaoProduto } from '../api/types';
+import { rotuloCombo } from '../lib/utils';
 
 interface Props {
   combo: Combo;
+  segmentoLoja?: TipoProduto;
 }
 
 // ComboCard espelha o ProdutoCard, mas pra um pacote fixo de produtos: o
 // cliente escolhe a variação de cada componente que tiver (igual comprando
 // avulso) antes de adicionar o combo inteiro como uma linha só no carrinho.
-export function ComboCard({ combo }: Props) {
+export function ComboCard({ combo, segmentoLoja }: Props) {
   const adicionarCombo = useCartStore((state) => state.adicionarCombo);
 
   const [selecoes, setSelecoes] = useState<Record<number, VariacaoProduto | null>>({});
@@ -50,7 +52,7 @@ export function ComboCard({ combo }: Props) {
         <div>
           <div className="flex items-center gap-1.5">
             <span className="rounded-full bg-acento/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-acento">
-              Combo
+              {rotuloCombo(segmentoLoja)}
             </span>
           </div>
           <h3 className="font-display text-lg leading-none tracking-wide text-tinta">

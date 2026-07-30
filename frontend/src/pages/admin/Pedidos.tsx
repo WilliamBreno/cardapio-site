@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { listarPedidos } from '../../api/admin';
-import type { Pedido, StatusPedido } from '../../api/types';
+import { listarPedidos, buscarLoja } from '../../api/admin';
+import type { Pedido, StatusPedido, TipoProduto } from '../../api/types';
+import { rotuloCombo } from '../../lib/utils';
 
 const statusInfo: Record<StatusPedido, { label: string; classe: string }> = {
   aguardando_pagamento: { label: 'Aguardando pagamento', classe: 'bg-douro/20 text-douro' },
@@ -44,6 +45,7 @@ export function Pedidos() {
     queryFn: listarPedidos,
     refetchInterval: 30_000,
   });
+  const { data: loja } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
 
   const [filtro, setFiltro] = useState<FiltroPedido>('todos');
 
@@ -91,7 +93,7 @@ export function Pedidos() {
       ) : (
         <ul className="space-y-3">
           {pedidosFiltrados.map((pedido) => (
-            <PedidoCard key={pedido.id} pedido={pedido} />
+            <PedidoCard key={pedido.id} pedido={pedido} segmentoLoja={loja?.segmento_principal} />
           ))}
         </ul>
       )}
@@ -99,7 +101,7 @@ export function Pedidos() {
   );
 }
 
-function PedidoCard({ pedido }: { pedido: Pedido }) {
+function PedidoCard({ pedido, segmentoLoja }: { pedido: Pedido; segmentoLoja?: TipoProduto }) {
   const status = statusInfo[pedido.status];
   const statusEntrega = pedido.status_entrega ? statusEntregaInfo[pedido.status_entrega] : null;
 
@@ -149,7 +151,7 @@ function PedidoCard({ pedido }: { pedido: Pedido }) {
           <div key={combo.id} className="text-sm text-tinta">
             <p>
               {combo.quantidade}x {combo.nome}{' '}
-              <span className="rounded-full bg-acento/10 px-1.5 py-0.5 text-xs text-acento">Combo</span>{' '}
+              <span className="rounded-full bg-acento/10 px-1.5 py-0.5 text-xs text-acento">{rotuloCombo(segmentoLoja)}</span>{' '}
               <span className="text-tinta-suave">
                 · R$ {(combo.preco * combo.quantidade).toFixed(2).replace('.', ',')}
               </span>

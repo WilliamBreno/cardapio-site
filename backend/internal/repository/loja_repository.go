@@ -61,6 +61,13 @@ func (r *LojaRepository) AtualizarMercadoPago(lojaID uint, accessToken, refreshT
 	}).Error
 }
 
+// AtualizarAvisoPagamentoNaoConfigurado registra quando o dono foi
+// avisado por último de que a loja ainda não tem Mercado Pago conectado
+// (ver MercadoPagoService.CriarCheckout).
+func (r *LojaRepository) AtualizarAvisoPagamentoNaoConfigurado(lojaID uint, quando time.Time) error {
+	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Update("aviso_pagamento_nao_configurado_em", quando).Error
+}
+
 // BuscarPorMercadoPagoUserID é usado pelo webhook do Mercado Pago pra
 // achar de qual loja é um pagamento — a notificação identifica o
 // vendedor pelo "collector_id" (aqui salvo como MercadoPagoUserID), não

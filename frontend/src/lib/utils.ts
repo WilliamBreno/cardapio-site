@@ -22,3 +22,12 @@ export function precoItem(produto: Produto, variacao?: VariacaoProduto | null): 
 export function rotuloCatalogo(segmento?: TipoProduto): string {
   return segmento === 'mercadoria' ? 'catálogo' : 'cardápio'
 }
+
+// rotuloCombo decide a palavra usada pra "Combo" nas telas do admin e no
+// cardápio/catálogo público: lojas "mercadoria" usam "Kit" (mais comum
+// pra varejo — kit de produtos), "alimenticio" mantém "Combo", nome
+// histórico do produto (ex: combo de lanche). Singular, capitalizado —
+// quem chama monta plural/minúsculo conforme o contexto.
+export function rotuloCombo(segmento?: TipoProduto): string {
+  return segmento === 'mercadoria' ? 'Kit' : 'Combo'
+}

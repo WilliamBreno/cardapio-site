@@ -381,35 +381,42 @@ export function Configuracoes() {
           )}
         </div>
 
-        {/* Segmento principal */}
+        {/* Segmento principal — definitivo desde o cadastro (ver
+            LojaService no backend). Só um punhado de contas de teste/
+            administração consegue mudar depois; pra qualquer outra loja
+            o seletor fica travado, só informativo. */}
         <div className="space-y-3 rounded-xl border border-tinta/10 bg-fundo p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">O que sua loja vende principalmente?</p>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
+              disabled={!loja?.pode_editar_segmento}
               onClick={() => setSegmentoPrincipal('alimenticio')}
               className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
                 segmentoPrincipal === 'alimenticio'
                   ? 'border-acento bg-acento/10 text-acento'
                   : 'border-tinta/20 text-tinta-suave hover:border-tinta/40'
-              }`}
+              } ${!loja?.pode_editar_segmento ? 'cursor-not-allowed opacity-60 hover:border-tinta/20' : ''}`}
             >
               Comida e bebida
             </button>
             <button
               type="button"
+              disabled={!loja?.pode_editar_segmento}
               onClick={() => setSegmentoPrincipal('mercadoria')}
               className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
                 segmentoPrincipal === 'mercadoria'
                   ? 'border-acento bg-acento/10 text-acento'
                   : 'border-tinta/20 text-tinta-suave hover:border-tinta/40'
-              }`}
+              } ${!loja?.pode_editar_segmento ? 'cursor-not-allowed opacity-60 hover:border-tinta/20' : ''}`}
             >
               Outros produtos
             </button>
           </div>
           <p className="text-xs text-tinta-suave">
-            Define o tipo padrão dos novos produtos que você cadastrar.
+            {loja?.pode_editar_segmento
+              ? 'Define o tipo padrão dos novos produtos que você cadastrar.'
+              : 'Escolha definida no cadastro e não pode ser alterada depois — muda o comportamento de vários recursos da loja (variações, catálogo, categorias sugeridas). Fale com a Drenux se precisar mudar.'}
           </p>
         </div>
 

@@ -151,6 +151,7 @@ func main() {
 	mercadoPagoService := service.NewMercadoPagoService(
 		cfg.MercadoPagoClientID, cfg.MercadoPagoClientSecret, cfg.MercadoPagoWebhookSecret,
 		cfg.JWTSecret, cfg.APIPublicURL, cfg.FrontendURLs[0], db, posPagamentoService, repasseAfiliadoService,
+		whatsappSender,
 	)
 
 	// mercadoPagoAssinaturaService cobre a cobrança recorrente CONSOLIDADA

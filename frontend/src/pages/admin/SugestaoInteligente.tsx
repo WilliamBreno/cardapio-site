@@ -247,6 +247,7 @@ export function SugestaoInteligente() {
                       <ul className="space-y-2">
                         <SugestaoPreviewItem
                           nome={produtoSugeridoSelecionado.nome}
+                          fotoUrl={produtoSugeridoSelecionado.foto_url}
                           preco={produtoSugeridoSelecionado.preco}
                           precoComDesconto={precoComDesconto(produtoSugeridoSelecionado.preco, tipoDesconto, valorDesconto)}
                         />
