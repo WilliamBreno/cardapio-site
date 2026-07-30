@@ -8,7 +8,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { ShimmerButton } from '@/components/ui/shimmer-button';
 import {
-  Store, MessageCircle, Truck, Sparkles, BarChart3, Users, ArrowDown,
+  Store, MessageCircle, Truck, Sparkles, BarChart3, TicketPercent, ArrowDown,
 } from 'lucide-react';
 import { criarCheckoutAssinatura } from '../api/planos';
 import { PLANOS, temaPlanos, FONTE_DRX_SERIF_CSS } from '../lib/planos';
@@ -25,8 +25,8 @@ const FUNCOES = [
   },
   {
     icone: MessageCircle,
-    titulo: 'Pedido direto no seu WhatsApp',
-    texto: 'Cada venda cai automática no seu número. Nenhum pedido se perde, nenhuma plataforma fica no meio do caminho.',
+    titulo: 'Pedidos notificados no seu WhatsApp',
+    texto: 'Cada venda mostra automaticamente no seu WhatsApp. Nenhum pedido se perde, nenhuma plataforma fica no meio do caminho.',
   },
   {
     icone: Truck,
@@ -35,7 +35,7 @@ const FUNCOES = [
   },
   {
     icone: Sparkles,
-    titulo: 'Sugestão inteligente e cupons',
+    titulo: 'Sugestão inteligente',
     texto: 'O carrinho sugere o produto certo na hora certa. Ticket médio maior sem você precisar convencer ninguém.',
   },
   {
@@ -44,9 +44,9 @@ const FUNCOES = [
     texto: 'Faturamento, pedidos e mais vendidos num painel só. Decisão com dado — não com "acho que vendeu bem".',
   },
   {
-    icone: Users,
-    titulo: 'Programa de afiliados',
-    texto: 'Gente divulgando sua loja por comissão. Você cresce sem tirar dinheiro do bolso pra anúncio.',
+    icone: TicketPercent,
+    titulo: 'Cupons de desconto',
+    texto: 'Crie promoções pra atrair cliente novo ou recompensar quem já compra — você define o valor e a validade.',
   },
 ];
 
