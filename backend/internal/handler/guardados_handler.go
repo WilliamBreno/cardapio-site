@@ -49,9 +49,16 @@ func (h *GuardadosHandler) Listar(c *gin.Context) {
 }
 
 type cotarFreteGuardadosRequest struct {
-	Telefone string `json:"telefone" binding:"required"`
-	Endereco string `json:"endereco" binding:"required"`
-	ItemIDs  []uint `json:"item_ids" binding:"required,min=1"`
+	Telefone    string `json:"telefone" binding:"required"`
+	Endereco    string `json:"endereco" binding:"required"`
+	Rua         string `json:"rua"`
+	Numero      string `json:"numero"`
+	Complemento string `json:"complemento"`
+	Bairro      string `json:"bairro"`
+	Cidade      string `json:"cidade" binding:"required"`
+	Estado      string `json:"estado" binding:"required"`
+	CEP         string `json:"cep"`
+	ItemIDs     []uint `json:"item_ids" binding:"required,min=1"`
 }
 
 // CotarFrete atende POST /lojas/:slug/guardados/cotar-frete — prévia, não
@@ -66,7 +73,15 @@ func (h *GuardadosHandler) CotarFrete(c *gin.Context) {
 		return
 	}
 
-	cotacao, err := h.guardadosService.CotarFrete(slug, normalizarTelefone(req.Telefone), req.Endereco, req.ItemIDs)
+	cotacao, err := h.guardadosService.CotarFrete(slug, normalizarTelefone(req.Telefone), service.EnderecoEstruturado{
+		Rua:         req.Rua,
+		Numero:      req.Numero,
+		Complemento: req.Complemento,
+		Bairro:      req.Bairro,
+		Cidade:      req.Cidade,
+		Estado:      req.Estado,
+		CEP:         req.CEP,
+	}, req.ItemIDs)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"erro": err.Error()})
 		return
@@ -83,6 +98,13 @@ type solicitarEntregaRequest struct {
 	ClienteNome     string `json:"cliente_nome" binding:"required"`
 	ClienteTelefone string `json:"cliente_telefone" binding:"required"`
 	Endereco        string `json:"endereco" binding:"required"`
+	Rua             string `json:"rua"`
+	Numero          string `json:"numero"`
+	Complemento     string `json:"complemento"`
+	Bairro          string `json:"bairro"`
+	Cidade          string `json:"cidade" binding:"required"`
+	Estado          string `json:"estado" binding:"required"`
+	CEP             string `json:"cep"`
 	ItemIDs         []uint `json:"item_ids" binding:"required,min=1"`
 }
 
@@ -102,7 +124,16 @@ func (h *GuardadosHandler) SolicitarEntrega(c *gin.Context) {
 		ClienteNome:     req.ClienteNome,
 		ClienteTelefone: normalizarTelefone(req.ClienteTelefone),
 		Endereco:        req.Endereco,
-		ItemIDs:         req.ItemIDs,
+		EnderecoGeo: service.EnderecoEstruturado{
+			Rua:         req.Rua,
+			Numero:      req.Numero,
+			Complemento: req.Complemento,
+			Bairro:      req.Bairro,
+			Cidade:      req.Cidade,
+			Estado:      req.Estado,
+			CEP:         req.CEP,
+		},
+		ItemIDs: req.ItemIDs,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})

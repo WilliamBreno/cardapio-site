@@ -55,7 +55,7 @@ type CotacaoFrete struct {
 // regional (por km, mesma cidade/estado da loja) e a fórmula estimada
 // (peso + distância, fora da região) comparando a cidade/estado
 // geocodificados do destino com os já salvos na loja.
-func (s *GuardadosService) CotarFrete(slug, telefone, endereco string, itemIDs []uint) (*CotacaoFrete, error) {
+func (s *GuardadosService) CotarFrete(slug, telefone string, endereco EnderecoEstruturado, itemIDs []uint) (*CotacaoFrete, error) {
 	loja, err := s.lojaRepo.BuscarPorSlug(slug)
 	if err != nil {
 		return nil, errors.New("loja não encontrada")
@@ -80,8 +80,8 @@ func (s *GuardadosService) CotarFrete(slug, telefone, endereco string, itemIDs [
 	return s.calcularFrete(*loja, endereco, pesoTotal)
 }
 
-func (s *GuardadosService) calcularFrete(loja domain.Loja, endereco string, pesoGramas int) (*CotacaoFrete, error) {
-	destino, err := s.distanciaService.GeocodificarDetalhado(endereco)
+func (s *GuardadosService) calcularFrete(loja domain.Loja, endereco EnderecoEstruturado, pesoGramas int) (*CotacaoFrete, error) {
+	destino, err := s.distanciaService.GeocodificarEstruturadoDetalhado(endereco)
 	if err != nil {
 		return nil, errors.New("não conseguimos localizar esse endereço")
 	}
@@ -108,6 +108,7 @@ type SolicitarEntregaInput struct {
 	ClienteNome     string
 	ClienteTelefone string
 	Endereco        string
+	EnderecoGeo     EnderecoEstruturado
 	ItemIDs         []uint
 }
 
@@ -147,7 +148,7 @@ func (s *GuardadosService) SolicitarEntrega(slug string, input SolicitarEntregaI
 			pesoTotal += item.PesoGramas * item.Quantidade
 		}
 
-		cotacao, err := s.calcularFrete(*loja, input.Endereco, pesoTotal)
+		cotacao, err := s.calcularFrete(*loja, input.EnderecoGeo, pesoTotal)
 		if err != nil {
 			return err
 		}

@@ -55,7 +55,7 @@ export function GuardadosDrawer({ aberto, onFechar, slug }: Props) {
       setCalculandoFrete(true);
       setErroFrete(null);
       try {
-        const resultado = await cotarFreteGuardados(slug, normalizarTelefone(telefone), enderecoTexto, Array.from(selecionados));
+        const resultado = await cotarFreteGuardados(slug, normalizarTelefone(telefone), enderecoTexto, enderecoValor, Array.from(selecionados));
         setFreteCalculado(resultado.valor_frete);
         setDistanciaKm(resultado.distancia_km);
         setMesmaRegiao(resultado.mesma_regiao);
@@ -133,7 +133,7 @@ export function GuardadosDrawer({ aberto, onFechar, slug }: Props) {
         cliente_telefone: normalizarTelefone(telefone),
         endereco: enderecoTexto,
         item_ids: Array.from(selecionados),
-      });
+      }, enderecoValor);
       const { url } = await criarCheckoutFrete(solicitacao.id);
       window.location.href = url;
     } catch {

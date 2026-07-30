@@ -24,7 +24,14 @@ func NewFreteHandler(lojaService *service.LojaService, distanciaService *service
 }
 
 type cotarFreteRequest struct {
-	Endereco string `json:"endereco" binding:"required"`
+	Endereco    string `json:"endereco" binding:"required"`
+	Rua         string `json:"rua"`
+	Numero      string `json:"numero"`
+	Complemento string `json:"complemento"`
+	Bairro      string `json:"bairro"`
+	Cidade      string `json:"cidade" binding:"required"`
+	Estado      string `json:"estado" binding:"required"`
+	CEP         string `json:"cep"`
 }
 
 // Cotar recebe o endereço digitado pelo cliente no carrinho e devolve a
@@ -55,7 +62,15 @@ func (h *FreteHandler) Cotar(c *gin.Context) {
 		return
 	}
 
-	destino, err := h.distanciaService.Geocodificar(req.Endereco)
+	destino, err := h.distanciaService.GeocodificarEstruturado(service.EnderecoEstruturado{
+		Rua:         req.Rua,
+		Numero:      req.Numero,
+		Complemento: req.Complemento,
+		Bairro:      req.Bairro,
+		Cidade:      req.Cidade,
+		Estado:      req.Estado,
+		CEP:         req.CEP,
+	})
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"erro": "não conseguimos localizar esse endereço"})
 		return

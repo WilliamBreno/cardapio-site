@@ -11,7 +11,7 @@ import { buscarConfiguracaoPlataforma, assinarSugestaoInteligente, cancelarAssin
 import { TEMAS } from '../../themes';
 import { Campo } from '../../components/Campo';
 import { QRCodeCardapio } from '../../components/QRCodeCardapio';
-import { EnderecoCampos, enderecoVazio, enderecoParaTexto, enderecoPreenchido, type EnderecoValor } from '../../components/EnderecoCampos';
+import { EnderecoCampos, enderecoVazio, enderecoParaTexto, enderecoParaCampos, enderecoPreenchido, type EnderecoValor } from '../../components/EnderecoCampos';
 import { rotuloCatalogo } from '../../lib/utils';
 
 const MARGENS = [0, 5, 10, 15, 20, 25, 30];
@@ -109,6 +109,17 @@ export function Configuracoes() {
       taxa_entrega_base: taxaBase,
       taxa_entrega_por_km: taxaPorKm,
       endereco: enderecoPreenchido(enderecoValor) ? enderecoParaTexto(enderecoValor) : enderecoSalvo,
+      ...(enderecoPreenchido(enderecoValor)
+        ? {
+            endereco_rua: enderecoParaCampos(enderecoValor).rua,
+            endereco_numero: enderecoParaCampos(enderecoValor).numero,
+            endereco_complemento: enderecoParaCampos(enderecoValor).complemento,
+            endereco_bairro: enderecoParaCampos(enderecoValor).bairro,
+            endereco_cidade: enderecoParaCampos(enderecoValor).cidade,
+            endereco_estado: enderecoParaCampos(enderecoValor).estado,
+            endereco_cep: enderecoParaCampos(enderecoValor).cep,
+          }
+        : {}),
       valor_minimo_pedido: valorMinimo,
       tema,
       sugestao_inteligente_ativa: sugestaoInteligenteAtiva,

@@ -169,7 +169,7 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
       setCalculandoFrete(true);
       setErroFrete(null);
       try {
-        const resultado = await cotarFrete(slug, enderecoTexto);
+        const resultado = await cotarFrete(slug, enderecoTexto, enderecoValor);
         setFreteCalculado(resultado.valor_frete);
         setDistanciaKm(resultado.distancia_km);
       } catch {
@@ -272,6 +272,15 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
         data_retirada: dataRetirada,
         modo_entrega: modoEntrega,
         endereco_entrega: modoEntrega === 'entrega' ? enderecoTexto : undefined,
+        ...(modoEntrega === 'entrega' ? {
+          endereco_rua: enderecoValor.rua.trim(),
+          endereco_numero: enderecoValor.numero.trim(),
+          endereco_complemento: enderecoValor.complemento.trim(),
+          endereco_bairro: enderecoValor.bairro.trim(),
+          endereco_cidade: enderecoValor.cidade.trim(),
+          endereco_estado: enderecoValor.estado.trim(),
+          endereco_cep: enderecoValor.cep.trim(),
+        } : {}),
         cupom_codigo: desconto > 0 ? cupomCodigo : undefined,
         itens: itens.map((item) => ({
           produto_id: item.produto.id,

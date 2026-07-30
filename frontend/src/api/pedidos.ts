@@ -25,6 +25,13 @@ interface CriarPedidoInput {
   data_retirada: string;
   modo_entrega?: string;
   endereco_entrega?: string;
+  endereco_rua?: string;
+  endereco_numero?: string;
+  endereco_complemento?: string;
+  endereco_bairro?: string;
+  endereco_cidade?: string;
+  endereco_estado?: string;
+  endereco_cep?: string;
   cupom_codigo?: string;
   itens: ItemPedidoInput[];
   combos?: ComboPedidoInput[];

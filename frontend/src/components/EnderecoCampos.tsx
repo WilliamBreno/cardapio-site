@@ -35,6 +35,23 @@ export function enderecoPreenchido(v: EnderecoValor): boolean {
   return v.rua.trim() !== '' && v.cidade.trim() !== '';
 }
 
+// Campos estruturados (rua/numero/bairro/cidade/estado/cep separados) pra
+// mandar na cotação/criação de frete — a geocodificação no backend usa
+// esses campos direto numa busca estruturada do Nominatim, muito mais
+// confiável do que tentar quebrar de volta o texto livre montado por
+// enderecoParaTexto.
+export function enderecoParaCampos(v: EnderecoValor) {
+  return {
+    rua: v.rua.trim(),
+    numero: v.numero.trim(),
+    complemento: v.complemento.trim(),
+    bairro: v.bairro.trim(),
+    cidade: v.cidade.trim(),
+    estado: v.estado.trim(),
+    cep: v.cep.trim(),
+  };
+}
+
 const ESTADOS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB',
   'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',

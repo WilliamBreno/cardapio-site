@@ -8,17 +8,19 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/WilliamBreno/cardapio-backend/internal/domain"
 )
 
-// DistanciaService cuida de duas coisas: transformar um endereço em texto
-// em coordenadas (geocodificação) e calcular a distância entre dois pontos.
+// DistanciaService cuida de duas coisas: transformar um endereço em
+// coordenadas (geocodificação) e calcular a distância entre dois pontos.
 //
 // Usamos o Nominatim (OpenStreetMap) para geocodificação — é gratuito e não
 // exige chave de API, mas pede que respeitemos um limite informal de ~1
-// requisição por segundo. Para o volume de um SaaS nessa fase, isso não é
-// um problema.
+// requisição por segundo (ver aguardarLimiteTaxaNominatim). Para o volume
+// de um SaaS nessa fase, isso não é um problema.
 type DistanciaService struct {
 	httpClient *http.Client
 }
@@ -30,6 +32,21 @@ func NewDistanciaService() *DistanciaService {
 type Coordenada struct {
 	Latitude  float64
 	Longitude float64
+}
+
+// EnderecoEstruturado são os campos separados de um endereço (o mesmo
+// formulário usado no frontend em EnderecoCampos.tsx) — usado pra montar
+// consultas estruturadas ao Nominatim, que são muito mais confiáveis do
+// que jogar o endereço inteiro como texto livre numa única query (ver
+// comentário em tentativasEstruturadas).
+type EnderecoEstruturado struct {
+	Rua         string
+	Numero      string
+	Complemento string
+	Bairro      string
+	Cidade      string
+	Estado      string
+	CEP         string
 }
 
 type nominatimResultado struct {
@@ -46,74 +63,162 @@ type nominatimEndereco struct {
 	Estado      string `json:"state"`
 }
 
-// GeocodificacaoDetalhada é o resultado de GeocodificarDetalhado — além das
-// coordenadas, traz cidade/estado, usados pra decidir se um destino está na
-// mesma região da loja ou fora dela.
+// GeocodificacaoDetalhada é o resultado de GeocodificarEstruturadoDetalhado
+// — além das coordenadas, traz cidade/estado, usados pra decidir se um
+// destino está na mesma região da loja ou fora dela.
 type GeocodificacaoDetalhada struct {
 	Coordenada
 	Cidade string
 	Estado string
 }
 
-// Geocodificar transforma um endereço em texto livre (ex: "Rua Tal 123,
-// Aracaju, SE") em coordenadas de latitude/longitude. Retorna erro se o
-// endereço não puder ser localizado.
-func (s *DistanciaService) Geocodificar(endereco string) (*Coordenada, error) {
-	resultado, err := s.geocodificarComFallback(endereco, false)
+// GeocodificarEstruturado transforma um endereço (em campos separados) em
+// coordenadas de latitude/longitude. Retorna erro se o endereço não puder
+// ser localizado.
+func (s *DistanciaService) GeocodificarEstruturado(end EnderecoEstruturado) (*Coordenada, error) {
+	resultado, err := s.geocodificarComFallback(end, false)
 	if err != nil {
 		return nil, err
 	}
 	return &resultado.Coordenada, nil
 }
 
-// GeocodificarDetalhado é igual a Geocodificar, mas também pede o
-// detalhamento do endereço (bairro, cidade, estado) ao Nominatim — usado
-// pra decidir se um destino de entrega está na mesma cidade/estado da loja
-// (frete por km) ou fora dela (frete estimado por peso+distância).
-func (s *DistanciaService) GeocodificarDetalhado(endereco string) (*GeocodificacaoDetalhada, error) {
-	return s.geocodificarComFallback(endereco, true)
+// GeocodificarEstruturadoDetalhado é igual a GeocodificarEstruturado, mas
+// também pede o detalhamento do endereço (cidade, estado) ao Nominatim —
+// usado pra decidir se um destino de entrega está na mesma cidade/estado
+// da loja (frete por km) ou fora dela (frete estimado por peso+distância).
+func (s *DistanciaService) GeocodificarEstruturadoDetalhado(end EnderecoEstruturado) (*GeocodificacaoDetalhada, error) {
+	return s.geocodificarComFallback(end, true)
 }
 
-// geocodificarComFallback tenta o endereço completo primeiro. Se o
-// Nominatim não encontrar nada — comum quando o número da casa ou o nome
-// exato da rua não está mapeado no OpenStreetMap, o que acontece bastante
-// em ruas menores no Brasil — tenta de novo removendo o trecho mais
-// específico (rua/número), mantendo bairro/cidade/estado/CEP. Uma
-// localização aproximada do bairro é muito melhor do que falhar
-// completamente na hora de calcular frete. Funciona bem quando o endereço
-// vem formatado como "rua, número - complemento, bairro, cidade - estado,
-// cep" (é assim que o formulário de endereço do frontend monta o texto).
-func (s *DistanciaService) geocodificarComFallback(endereco string, comEndereco bool) (*GeocodificacaoDetalhada, error) {
-	resultado, err := s.buscarNominatim(endereco, comEndereco)
-	if err == nil {
-		return resultado, nil
+// tentativasEstruturadas monta, em ordem de precisão decrescente, os
+// conjuntos de parâmetros estruturados a tentar no Nominatim.
+//
+// Por que estruturado em vez de uma única query de texto livre: testamos
+// contra endereços reais (ex: "Rua Geraldo Menezes Carvalho, 161, Suíça,
+// Aracaju - SE, 49050-360") e a busca de texto livre falha com frequência
+// — o parser do Nominatim tenta casar cada trecho separado por vírgula
+// contra o nome exato que o OpenStreetMap usa (nesse exemplo, o bairro é
+// grafado "Suíssa" no OSM, não "Suíça" como no cadastro dos Correios — a
+// diferença sozinha já derruba a busca de texto livre inteira). Os
+// parâmetros estruturados (street/city/state/postalcode) casam cada campo
+// de forma independente, então um bairro ou CEP que não bate exatamente
+// não invalida o resto — e ainda evita o risco de "achar" um resultado
+// completamente errado (ex: buscar só o CEP como texto livre já retornou,
+// em teste, um endereço em outro estado).
+//
+// A cadeia de fallback (rua+cidade+estado+cep → rua+cidade+estado →
+// cidade+estado+cep → cidade+estado) troca precisão por robustez: rua não
+// mapeada ou CEP com pequena divergência do que o OSM registra não fazem o
+// pedido falhar por completo — na pior das hipóteses cai pro centro da
+// cidade, o que ainda é muito melhor do que recusar o frete.
+func tentativasEstruturadas(end EnderecoEstruturado) []url.Values {
+	rua := strings.TrimSpace(end.Rua)
+	numero := strings.TrimSpace(end.Numero)
+	cidade := strings.TrimSpace(end.Cidade)
+	estado := strings.TrimSpace(end.Estado)
+	cep := strings.TrimSpace(end.CEP)
+
+	if cidade == "" || estado == "" {
+		return nil
 	}
 
-	partes := strings.Split(endereco, ",")
-	for len(partes) > 1 {
-		partes = partes[1:]
-		tentativa := strings.TrimSpace(strings.Join(partes, ","))
-		if tentativa == "" {
-			break
+	rua = strings.TrimSpace(strings.ReplaceAll(rua, ",", " "))
+	ruaCompleta := rua
+	if numero != "" {
+		ruaCompleta = rua + ", " + numero
+	}
+
+	base := func() url.Values {
+		v := url.Values{}
+		v.Set("format", "json")
+		v.Set("limit", "1")
+		v.Set("countrycodes", "br")
+		v.Set("country", "Brasil")
+		v.Set("city", cidade)
+		v.Set("state", estado)
+		return v
+	}
+
+	var tentativas []url.Values
+
+	if ruaCompleta != "" {
+		if cep != "" {
+			v := base()
+			v.Set("street", ruaCompleta)
+			v.Set("postalcode", cep)
+			tentativas = append(tentativas, v)
 		}
-		if resultado, errTentativa := s.buscarNominatim(tentativa, comEndereco); errTentativa == nil {
+		v := base()
+		v.Set("street", ruaCompleta)
+		tentativas = append(tentativas, v)
+	}
+
+	if cep != "" {
+		v := base()
+		v.Set("postalcode", cep)
+		tentativas = append(tentativas, v)
+	}
+
+	tentativas = append(tentativas, base())
+
+	return tentativas
+}
+
+func (s *DistanciaService) geocodificarComFallback(end EnderecoEstruturado, comEndereco bool) (*GeocodificacaoDetalhada, error) {
+	tentativas := tentativasEstruturadas(end)
+	if len(tentativas) == 0 {
+		return nil, fmt.Errorf("endereço incompleto — informe ao menos cidade e estado")
+	}
+
+	var ultimoErr error
+	for _, params := range tentativas {
+		if comEndereco {
+			params.Set("addressdetails", "1")
+		}
+		resultado, err := s.buscarNominatim(params)
+		if err == nil {
 			return resultado, nil
 		}
+		ultimoErr = err
 	}
 
-	return nil, err
+	return nil, ultimoErr
 }
 
-func (s *DistanciaService) buscarNominatim(endereco string, comEndereco bool) (*GeocodificacaoDetalhada, error) {
-	baseURL := "https://nominatim.openstreetmap.org/search"
-	params := url.Values{}
-	params.Set("q", endereco)
-	params.Set("format", "json")
-	params.Set("limit", "1")
-	params.Set("countrycodes", "br")
-	if comEndereco {
-		params.Set("addressdetails", "1")
+var (
+	nominatimMu       sync.Mutex
+	nominatimUltimaEm time.Time
+)
+
+// aguardarLimiteTaxaNominatim serializa TODAS as chamadas ao Nominatim
+// feitas pelo processo (mesmo vindas de requisições concorrentes de
+// clientes diferentes) com um espaçamento mínimo entre elas.
+//
+// Sem isso, um pico de tráfego (vários clientes cotando frete ao mesmo
+// tempo) ou a própria cadeia de fallback em geocodificarComFallback
+// disparando tentativas em sequência rápida ultrapassam o limite informal
+// de ~1 requisição/segundo do Nominatim — e o Nominatim reage devolvendo
+// HTTP 200 com corpo `[]` (lista vazia), indistinguível de "endereço não
+// encontrado". Esse foi, na prática, a causa raiz de um endereço real e
+// válido ser rejeitado em teste manual: as tentativas de fallback estavam
+// sendo disparadas rápido demais uma atrás da outra.
+func aguardarLimiteTaxaNominatim() {
+	nominatimMu.Lock()
+	defer nominatimMu.Unlock()
+
+	const intervaloMinimo = 1100 * time.Millisecond
+	espera := intervaloMinimo - time.Since(nominatimUltimaEm)
+	if espera > 0 {
+		time.Sleep(espera)
 	}
+	nominatimUltimaEm = time.Now()
+}
+
+func (s *DistanciaService) buscarNominatim(params url.Values) (*GeocodificacaoDetalhada, error) {
+	aguardarLimiteTaxaNominatim()
+
+	baseURL := "https://nominatim.openstreetmap.org/search"
 
 	req, err := http.NewRequest("GET", baseURL+"?"+params.Encode(), nil)
 	if err != nil {
@@ -137,7 +242,7 @@ func (s *DistanciaService) buscarNominatim(endereco string, comEndereco bool) (*
 	}
 
 	if len(resultados) == 0 {
-		return nil, fmt.Errorf("endereço não encontrado: %s", endereco)
+		return nil, fmt.Errorf("endereço não encontrado (%s)", params.Encode())
 	}
 
 	lat, err := strconv.ParseFloat(resultados[0].Lat, 64)

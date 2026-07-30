@@ -57,14 +57,21 @@ type comboPedidoRequest struct {
 }
 
 type pedidoRequest struct {
-	ClienteNome     string               `json:"cliente_nome" binding:"required"`
-	ClienteTelefone string               `json:"cliente_telefone" binding:"required"`
-	DataRetirada    time.Time            `json:"data_retirada" binding:"required"`
-	ModoEntrega     string               `json:"modo_entrega"`
-	EnderecoEntrega string               `json:"endereco_entrega"`
-	CupomCodigo     string               `json:"cupom_codigo"`
-	Itens           []itemPedidoRequest  `json:"itens" binding:"dive"`
-	Combos          []comboPedidoRequest `json:"combos" binding:"dive"`
+	ClienteNome         string               `json:"cliente_nome" binding:"required"`
+	ClienteTelefone     string               `json:"cliente_telefone" binding:"required"`
+	DataRetirada        time.Time            `json:"data_retirada" binding:"required"`
+	ModoEntrega         string               `json:"modo_entrega"`
+	EnderecoEntrega     string               `json:"endereco_entrega"`
+	EnderecoRua         string               `json:"endereco_rua"`
+	EnderecoNumero      string               `json:"endereco_numero"`
+	EnderecoComplemento string               `json:"endereco_complemento"`
+	EnderecoBairro      string               `json:"endereco_bairro"`
+	EnderecoCidade      string               `json:"endereco_cidade"`
+	EnderecoEstado      string               `json:"endereco_estado"`
+	EnderecoCEP         string               `json:"endereco_cep"`
+	CupomCodigo         string               `json:"cupom_codigo"`
+	Itens               []itemPedidoRequest  `json:"itens" binding:"dive"`
+	Combos              []comboPedidoRequest `json:"combos" binding:"dive"`
 }
 
 // Criar atende POST /lojas/:slug/pedidos — rota pública. O cliente final
@@ -110,9 +117,18 @@ func (h *PedidoHandler) Criar(c *gin.Context) {
 		DataRetirada:    req.DataRetirada,
 		ModoEntrega:     req.ModoEntrega,
 		EnderecoEntrega: req.EnderecoEntrega,
-		CupomCodigo:     req.CupomCodigo,
-		Itens:           itensInput,
-		Combos:          combosInput,
+		EnderecoEntregaGeo: service.EnderecoEstruturado{
+			Rua:         req.EnderecoRua,
+			Numero:      req.EnderecoNumero,
+			Complemento: req.EnderecoComplemento,
+			Bairro:      req.EnderecoBairro,
+			Cidade:      req.EnderecoCidade,
+			Estado:      req.EnderecoEstado,
+			CEP:         req.EnderecoCEP,
+		},
+		CupomCodigo: req.CupomCodigo,
+		Itens:       itensInput,
+		Combos:      combosInput,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})

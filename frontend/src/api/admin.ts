@@ -131,6 +131,16 @@ export interface ConfiguracoesInput {
   segmento_principal: 'alimenticio' | 'mercadoria';
   taxa_entrega_tipo: string;
   taxa_entrega_valor: number;
+  taxa_entrega_base?: number;
+  taxa_entrega_por_km?: number;
+  endereco?: string;
+  endereco_rua?: string;
+  endereco_numero?: string;
+  endereco_complemento?: string;
+  endereco_bairro?: string;
+  endereco_cidade?: string;
+  endereco_estado?: string;
+  endereco_cep?: string;
   valor_minimo_pedido: number;
   tema: string;
   // Precisa ir em TODO save (mesmo que a tela não mexa nisso) — o PUT

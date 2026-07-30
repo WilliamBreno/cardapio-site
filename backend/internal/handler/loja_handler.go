@@ -67,6 +67,13 @@ type configuracoesRequest struct {
 	ValorMinimoPedido        float64 `json:"valor_minimo_pedido"`
 	Tema                     string  `json:"tema"`
 	Endereco                 string  `json:"endereco"`
+	EnderecoRua              string  `json:"endereco_rua"`
+	EnderecoNumero           string  `json:"endereco_numero"`
+	EnderecoComplemento      string  `json:"endereco_complemento"`
+	EnderecoBairro           string  `json:"endereco_bairro"`
+	EnderecoCidade           string  `json:"endereco_cidade"`
+	EnderecoEstado           string  `json:"endereco_estado"`
+	EnderecoCEP              string  `json:"endereco_cep"`
 	AceitaGuardarEntregar    bool    `json:"aceita_guardar_entregar"`
 	SegmentoPrincipal        string  `json:"segmento_principal" binding:"required,oneof=alimenticio mercadoria"`
 	SugestaoInteligenteAtiva bool    `json:"sugestao_inteligente_ativa"`
@@ -93,12 +100,29 @@ func (h *LojaHandler) AtualizarConfiguracoes(c *gin.Context) {
 	// "guardar e entregar depois") também depende de latitude/longitude/
 	// cidade/estado da loja, independente de como a entrega imediata é
 	// cobrada. Se a geocodificação falhar, não travamos o salvamento das
-	// outras configurações — só avisamos no log e deixa os campos como
-	// estavam (endpoints que dependem disso rejeitam com mensagem clara).
-	var latitude, longitude float64
-	var cidade, estado string
-	if req.Endereco != "" {
-		geo, err := h.distanciaService.GeocodificarDetalhado(req.Endereco)
+	// outras configurações — só avisamos no log e MANTÉM as coordenadas
+	// que a loja já tinha (buscadas antes de qualquer alteração): sobrescrever
+	// com zero aqui apagaria silenciosamente o endereço de origem sempre que
+	// o lojista salvasse qualquer outra configuração durante uma falha
+	// passageira de geocodificação, quebrando o cálculo de frete pra todos os
+	// pedidos seguintes até ele notar e resalvar o endereço.
+	lojaAtual, err := h.lojaService.Buscar(lojaID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "loja não encontrada"})
+		return
+	}
+	latitude, longitude := lojaAtual.Latitude, lojaAtual.Longitude
+	cidade, estado := lojaAtual.Cidade, lojaAtual.Estado
+	if req.Endereco != "" && req.Endereco != lojaAtual.Endereco {
+		geo, err := h.distanciaService.GeocodificarEstruturadoDetalhado(service.EnderecoEstruturado{
+			Rua:         req.EnderecoRua,
+			Numero:      req.EnderecoNumero,
+			Complemento: req.EnderecoComplemento,
+			Bairro:      req.EnderecoBairro,
+			Cidade:      req.EnderecoCidade,
+			Estado:      req.EnderecoEstado,
+			CEP:         req.EnderecoCEP,
+		})
 		if err != nil {
 			log.Printf("aviso: não foi possível geocodificar endereço da loja %d: %v", lojaID, err)
 		} else {

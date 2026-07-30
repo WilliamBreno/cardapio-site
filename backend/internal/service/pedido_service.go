@@ -41,14 +41,15 @@ type ComboPedidoInput struct {
 }
 
 type PedidoInput struct {
-	ClienteNome     string
-	ClienteTelefone string
-	DataRetirada    time.Time
-	ModoEntrega     string
-	EnderecoEntrega string
-	CupomCodigo     string
-	Itens           []ItemPedidoInput
-	Combos          []ComboPedidoInput
+	ClienteNome        string
+	ClienteTelefone    string
+	DataRetirada       time.Time
+	ModoEntrega        string
+	EnderecoEntrega    string
+	EnderecoEntregaGeo EnderecoEstruturado
+	CupomCodigo        string
+	Itens              []ItemPedidoInput
+	Combos             []ComboPedidoInput
 }
 
 type PedidoService struct {
@@ -145,7 +146,7 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 			if s.distanciaService == nil {
 				return nil, errors.New("cálculo de frete indisponível no momento")
 			}
-			destino, err := s.distanciaService.Geocodificar(input.EnderecoEntrega)
+			destino, err := s.distanciaService.GeocodificarEstruturado(input.EnderecoEntregaGeo)
 			if err != nil {
 				return nil, errors.New("não conseguimos localizar o endereço de entrega informado — confere se está completo")
 			}
