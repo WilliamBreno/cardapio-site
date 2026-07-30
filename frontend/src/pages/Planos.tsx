@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { ShimmerButton } from '@/components/ui/shimmer-button';
+import {
+  Store, MessageCircle, Truck, Sparkles, BarChart3, Users, ArrowDown,
+} from 'lucide-react';
 import { criarCheckoutAssinatura } from '../api/planos';
 import { PLANOS, temaPlanos, FONTE_DRX_SERIF_CSS } from '../lib/planos';
 
@@ -14,10 +17,51 @@ function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
+const FUNCOES = [
+  {
+    icone: Store,
+    titulo: 'Cardápio com a sua cara',
+    texto: 'Link e QR code próprios, no ar em minutos — sem app de terceiro cobrando por fora e escondendo seu cliente.',
+  },
+  {
+    icone: MessageCircle,
+    titulo: 'Pedido direto no seu WhatsApp',
+    texto: 'Cada venda cai automática no seu número. Nenhum pedido se perde, nenhuma plataforma fica no meio do caminho.',
+  },
+  {
+    icone: Truck,
+    titulo: 'Frete calculado sozinho',
+    texto: 'O cliente digita o endereço e o sistema calcula a distância e o valor na hora — sem tabela manual, sem prejuízo escondido.',
+  },
+  {
+    icone: Sparkles,
+    titulo: 'Sugestão inteligente e cupons',
+    texto: 'O carrinho sugere o produto certo na hora certa. Ticket médio maior sem você precisar convencer ninguém.',
+  },
+  {
+    icone: BarChart3,
+    titulo: 'Números em tempo real',
+    texto: 'Faturamento, pedidos e mais vendidos num painel só. Decisão com dado — não com "acho que vendeu bem".',
+  },
+  {
+    icone: Users,
+    titulo: 'Programa de afiliados',
+    texto: 'Gente divulgando sua loja por comissão. Você cresce sem tirar dinheiro do bolso pra anúncio.',
+  },
+];
+
 export function Planos() {
   const navigate = useNavigate();
   const [faturamento, setFaturamento] = useState(6000);
   const [carregando, setCarregando] = useState<string | null>(null);
+  const [destacarCalculadora, setDestacarCalculadora] = useState(false);
+  const calculadoraRef = useRef<HTMLDivElement>(null);
+
+  function irParaCalculadora() {
+    calculadoraRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setDestacarCalculadora(true);
+    setTimeout(() => setDestacarCalculadora(false), 2200);
+  }
 
   const custos = useMemo(
     () => PLANOS.map((p) => ({ ...p, valorTaxa: p.taxa * faturamento, total: p.mensal + p.taxa * faturamento })),
@@ -46,6 +90,8 @@ export function Planos() {
         @keyframes drx-girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes drx-pulsar { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
         .drx-estrela { animation: drx-girar 22s linear infinite, drx-pulsar 4s ease-in-out infinite; }
+        @keyframes drx-brilho { 0%, 100% { box-shadow: 0 0 0 0 rgba(212, 175, 106, 0); } 50% { box-shadow: 0 0 24px 4px rgba(212, 175, 106, 0.25); } }
+        .drx-destaque { animation: drx-brilho 1.1s ease-in-out 2; }
       `}</style>
 
       {/* Header */}
@@ -88,9 +134,48 @@ export function Planos() {
         </p>
       </section>
 
+      {/* O que o Drenux resolve pro dono do negócio */}
+      <section className="mx-auto max-w-4xl px-6 pb-20">
+        <h2 className="drx-serif mb-10 text-center text-2xl font-medium sm:text-3xl">
+          Tudo que sua loja precisa pra vender mais, num lugar só
+        </h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {FUNCOES.map((f) => (
+            <Card key={f.titulo} className="border-0 ring-1 ring-border">
+              <CardContent className="pt-6">
+                <f.icone className="mb-3 h-6 w-6 text-primary" strokeWidth={1.75} />
+                <p className="mb-1.5 text-sm font-semibold text-foreground">{f.titulo}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">{f.texto}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* Chamada reflexiva pra calculadora */}
+      <section className="border-y border-border bg-card/40">
+        <div className="mx-auto max-w-xl px-6 py-16 text-center">
+          <p className="drx-serif text-2xl font-medium leading-snug sm:text-3xl">
+            Quanto da sua venda vira taxa sem você nem perceber?
+          </p>
+          <p className="mx-auto mt-4 max-w-md text-sm text-muted-foreground">
+            A maioria dos donos de loja sente que "sobra pouco" no fim do mês, mas não sabe dizer o número
+            exato. Simule o faturamento real da sua loja e veja, em segundos, o quanto cada plano custaria
+            pra você — e qual sai mais barato.
+          </p>
+          <Button size="lg" className="mt-7 gap-2" onClick={irParaCalculadora}>
+            Simular meu faturamento
+            <ArrowDown className="h-4 w-4" />
+          </Button>
+        </div>
+      </section>
+
       {/* Calculadora + planos */}
-      <section className="mx-auto max-w-2xl px-6 pb-24">
-        <Card className="mb-8">
+      <section className="mx-auto max-w-2xl px-6 pb-24 pt-16">
+        <Card
+          ref={calculadoraRef}
+          className={`mb-8 transition-shadow duration-500 ${destacarCalculadora ? 'drx-destaque ring-2 ring-primary' : ''}`}
+        >
           <CardHeader>
             <CardDescription>Quanto sua loja fatura por mês?</CardDescription>
             <CardTitle className="drx-serif text-3xl font-medium text-primary">
