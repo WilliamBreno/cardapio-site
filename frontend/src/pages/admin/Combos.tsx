@@ -172,13 +172,7 @@ export function Combos() {
           </Campo>
 
           <Campo label={`Foto do ${rotuloMin} (opcional)`}>
-            <input
-              value={form.foto_url}
-              onChange={(e) => setForm({ ...form, foto_url: e.target.value })}
-              placeholder="https://..."
-              className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento"
-            />
-            <div className="mt-2 flex items-center gap-3">
+            <div className="flex items-center gap-3">
               {form.foto_url && (
                 <img
                   src={logoMiniatura(form.foto_url)}
@@ -187,7 +181,7 @@ export function Combos() {
                 />
               )}
               <label className="cursor-pointer rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta hover:border-acento">
-                {enviandoFoto ? 'Enviando...' : 'Ou envia uma imagem do computador'}
+                {enviandoFoto ? 'Enviando...' : form.foto_url ? 'Trocar imagem' : 'Enviar imagem'}
                 <input type="file" accept="image/*" onChange={selecionarFoto} disabled={enviandoFoto} className="hidden" />
               </label>
             </div>
