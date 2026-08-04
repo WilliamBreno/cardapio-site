@@ -22,19 +22,25 @@ import (
 )
 
 // TaxaPlataformaPercentual é a taxa que a plataforma retém de cada
-// pedido pago (8%), aplicada no checkout via application_fee_amount.
-const TaxaPlataformaPercentual = 8.0
+// pedido pago no plano Start (6,5%), aplicada no checkout via
+// application_fee_amount/marketplace_fee — a Drenux absorve a taxa do
+// processador (Stripe/Mercado Pago) dentro desse percentual, em vez de
+// repassar o custo do processador pra loja por cima. Pro e Scale não têm
+// esse desconto embutido (a loja absorve a taxa do processador nesses
+// planos) — ver percentuais deles direto em calcularComissaoAfiliado e em
+// calcularMarketplaceFee (mercadopago_service.go).
+const TaxaPlataformaPercentual = 6.5
 
 // ComissaoAfiliadoPercentual é o repasse automático pro afiliado que
 // indicou a loja, quando existir.
-const ComissaoAfiliadoPercentual = 3.01
+const ComissaoAfiliadoPercentual = 2.44
 
 // ProporcaoComissaoAfiliadoPadrao é o valor sugerido no cadastro de um
 // afiliado novo — ~37,6% da taxa de plataforma, o padrão histórico usado
 // igual pra todo mundo antes da Fase 5.5 permitir negociar por afiliado
 // (ver domain.Afiliado.ComissaoPercentual). É a mesma proporção que dá
-// ComissaoAfiliadoPercentual (3,01%) quando a loja está no Start
-// (8% × 0,376 ≈ 3,01%). Depois do cadastro, quem manda é o percentual
+// ComissaoAfiliadoPercentual (2,44%) quando a loja está no Start
+// (6,5% × 0,376 ≈ 2,44%). Depois do cadastro, quem manda é o percentual
 // salvo em cada Afiliado, não essa constante.
 const ProporcaoComissaoAfiliadoPadrao = 0.376
 

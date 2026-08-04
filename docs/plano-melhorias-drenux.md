@@ -247,6 +247,24 @@ automático — ver detalhe de cada subfase abaixo`
    de fato (8%), sem mudar o percentual. Se a intenção é 6,5% de verdade, isso precisa de mais uma
    rodada — trocar o `TaxaPlataformaPercentual` e o `PLANOS[0].taxa` do frontend juntos, pra não
    ficar cobrando um valor e mostrando outro pro lojista.
+   **Resolvido em 04/08/2026, a pedido do William**: confirmado com ele que hoje, nesse split via
+   Mercado Pago, quem paga tanto a taxa do processador quanto a comissão da Drenux é a loja (o
+   cliente final só paga o valor do pedido) — e que os 8% cheios, sem nenhum desconto pela taxa do
+   processador, contrariavam a decisão original de a Drenux absorver essa taxa no Start. Trocado
+   `TaxaPlataformaPercentual` (`stripe_service.go`) de `8.0` pra `6.5` e `PLANOS[0].taxa`
+   (`frontend/src/lib/planos.ts`) de `0.08` pra `0.065`, juntos, pra loja e lojista verem o mesmo
+   número. `ComissaoAfiliadoPercentual` também ajustada de `3.01` pra `2.44` (mantém a proporção de
+   `ProporcaoComissaoAfiliadoPadrao = 0.376` sobre a nova taxa: 6,5% × 0,376 ≈ 2,44%) — essa
+   constante está sem nenhum uso no código hoje (só documentativa, quem manda de verdade é
+   `Afiliado.ComissaoPercentual` por afiliado), mas foi corrigida pra não ficar um número
+   inconsistente largado no arquivo. `calcularComissaoAfiliado` e `calcularMarketplaceFee`
+   (Mercado Pago) leem `TaxaPlataformaPercentual` direto, então já refletem os 6,5% sem precisar de
+   mudança própria neles. **Não implementado, e não foi pedido**: uma lógica que calcule a taxa real
+   do processador por transação (varia por método de pagamento — Pix, cartão, parcelamento) e
+   desconte isso dinamicamente da comissão — os 6,5% são um número fixo de negócio, a mesma
+   abordagem simples que já existia pros outros dois planos, não uma conta em tempo real contra a
+   taxa efetiva do Mercado Pago/Stripe. Validado com `go build ./...`, `go vet ./...`, `gofmt -l`,
+   `npx tsc -b` e `npm run build`, todos limpos.
 2. **Comissão não incide sobre frete.** Confirmado em `pedido_service.go` (`CriarPorSlug`):
    `pedido.Total = total (subtotal dos itens) + taxaEntrega`, ou seja, **`Total` já inclui o
    frete**. `CriarCheckout` agora calcula a comissão sobre `pedido.Total - pedido.TaxaEntrega` (só o

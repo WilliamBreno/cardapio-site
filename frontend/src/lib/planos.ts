@@ -13,7 +13,7 @@ export interface PlanoInfo {
 }
 
 export const PLANOS: PlanoInfo[] = [
-  { id: 'start', nome: 'Start', mensal: 0, taxa: 0.08, desc: 'Sem risco, comece de graça' },
+  { id: 'start', nome: 'Start', mensal: 0, taxa: 0.065, desc: 'Sem risco, comece de graça' },
   { id: 'pro', nome: 'Pro', mensal: 129, taxa: 0.04, desc: 'Pra loja em crescimento' },
   { id: 'scale', nome: 'Scale', mensal: 349, taxa: 0.015, desc: 'Volume alto, custo mínimo' },
 ];
