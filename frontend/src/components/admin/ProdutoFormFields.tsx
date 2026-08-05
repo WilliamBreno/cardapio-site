@@ -113,6 +113,15 @@ export function ProdutoFormFields({ form, onChange, categorias, subcategorias, g
             {enviandoFoto ? 'Enviando...' : form.foto_url ? 'Trocar foto' : 'Enviar foto'}
             <input type="file" accept="image/*" onChange={onSelecionarFoto} disabled={enviandoFoto} className="hidden" />
           </label>
+          {form.foto_url && !enviandoFoto && (
+            <button
+              type="button"
+              onClick={() => onChange({ ...form, foto_url: '' })}
+              className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta-suave hover:border-acento hover:text-acento"
+            >
+              Remover foto
+            </button>
+          )}
         </div>
       </div>
 

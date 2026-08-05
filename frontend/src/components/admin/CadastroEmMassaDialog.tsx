@@ -254,24 +254,23 @@ export function CadastroEmMassaDialog({ open, onOpenChange, categorias, subcateg
                 <div className="flex flex-wrap gap-2">
                   {produtoCriado.fotos.map((foto, i) => (
                     <div key={foto.id} className="relative group">
-                      <img src={foto.url} alt={`Foto ${i + 1}`} className="h-16 w-16 rounded-xl object-cover" />
+                      <img
+                        src={foto.url}
+                        alt={`Foto ${i + 1}`}
+                        onClick={() => i !== 0 && tornarFotoPrincipal(foto.id)}
+                        title={i === 0 ? 'Foto principal' : 'Clique pra tornar principal'}
+                        className={`h-16 w-16 rounded-xl object-cover ${i !== 0 ? 'cursor-pointer' : ''}`}
+                      />
                       <button
                         type="button"
                         onClick={() => removerFotoDoProduto(foto.id)}
+                        title="Remover foto"
                         className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-superficie group-hover:flex"
                       >×</button>
-                      {i === 0 ? (
-                        <span className="absolute bottom-0 left-0 right-0 rounded-b-xl bg-tinta/60 py-0.5 text-center text-[10px] text-superficie">
+                      {i === 0 && (
+                        <span className="pointer-events-none absolute bottom-0 left-0 right-0 rounded-b-xl bg-tinta/60 py-0.5 text-center text-[10px] text-superficie">
                           Principal
                         </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => tornarFotoPrincipal(foto.id)}
-                          className="absolute bottom-0 left-0 right-0 hidden rounded-b-xl bg-tinta/60 py-0.5 text-center text-[10px] text-superficie group-hover:block"
-                        >
-                          Tornar principal
-                        </button>
                       )}
                     </div>
                   ))}

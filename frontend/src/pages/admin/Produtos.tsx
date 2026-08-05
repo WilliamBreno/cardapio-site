@@ -4,13 +4,14 @@ import {
   listarProdutos, criarProduto, atualizarProduto, deletarProduto,
   listarCategorias, listarSubcategorias, listarGruposCor,
   criarVariacao, atualizarVariacao, deletarVariacao,
-  adicionarFoto, deletarFoto, adicionarFotoVariacao, deletarFotoVariacao, buscarLoja,
+  adicionarFoto, deletarFoto, reordenarFotos, adicionarFotoVariacao, deletarFotoVariacao, buscarLoja,
   type ProdutoInput, type VariacaoInput,
 } from '../../api/admin';
 import type { Produto, VariacaoProduto } from '../../api/types';
 import { ProdutoFormFields } from '../../components/admin/ProdutoFormFields';
 import { VariacaoFormFields } from '../../components/admin/VariacaoFormFields';
 import { CadastroEmMassaDialog } from '../../components/admin/CadastroEmMassaDialog';
+import { InfoTooltip } from '../../components/InfoTooltip';
 import { enviarImagem, logoMiniatura } from '../../api/upload';
 import { rotuloCatalogo } from '../../lib/utils';
 
@@ -188,6 +189,14 @@ export function Produtos() {
     invalidar();
   }
 
+  async function tornarFotoPrincipal(produtoId: number, fotoId: number) {
+    const produto = produtos?.find((p) => p.id === produtoId);
+    if (!produto?.fotos) return;
+    const outras = produto.fotos.filter((f) => f.id !== fotoId);
+    await reordenarFotos(produtoId, [fotoId, ...outras.map((f) => f.id)]);
+    invalidar();
+  }
+
   // Fotos de variação (modo de preço "absoluto")
   const [enviandoFotoVariacao, setEnviandoFotoVariacao] = useState(false);
 
@@ -278,14 +287,20 @@ export function Produtos() {
               <div className="flex flex-wrap gap-2">
                 {produto.fotos.map((foto, i) => (
                   <div key={foto.id} className="relative group">
-                    <img src={foto.url} alt={`Foto ${i + 1}`}
-                      className="h-16 w-16 rounded-xl object-cover" />
+                    <img
+                      src={foto.url}
+                      alt={`Foto ${i + 1}`}
+                      onClick={() => i !== 0 && tornarFotoPrincipal(produto.id, foto.id)}
+                      title={i === 0 ? 'Foto principal' : 'Clique pra tornar principal'}
+                      className={`h-16 w-16 rounded-xl object-cover ${i !== 0 ? 'cursor-pointer' : ''}`}
+                    />
                     <button
                       onClick={() => removerFotoProduto(produto.id, foto.id)}
+                      title="Remover foto"
                       className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-superficie group-hover:flex"
                     >×</button>
                     {i === 0 && (
-                      <span className="absolute bottom-0 left-0 right-0 rounded-b-xl bg-tinta/60 py-0.5 text-center text-xs text-superficie">
+                      <span className="pointer-events-none absolute bottom-0 left-0 right-0 rounded-b-xl bg-tinta/60 py-0.5 text-center text-xs text-superficie">
                         Principal
                       </span>
                     )}
@@ -441,11 +456,14 @@ export function Produtos() {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl tracking-wide text-tinta">Produtos</h1>
         {!mostrarForm && (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {ehMercadoria && (
-              <button onClick={() => setMostrarCadastroEmMassa(true)} className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta hover:border-acento hover:text-acento">
-                Cadastro em massa
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setMostrarCadastroEmMassa(true)} className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta hover:border-acento hover:text-acento">
+                  Cadastro em massa
+                </button>
+                <InfoTooltip texto='Cadastra vários produtos em sequência sem fechar a tela: você preenche um, salva, adiciona fotos e variações se quiser, e já parte pro próximo — sem abrir o formulário de novo a cada item. Bom pra catálogos grandes.' />
+              </div>
             )}
             <button onClick={abrirNovo} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie">
               + Novo produto
