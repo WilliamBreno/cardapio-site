@@ -148,6 +148,14 @@ type Loja struct {
 	// esses campos manualmente).
 	AvisoLimitePedidosEm   *time.Time `json:"-"`
 	PedidosBloqueadosDesde *time.Time `json:"pedidos_bloqueados_desde"`
+
+	// PlanoVitalicio: true só pra conta de teste interna da Drenux — fixa
+	// a loja permanentemente no plano Scale, sem passar por nenhuma
+	// cobrança (nunca cria assinatura Stripe/Mercado Pago de verdade) e
+	// sem poder ser rebaixada, nem por engano (ver guarda em
+	// StripeService.MudarPlano). Não expõe pro frontend (json "-") —
+	// não é um recurso configurável pelo lojista, só um flag interno.
+	PlanoVitalicio bool `gorm:"default:false" json:"-"`
 }
 
 func (Loja) TableName() string {

@@ -457,6 +457,10 @@ func (s *StripeService) MudarPlano(ctx context.Context, lojaID uint, novoPlano s
 		return nil, errors.New("loja não encontrada")
 	}
 
+	if loja.PlanoVitalicio {
+		return nil, errors.New("essa conta tem plano vitalício — não pode ser alterada")
+	}
+
 	if novoPlano == loja.Plano && loja.PlanoAgendado == nil {
 		return nil, errors.New("essa loja já está nesse plano")
 	}

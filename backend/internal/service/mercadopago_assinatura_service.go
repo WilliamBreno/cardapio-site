@@ -287,6 +287,9 @@ func (s *MercadoPagoAssinaturaService) ProcessarWebhook(ctx context.Context, pre
 }
 
 func (s *MercadoPagoAssinaturaService) aplicarStatusPlano(loja *domain.Loja, status string) error {
+	if loja.PlanoVitalicio {
+		return nil // conta de teste interna — nunca rebaixa, mesmo que algum preapproval acabe vinculado a ela
+	}
 	switch status {
 	case "authorized":
 		return nil // já ativa, isso é só a recorrência confirmando de novo
