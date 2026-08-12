@@ -13,6 +13,7 @@ import { RotaProtegida } from './components/RotaProtegida';
 import { Dashboard } from './pages/admin/Dashboard';
 import { Inicio } from './pages/admin/Inicio';
 import { Produtos } from './pages/admin/Produtos';
+import { Estoque } from './pages/admin/Estoque';
 import { Categorias } from './pages/admin/Categorias';
 import { Pedidos } from './pages/admin/Pedidos';
 import { CompartilharLocalizacao } from './pages/admin/CompartilharLocalizacao';
@@ -52,6 +53,7 @@ function App() {
               <Route index element={<Inicio />} />
               <Route path="inicio" element={<Inicio />} />
               <Route path="produtos" element={<Produtos />} />
+              <Route path="estoque" element={<Estoque />} />
               <Route path="categorias" element={<Categorias />} />
               <Route path="pedidos" element={<Pedidos />} />
               <Route path="pedidos/:id/localizacao" element={<CompartilharLocalizacao />} />

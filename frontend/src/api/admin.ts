@@ -161,7 +161,7 @@ export interface MudarPlanoResponse {
   imediato: boolean;
 }
 
-export async function mudarPlano(plano: 'start' | 'pro' | 'scale'): Promise<MudarPlanoResponse> {
+export async function mudarPlano(plano: 'start' | 'basic' | 'pro' | 'scale'): Promise<MudarPlanoResponse> {
   const { data } = await api.post<MudarPlanoResponse>('/admin/plano/mudar', { plano });
   return data;
 }
@@ -283,4 +283,67 @@ export async function atualizarCupom(id: number, input: CupomInput): Promise<imp
 
 export async function deletarCupom(id: number): Promise<void> {
   await api.delete(`/admin/cupons/${id}`);
+}
+
+// Estoque (Fase 8) — relatório é Pro/Scale; reposição/ajuste/histórico
+// são exclusivos do Scale (o backend recusa com 403 fora desses planos).
+export interface ItemEstoque {
+  produto_id: number;
+  produto_nome: string;
+  variacao_id: number | null;
+  variacao_nome: string;
+  estoque_atual: number;
+  estoque_alerta: number | null;
+  critico: boolean;
+}
+
+export type TipoMovimentoEstoque = 'venda' | 'reposicao' | 'ajuste';
+
+export interface MovimentacaoEstoque {
+  id: number;
+  loja_id: number;
+  produto_id: number;
+  variacao_id: number | null;
+  tipo: TipoMovimentoEstoque;
+  quantidade: number;
+  estoque_resultante: number;
+  motivo: string;
+  pedido_id: number | null;
+  created_at: string;
+}
+
+export async function buscarRelatorioEstoque(): Promise<ItemEstoque[]> {
+  const { data } = await api.get<ItemEstoque[]>('/admin/estoque');
+  return data;
+}
+
+export async function buscarMovimentacoesEstoque(produtoId?: number): Promise<MovimentacaoEstoque[]> {
+  const { data } = await api.get<MovimentacaoEstoque[]>('/admin/estoque/movimentacoes', {
+    params: produtoId ? { produto_id: produtoId } : undefined,
+  });
+  return data;
+}
+
+export interface ReporEstoqueInput {
+  produto_id: number;
+  variacao_id?: number | null;
+  quantidade: number;
+  motivo?: string;
+}
+
+export async function reporEstoque(input: ReporEstoqueInput): Promise<{ estoque_atual: number }> {
+  const { data } = await api.post<{ estoque_atual: number }>('/admin/estoque/repor', input);
+  return data;
+}
+
+export interface AjustarEstoqueInput {
+  produto_id: number;
+  variacao_id?: number | null;
+  novo_valor: number;
+  motivo: string;
+}
+
+export async function ajustarEstoque(input: AjustarEstoqueInput): Promise<{ estoque_atual: number }> {
+  const { data } = await api.post<{ estoque_atual: number }>('/admin/estoque/ajustar', input);
+  return data;
 }

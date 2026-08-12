@@ -74,3 +74,14 @@ func (r *SugestaoProdutoRepository) Criar(sugestao *domain.SugestaoProduto) erro
 func (r *SugestaoProdutoRepository) Deletar(id uint) error {
 	return r.db.Delete(&domain.SugestaoProduto{}, id).Error
 }
+
+// DeletarPorProduto remove toda sugestão que envolva esse produto, dos
+// dois lados do vínculo (origem ou sugerido) — chamado antes de excluir
+// um produto (ver ProdutoService.Deletar), pra não deixar a exclusão
+// travar numa constraint de FK (lado ProdutoSugeridoID) nem deixar linha
+// órfã pra trás (lado ProdutoOrigemID, que não tinha nenhuma trava antes
+// dessa correção).
+func (r *SugestaoProdutoRepository) DeletarPorProduto(produtoID uint) error {
+	return r.db.Where("produto_origem_id = ? OR produto_sugerido_id = ?", produtoID, produtoID).
+		Delete(&domain.SugestaoProduto{}).Error
+}

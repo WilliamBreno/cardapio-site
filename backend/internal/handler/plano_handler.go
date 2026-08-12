@@ -75,7 +75,7 @@ func (h *PlanoHandler) VerificarToken(c *gin.Context) {
 }
 
 type mudarPlanoRequest struct {
-	Plano string `json:"plano" binding:"required,oneof=start pro scale"`
+	Plano string `json:"plano" binding:"required,oneof=start basic pro scale"`
 }
 
 // VerificarSessao atende GET /planos/verificar-sessao?session_id=XXX —

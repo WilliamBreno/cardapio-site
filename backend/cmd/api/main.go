@@ -50,6 +50,7 @@ func main() {
 		&domain.PedidoComboItem{},
 		&domain.SugestaoProduto{},
 		&domain.ConfiguracaoPlataforma{},
+		&domain.MovimentacaoEstoque{},
 	); err != nil {
 		log.Fatalf("erro ao migrar o banco: %v", err)
 	}
@@ -64,6 +65,25 @@ func main() {
 	}
 
 	router := gin.Default()
+
+	// Não confia em X-Forwarded-For/X-Real-IP vindo da requisição — sem
+	// saber com certeza que existe um proxy reverso de confiança na
+	// frente (nenhum arquivo de deploy no repo indica isso), a opção mais
+	// segura é sempre usar o IP real da conexão TCP. Isso é o que faz o
+	// rate limiting por IP abaixo não ser trivialmente burlável só
+	// forjando um header.
+	if err := router.SetTrustedProxies(nil); err != nil {
+		log.Fatalf("erro configurando trusted proxies: %v", err)
+	}
+
+	// Rate limiting por IP (ver internal/middleware/rate_limit.go):
+	// "geral" cobre toda a API (proteção básica contra flood/scraping);
+	// "auth" é mais apertado e some só nas rotas sensíveis a força bruta
+	// (login, cadastro, esqueci senha, /drenux/*) — os dois não
+	// compartilham cota entre si.
+	rateLimiterGeral := middleware.NovoRateLimiter(cfg.RateLimitGeralPorMinuto, cfg.RateLimitGeralBurst)
+	rateLimiterAuth := middleware.NovoRateLimiter(cfg.RateLimitAuthPorMinuto, cfg.RateLimitAuthBurst)
+	router.Use(rateLimiterGeral.Middleware())
 
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.FrontendURLs,
@@ -102,9 +122,13 @@ func main() {
 	variacaoHandler := handler.NewVariacaoHandler(variacaoService)
 	fotoVariacaoHandler := handler.NewFotoVariacaoHandler(db)
 
-	distanciaService := service.NewDistanciaService()
+	// EstoqueHandler implementa a Fase 8 do roadmap (ver
+	// docs/plano-melhorias-drenux.md): relatório de estoque (Pro/Scale) e
+	// controle completo com reposição/histórico (Scale).
+	estoqueService := service.NewEstoqueService(db)
+	estoqueHandler := handler.NewEstoqueHandler(estoqueService, repository.NewLojaRepository(db))
 
-	pedidoService := service.NewPedidoService(db, distanciaService)
+	distanciaService := service.NewDistanciaService()
 
 	var whatsappSender notification.NotificationSender
 	ws, err := notification.NewWhatsmeowSender(context.Background(), cfg.DatabaseURL)
@@ -116,7 +140,11 @@ func main() {
 		log.Println("WhatsApp conectado com sucesso")
 	}
 
-	lojaService := service.NewLojaService(db)
+	// notificationSender vai pro PedidoService a partir da Fase 7.3, pro
+	// aviso de limite de pedidos do Start (ver PedidoService.avisarLimitePedidos).
+	pedidoService := service.NewPedidoService(db, distanciaService, whatsappSender)
+
+	lojaService := service.NewLojaService(db, whatsappSender)
 	lojaRepoParaPedido := repository.NewLojaRepository(db)
 
 	pedidoHandler := handler.NewPedidoHandler(
@@ -130,7 +158,7 @@ func main() {
 	// posPagamentoService concentra estoque + notificação pós-pagamento —
 	// compartilhado entre Stripe (assinatura, frete) e Mercado Pago
 	// (pedido, ver Fase 5 do roadmap) pra não duplicar essa lógica.
-	posPagamentoService := service.NewPosPagamentoService(db, whatsappSender)
+	posPagamentoService := service.NewPosPagamentoService(db, whatsappSender, emailSender)
 
 	// StripeService continua no repositório (MudarPlano/CancelarMudancaAgendada,
 	// usados pela troca de plano de uma loja JÁ existente em MeuPlano.tsx),
@@ -171,7 +199,7 @@ func main() {
 	planoHandler := handler.NewPlanoHandler(stripeService, mercadoPagoAssinaturaService)
 	assinaturaHandler := handler.NewAssinaturaHandler(mercadoPagoAssinaturaService)
 
-	lojaHandler := handler.NewLojaHandler(lojaService, distanciaService)
+	lojaHandler := handler.NewLojaHandler(lojaService, distanciaService, cfg.CronSecret)
 
 	// Combos e Sugestão Inteligente (Fase 6 do roadmap) — aditivos, não
 	// mexem em checkout/estoque/comissão existentes.
@@ -198,18 +226,21 @@ func main() {
 
 	guardadosService := service.NewGuardadosService(db, distanciaService)
 	guardadosHandler := handler.NewGuardadosHandler(guardadosService)
-	solicitacaoHandler := handler.NewSolicitacaoHandler(repository.NewSolicitacaoEntregaRepository(db))
+	solicitacaoHandler := handler.NewSolicitacaoHandler(repository.NewSolicitacaoEntregaRepository(db), repository.NewLojaRepository(db))
 
 	afiliadoService := service.NewAfiliadoService(db, cfg.JWTSecret, cfg.StripeSecretKey, emailSender, cfg.FrontendURLs[0])
 	afiliadoHandler := handler.NewAfiliadoHandler(afiliadoService, repasseAfiliadoService, cfg.FrontendURLs[0])
 	drenuxAdminHandler := handler.NewDrenuxAdminHandler(repasseAfiliadoService, afiliadoService)
 
-	router.POST("/auth/cadastro", authHandler.Cadastrar)
-	router.POST("/auth/login", authHandler.Login)
-	router.POST("/auth/esqueci-senha", authHandler.EsqueciSenha)
-	router.POST("/auth/redefinir-senha", authHandler.RedefinirSenha)
+	// Rotas sensíveis a força bruta (credencial, criação de conta,
+	// redefinição de senha) — rateLimiterAuth por cima do geral, mais
+	// apertado.
+	router.POST("/auth/cadastro", rateLimiterAuth.Middleware(), authHandler.Cadastrar)
+	router.POST("/auth/login", rateLimiterAuth.Middleware(), authHandler.Login)
+	router.POST("/auth/esqueci-senha", rateLimiterAuth.Middleware(), authHandler.EsqueciSenha)
+	router.POST("/auth/redefinir-senha", rateLimiterAuth.Middleware(), authHandler.RedefinirSenha)
 
-	router.POST("/afiliados/login", afiliadoHandler.Login)
+	router.POST("/afiliados/login", rateLimiterAuth.Middleware(), afiliadoHandler.Login)
 
 	// Assinatura de plano (Pro/Scale) — rotas públicas
 	router.POST("/planos/checkout", planoHandler.CriarCheckout)
@@ -258,6 +289,7 @@ func main() {
 
 	router.POST("/relatorio/semanal", relatorioHandler.EnviarSemanal)
 	router.POST("/mercadopago/renovar-tokens", mercadoPagoHandler.RenovarTokens)
+	router.POST("/drenux/lojas/verificar-limite-start", lojaHandler.VerificarLimiteStart)
 
 	admin := router.Group("/admin")
 	admin.Use(middleware.AuthRequired(cfg.JWTSecret))
@@ -289,6 +321,14 @@ func main() {
 	admin.POST("/produtos", produtoHandler.Criar)
 	admin.PUT("/produtos/:id", produtoHandler.Atualizar)
 	admin.DELETE("/produtos/:id", produtoHandler.Deletar)
+
+	// Fase 8: relatório de estoque (Pro/Scale) e controle completo com
+	// reposição/histórico (Scale) — gate de plano dentro do próprio
+	// handler (ver EstoqueHandler), mesmo padrão de rastreamentoDisponivel.
+	admin.GET("/estoque", estoqueHandler.Relatorio)
+	admin.GET("/estoque/movimentacoes", estoqueHandler.Movimentacoes)
+	admin.POST("/estoque/repor", estoqueHandler.Repor)
+	admin.POST("/estoque/ajustar", estoqueHandler.Ajustar)
 
 	admin.GET("/dashboard", dashboardHandler.Dados)
 
@@ -348,7 +388,14 @@ func main() {
 
 	// /drenux/* — controle interno de repasse de comissão de afiliado
 	// (Fase 5.5), sem sistema de login de staff próprio: protegido só por
-	// um secret compartilhado (ver middleware.DrenuxAdminRequired).
+	// um secret compartilhado (ver middleware.DrenuxAdminRequired), que já
+	// tem bloqueio próprio por tentativa errada (5 falhas em 15min → 15min
+	// bloqueado, só conta falha — não pune uso legítimo repetido). Não
+	// empilha o rate limit genérico por cima: ele conta toda requisição
+	// (certa ou errada), o que barraria o próprio William navegando no
+	// painel sem nenhum ganho real de segurança contra força bruta, que o
+	// DrenuxAdminRequired já cobre melhor (é específico pro caso: só pune
+	// SECRET ERRADO, não uso normal).
 	drenux := router.Group("/drenux")
 	drenux.Use(middleware.DrenuxAdminRequired(cfg.DrenuxAdminSecret))
 	drenux.POST("/afiliados", drenuxAdminHandler.CriarAfiliado)

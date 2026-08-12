@@ -134,6 +134,24 @@
   --color-douro:        74 155 142;
 }
 
+[data-tema="lavanda"] {
+  --color-fundo:        238 232 246;
+  --color-superficie:   248 245 252;
+  --color-tinta:        36 24 51;
+  --color-tinta-suave:  130 112 150;
+  --color-acento:       138 92 184;
+  --color-douro:        199 161 92;
+}
+
+[data-tema="terracota"] {
+  --color-fundo:        238 210 188;
+  --color-superficie:   248 232 218;
+  --color-tinta:        48 26 16;
+  --color-tinta-suave:  150 100 78;
+  --color-acento:       176 82 48;
+  --color-douro:        181 132 46;
+}
+
 @layer base {
   .theme {
     --font-heading:        var(--font-sans);

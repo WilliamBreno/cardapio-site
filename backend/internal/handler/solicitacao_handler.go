@@ -13,10 +13,11 @@ import (
 // entrega de itens que já estavam guardados em vez de um pedido normal.
 type SolicitacaoHandler struct {
 	solicitacaoRepo *repository.SolicitacaoEntregaRepository
+	lojaRepo        *repository.LojaRepository
 }
 
-func NewSolicitacaoHandler(solicitacaoRepo *repository.SolicitacaoEntregaRepository) *SolicitacaoHandler {
-	return &SolicitacaoHandler{solicitacaoRepo: solicitacaoRepo}
+func NewSolicitacaoHandler(solicitacaoRepo *repository.SolicitacaoEntregaRepository, lojaRepo *repository.LojaRepository) *SolicitacaoHandler {
+	return &SolicitacaoHandler{solicitacaoRepo: solicitacaoRepo, lojaRepo: lojaRepo}
 }
 
 // Listar atende GET /admin/solicitacoes — protegida, mostra as
@@ -63,6 +64,8 @@ func (h *SolicitacaoHandler) AtualizarStatusEntrega(c *gin.Context) {
 }
 
 // AtualizarLocalizacao atende POST /admin/solicitacoes/:id/localizacao.
+// Recusa se a loja não estiver num plano com rastreamento em tempo real
+// (Fase 7.4, mesma regra de PedidoHandler.AtualizarLocalizacao).
 func (h *SolicitacaoHandler) AtualizarLocalizacao(c *gin.Context) {
 	lojaID := c.GetUint("loja_id")
 
@@ -75,6 +78,16 @@ func (h *SolicitacaoHandler) AtualizarLocalizacao(c *gin.Context) {
 	solicitacao, err := h.solicitacaoRepo.BuscarPorID(uint(id))
 	if err != nil || solicitacao.LojaID != lojaID {
 		c.JSON(http.StatusNotFound, gin.H{"erro": "solicitação não encontrada"})
+		return
+	}
+
+	loja, err := h.lojaRepo.BuscarPorID(lojaID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "loja não encontrada"})
+		return
+	}
+	if !rastreamentoDisponivel(loja.Plano) {
+		c.JSON(http.StatusForbidden, gin.H{"erro": "rastreamento em tempo real disponível a partir do plano Pro"})
 		return
 	}
 
@@ -114,10 +127,21 @@ func (h *SolicitacaoHandler) Rastrear(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, rastrearResponse{
-		StatusEntrega:          solicitacao.StatusEntrega,
-		EntregadorLatitude:     solicitacao.EntregadorLatitude,
-		EntregadorLongitude:    solicitacao.EntregadorLongitude,
-		EntregadorAtualizadoEm: solicitacao.EntregadorAtualizadoEm,
-	})
+	loja, err := h.lojaRepo.BuscarPorID(solicitacao.LojaID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "loja não encontrada"})
+		return
+	}
+	disponivel := rastreamentoDisponivel(loja.Plano)
+
+	resposta := rastrearResponse{
+		StatusEntrega: solicitacao.StatusEntrega,
+		Disponivel:    disponivel,
+	}
+	if disponivel {
+		resposta.EntregadorLatitude = solicitacao.EntregadorLatitude
+		resposta.EntregadorLongitude = solicitacao.EntregadorLongitude
+		resposta.EntregadorAtualizadoEm = solicitacao.EntregadorAtualizadoEm
+	}
+	c.JSON(http.StatusOK, resposta)
 }

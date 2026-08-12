@@ -41,6 +41,16 @@ func (r *ProdutoRepository) Deletar(id uint) error {
 	return r.db.Delete(&domain.Produto{}, id).Error
 }
 
+// ContarPorLoja conta todos os produtos da loja (inclusive pausados) —
+// usado pelo limite de 30 produtos do plano Start (Fase 7.4).
+func (r *ProdutoRepository) ContarPorLoja(lojaID uint) (int64, error) {
+	var total int64
+	if err := r.db.Model(&domain.Produto{}).Where("loja_id = ?", lojaID).Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
 // ContarPorCategoria é usado pra impedir excluir uma categoria que ainda
 // tem produtos dentro dela.
 func (r *ProdutoRepository) ContarPorCategoria(categoriaID uint) (int64, error) {
@@ -112,7 +122,6 @@ func (r *ProdutoRepository) BuscarEstoqueAlerta(produtoID uint) (*domain.Produto
 	return &produto, *produto.EstoqueAtual <= *produto.EstoqueAlerta
 }
 
-//
 // apenasDisponiveis controla se produtos marcados como indisponíveis
 // entram na lista — true pro cardápio público (cliente não deve ver item
 // fora de estoque), false pro painel admin (o dono precisa ver tudo,

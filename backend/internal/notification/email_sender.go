@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
+
+	"github.com/WilliamBreno/cardapio-backend/internal/domain"
 )
 
 // EmailSender envia emails transacionais via API do Resend (resend.com).
@@ -103,4 +106,29 @@ func (e *EmailSender) EnviarAssinaturaConfirmada(destinatario, plano, linkFinali
 	`, nomePlano, linkFinalizar)
 
 	return e.enviar(destinatario, "Pagamento confirmado — finalize sua loja Drenux", html)
+}
+
+// EnviarNovoPedido avisa o dono de uma loja Start que um pedido foi
+// pago — substitui o aviso por WhatsApp (EnviarNotificacaoAdmin) só pra
+// esse plano, que não tem interação de WhatsApp incluída (Fase 8.5, a
+// pedido do William: "no máximo por email" no plano grátis). Basic/Pro/
+// Scale continuam recebendo por WhatsApp, sem mudança.
+func (e *EmailSender) EnviarNovoPedido(destinatario, lojaNome string, pedido *domain.Pedido) error {
+	var itens strings.Builder
+	for _, item := range pedido.Itens {
+		itens.WriteString(fmt.Sprintf("<li>%dx %s</li>", item.Quantidade, item.ProdutoNome))
+	}
+
+	html := fmt.Sprintf(`
+		<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+			<h2>Novo pedido pago — #%d</h2>
+			<p>Cliente: <strong>%s</strong> (%s)</p>
+			<ul>%s</ul>
+			<p><strong>Total: R$ %.2f</strong></p>
+			<p>Retirada: %s</p>
+			<p style="color: #888; font-size: 14px; margin-top: 24px;">Acesse o painel da %s pra ver todos os detalhes do pedido.</p>
+		</div>
+	`, pedido.ID, pedido.ClienteNome, pedido.ClienteTelefone, itens.String(), pedido.Total, pedido.DataRetirada.Format("02/01/2006 15:04"), lojaNome)
+
+	return e.enviar(destinatario, fmt.Sprintf("Novo pedido pago — %s — #%d", lojaNome, pedido.ID), html)
 }

@@ -9,6 +9,17 @@ const (
 	StatusRepassePago     StatusRepasse = "pago"
 )
 
+// TipoRepasse distingue o repasse recorrente (fatia da comissão de um
+// pedido específico) do bônus de ativação (Fase 7.5: pagamento único
+// quando a loja indicada completa onboarding + atinge o mínimo de
+// pedidos dentro do prazo).
+type TipoRepasse string
+
+const (
+	TipoRepasseRecorrente    TipoRepasse = "recorrente"
+	TipoRepasseBonusAtivacao TipoRepasse = "bonus_ativacao"
+)
+
 // RepasseAfiliado registra o valor devido a um afiliado por um pedido
 // específico pago via Mercado Pago. Existe porque o split do Mercado Pago
 // hoje é só 1:1 (Loja + Drenux) — o modelo 1:N que permitiria repassar
@@ -25,10 +36,18 @@ type RepasseAfiliado struct {
 	ID         uint `gorm:"primaryKey" json:"id"`
 	AfiliadoID uint `gorm:"not null;index" json:"afiliado_id"`
 
-	// PedidoID é único: um pedido só pode gerar um lançamento — trava
-	// contra duplicar caso a notificação do Mercado Pago (merchant_order)
-	// chegue mais de uma vez pro mesmo pagamento.
-	PedidoID uint `gorm:"not null;uniqueIndex" json:"pedido_id"`
+	// PedidoID é único quando presente (Tipo=recorrente): um pedido só
+	// pode gerar um lançamento — trava contra duplicar caso a notificação
+	// do Mercado Pago (merchant_order) chegue mais de uma vez pro mesmo
+	// pagamento. Nulo pra Tipo=bonus_ativacao (Fase 7.5) — o bônus não é
+	// atrelado a um pedido específico. O Postgres trata cada NULL como
+	// distinto numa uniqueIndex, então múltiplos bônus (de lojas
+	// diferentes) convivem sem conflito.
+	PedidoID *uint `gorm:"uniqueIndex" json:"pedido_id"`
+
+	// Tipo distingue o repasse recorrente do bônus de ativação (Fase 7.5,
+	// ver TipoRepasse).
+	Tipo TipoRepasse `gorm:"size:20;not null;default:recorrente" json:"tipo"`
 
 	LojaID uint `gorm:"not null;index" json:"loja_id"`
 	Loja   Loja `gorm:"foreignKey:LojaID" json:"loja,omitempty"`

@@ -27,11 +27,19 @@ type ProdutoInput struct {
 	GrupoCorID     *uint
 }
 
+// LimiteProdutosStart é o número máximo de produtos que uma loja no
+// plano Start pode ter cadastrados ao mesmo tempo (Fase 7.4) — Basic, Pro
+// e Scale são ilimitados.
+const LimiteProdutosStart = 30
+
 type ProdutoService struct {
 	produtoRepo      *repository.ProdutoRepository
 	categoriaRepo    *repository.CategoriaRepository
 	subcategoriaRepo *repository.SubcategoriaRepository
 	grupoCorRepo     *repository.GrupoCorRepository
+	lojaRepo         *repository.LojaRepository
+	comboRepo        *repository.ComboRepository
+	sugestaoRepo     *repository.SugestaoProdutoRepository
 }
 
 func NewProdutoService(db *gorm.DB) *ProdutoService {
@@ -40,6 +48,9 @@ func NewProdutoService(db *gorm.DB) *ProdutoService {
 		categoriaRepo:    repository.NewCategoriaRepository(db),
 		subcategoriaRepo: repository.NewSubcategoriaRepository(db),
 		grupoCorRepo:     repository.NewGrupoCorRepository(db),
+		lojaRepo:         repository.NewLojaRepository(db),
+		comboRepo:        repository.NewComboRepository(db),
+		sugestaoRepo:     repository.NewSugestaoProdutoRepository(db),
 	}
 }
 
@@ -50,7 +61,13 @@ func (s *ProdutoService) Listar(lojaID uint) ([]domain.Produto, error) {
 }
 
 func (s *ProdutoService) Criar(lojaID uint, input ProdutoInput) (*domain.Produto, error) {
+	if err := s.validarLimiteProdutosStart(lojaID); err != nil {
+		return nil, err
+	}
 	if err := s.validarCategoriaDaLoja(lojaID, input.CategoriaID); err != nil {
+		return nil, err
+	}
+	if err := validarEstoque(input.EstoqueAtual, input.EstoqueAlerta); err != nil {
 		return nil, err
 	}
 	tipo, peso, err := validarTipoEPeso(input.TipoProduto, input.PesoGramas)
@@ -95,6 +112,9 @@ func (s *ProdutoService) Atualizar(lojaID, produtoID uint, input ProdutoInput) (
 	if err := s.validarCategoriaDaLoja(lojaID, input.CategoriaID); err != nil {
 		return nil, err
 	}
+	if err := validarEstoque(input.EstoqueAtual, input.EstoqueAlerta); err != nil {
+		return nil, err
+	}
 	tipo, peso, err := validarTipoEPeso(input.TipoProduto, input.PesoGramas)
 	if err != nil {
 		return nil, err
@@ -127,11 +147,39 @@ func (s *ProdutoService) Atualizar(lojaID, produtoID uint, input ProdutoInput) (
 	return s.produtoRepo.BuscarPorID(produto.ID)
 }
 
+// Deletar remove um produto. Antes de excluir de fato, resolve as duas
+// referências que outras tabelas podem ter pra ele — achado numa revisão
+// de código (não tinha teste nenhum cobrindo isso antes):
+//   - Combo: ComboItem.ProdutoID é uma FK de verdade sem CASCADE — excluir
+//     um produto que é componente de combo travava no banco com um erro
+//     cru do Postgres, em inglês. Aqui vira uma recusa clara: o dono
+//     precisa tirar o produto do combo antes.
+//   - Sugestão Inteligente: SugestaoProduto tinha comportamento
+//     assimétrico — travava se o produto fosse o "sugerido" (mesmo erro
+//     cru), mas apagava silenciosamente e deixava linha órfã se fosse a
+//     "origem" (sem FK nenhuma desse lado). Os dois lados agora são
+//     tratados igual: a sugestão em si é removida (não é um vínculo
+//     estrutural como o combo, é só um upsell manual — perder a
+//     sugestão ao excluir um dos dois produtos é esperado, não precisa
+//     travar a exclusão por causa disso).
 func (s *ProdutoService) Deletar(lojaID, produtoID uint) error {
 	produto, err := s.buscarDaLoja(lojaID, produtoID)
 	if err != nil {
 		return err
 	}
+
+	emCombo, err := s.comboRepo.ExisteComComponente(produto.ID)
+	if err != nil {
+		return fmt.Errorf("verificando uso em combos: %w", err)
+	}
+	if emCombo {
+		return errors.New("esse produto faz parte de um combo — remova-o do combo antes de excluir")
+	}
+
+	if err := s.sugestaoRepo.DeletarPorProduto(produto.ID); err != nil {
+		return fmt.Errorf("removendo sugestões vinculadas: %w", err)
+	}
+
 	return s.produtoRepo.Deletar(produto.ID)
 }
 
@@ -171,8 +219,46 @@ func validarTipoEPeso(tipo domain.TipoProduto, pesoGramas *int) (domain.TipoProd
 	return tipo, pesoGramas, nil
 }
 
+// validarEstoque rejeita valor negativo de estoque/alerta — achado numa
+// revisão de código: o handler não tinha `binding:"gte=0"` nesses campos
+// (só o frontend tinha `min="0"` no input, que não protege nada contra
+// uma chamada direta na API). Compartilhada com VariacaoService, que tem
+// os mesmos dois campos.
+func validarEstoque(estoqueAtual, estoqueAlerta *int) error {
+	if estoqueAtual != nil && *estoqueAtual < 0 {
+		return errors.New("estoque atual não pode ser negativo")
+	}
+	if estoqueAlerta != nil && *estoqueAlerta < 0 {
+		return errors.New("estoque de alerta não pode ser negativo")
+	}
+	return nil
+}
+
 // validarCategoriaDaLoja impede que um produto seja associado a uma
 // categoria de outra loja — mesmo que alguém descubra o ID por fora.
+// validarLimiteProdutosStart bloqueia a criação de um produto novo se a
+// loja estiver no plano Start e já tiver atingido LimiteProdutosStart
+// (Fase 7.4). Erro de leitura da loja não trava a criação — mesma
+// postura defensiva usada em PedidoService.verificarLimiteStart.
+func (s *ProdutoService) validarLimiteProdutosStart(lojaID uint) error {
+	loja, err := s.lojaRepo.BuscarPorID(lojaID)
+	if err != nil {
+		return nil
+	}
+	if loja.Plano != "start" {
+		return nil
+	}
+
+	total, err := s.produtoRepo.ContarPorLoja(lojaID)
+	if err != nil {
+		return nil
+	}
+	if total >= LimiteProdutosStart {
+		return fmt.Errorf("o plano Start permite até %d produtos — ative o Basic (sem custo) pra cadastrar sem limite", LimiteProdutosStart)
+	}
+	return nil
+}
+
 func (s *ProdutoService) validarCategoriaDaLoja(lojaID, categoriaID uint) error {
 	categoria, err := s.categoriaRepo.BuscarPorID(categoriaID)
 	if err != nil {

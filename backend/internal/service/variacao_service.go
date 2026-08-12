@@ -56,6 +56,9 @@ func (s *VariacaoService) Criar(lojaID, produtoID uint, input VariacaoInput) (*d
 	if input.Nome == "" {
 		return nil, errors.New("nome da variação é obrigatório")
 	}
+	if err := validarEstoque(input.EstoqueAtual, input.EstoqueAlerta); err != nil {
+		return nil, err
+	}
 
 	v := domain.VariacaoProduto{
 		ProdutoID:             produtoID,
@@ -82,6 +85,9 @@ func (s *VariacaoService) Atualizar(lojaID, produtoID, variacaoID uint, input Va
 	v, err := s.variacaoRepo.BuscarPorID(variacaoID)
 	if err != nil || v.ProdutoID != produtoID {
 		return nil, errors.New("variação não encontrada")
+	}
+	if err := validarEstoque(input.EstoqueAtual, input.EstoqueAlerta); err != nil {
+		return nil, err
 	}
 
 	v.Nome = input.Nome

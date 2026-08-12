@@ -7,6 +7,54 @@ import (
 	"gorm.io/gorm"
 )
 
+// inicioMesCalendario devolve a meia-noite do dia 1º do mês corrente, no
+// fuso de Brasília — limite usado por tudo que precisa resetar "todo dia
+// 1º" (GMV escalonado da Fase 7.2, limite de pedidos do Start da Fase
+// 7.3), diferente de DashboardData.TotalMes, que é uma janela rolante de
+// 30 dias.
+func inicioMesCalendario() time.Time {
+	fusoBrasil, _ := time.LoadLocation("America/Sao_Paulo")
+	agora := time.Now().In(fusoBrasil)
+	return time.Date(agora.Year(), agora.Month(), 1, 0, 0, 0, 0, fusoBrasil)
+}
+
+// SomarGMVMesAtual soma o valor pago pela loja no mês corrente, sem taxa
+// de entrega — mesma base usada pra calcular comissão (ver
+// calcularComissaoEscalonada). Usado pra saber em qual faixa de GMV um
+// novo pedido cai (Fase 7.2).
+func (r *PedidoRepository) SomarGMVMesAtual(lojaID uint) (float64, error) {
+	var total float64
+	err := r.db.Raw(`SELECT COALESCE(SUM(total - taxa_entrega), 0) FROM pedidos
+		WHERE loja_id = ? AND status = 'pago' AND updated_at >= ?`,
+		lojaID, inicioMesCalendario()).Scan(&total).Error
+	return total, err
+}
+
+// ContarPedidosMesAtual conta os pedidos (exceto cancelados) que a loja
+// recebeu no mês corrente — usado pelo limite de 30 pedidos/mês do plano
+// Start (Fase 7.3). Conta pela data do pedido (created_at), não de
+// pagamento: o Start não tem pagamento integrado, então "pedido recebido"
+// é o que importa aqui, não "pedido pago".
+func (r *PedidoRepository) ContarPedidosMesAtual(lojaID uint) (int, error) {
+	var total int64
+	err := r.db.Model(&domain.Pedido{}).
+		Where("loja_id = ? AND status != ? AND created_at >= ?", lojaID, domain.StatusCancelado, inicioMesCalendario()).
+		Count(&total).Error
+	return int(total), err
+}
+
+// ContarPedidosDesde conta os pedidos (exceto cancelados) que a loja
+// recebeu a partir de uma data qualquer — usado pelo bônus de ativação de
+// afiliado (Fase 7.5), que mede pedidos desde o cadastro da loja, não do
+// mês corrente (diferente de ContarPedidosMesAtual).
+func (r *PedidoRepository) ContarPedidosDesde(lojaID uint, desde time.Time) (int, error) {
+	var total int64
+	err := r.db.Model(&domain.Pedido{}).
+		Where("loja_id = ? AND status != ? AND created_at >= ?", lojaID, domain.StatusCancelado, desde).
+		Count(&total).Error
+	return int(total), err
+}
+
 type PedidoRepository struct {
 	db *gorm.DB
 }

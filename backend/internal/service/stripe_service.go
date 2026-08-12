@@ -21,52 +21,65 @@ import (
 	"gorm.io/gorm"
 )
 
-// TaxaPlataformaPercentual é a taxa que a plataforma retém de cada
-// pedido pago no plano Start (6,5%), aplicada no checkout via
-// application_fee_amount/marketplace_fee — a Drenux absorve a taxa do
-// processador (Stripe/Mercado Pago) dentro desse percentual, em vez de
-// repassar o custo do processador pra loja por cima. Pro e Scale não têm
-// esse desconto embutido (a loja absorve a taxa do processador nesses
-// planos) — ver percentuais deles direto em calcularComissaoAfiliado e em
-// calcularMarketplaceFee (mercadopago_service.go).
-const TaxaPlataformaPercentual = 6.5
-
-// ComissaoAfiliadoPercentual é o repasse automático pro afiliado que
-// indicou a loja, quando existir.
-const ComissaoAfiliadoPercentual = 2.44
+// custoRealMercadoPagoPercentual é o custo real médio do Mercado Pago
+// (Pix, ~0,99% do GMV processado) — usado como base do "lucro líquido"
+// da comissão de plataforma pra calcular a comissão do afiliado (Fase
+// 7.5, ver docs/drenux-planos-comissoes-definido.md § 4). Número de
+// negócio fixo, não uma conta em tempo real contra a taxa efetiva por
+// método de pagamento (mesma simplificação já usada na comissão de
+// plataforma em si, ver calcularComissaoEscalonada).
+const custoRealMercadoPagoPercentual = 0.99
 
 // ProporcaoComissaoAfiliadoPadrao é o valor sugerido no cadastro de um
-// afiliado novo — ~37,6% da taxa de plataforma, o padrão histórico usado
-// igual pra todo mundo antes da Fase 5.5 permitir negociar por afiliado
-// (ver domain.Afiliado.ComissaoPercentual). É a mesma proporção que dá
-// ComissaoAfiliadoPercentual (2,44%) quando a loja está no Start
-// (6,5% × 0,376 ≈ 2,44%). Depois do cadastro, quem manda é o percentual
-// salvo em cada Afiliado, não essa constante.
-const ProporcaoComissaoAfiliadoPadrao = 0.376
+// afiliado novo — 45% do LUCRO LÍQUIDO da comissão de plataforma (Fase
+// 7.5), o padrão usado igual pra todo mundo antes da Fase 5.5 permitir
+// negociar por afiliado (ver domain.Afiliado.ComissaoPercentual). Depois
+// do cadastro, quem manda é o percentual salvo em cada Afiliado, não essa
+// constante. Antes da Fase 7.5 era 37,6% sobre a comissão BRUTA — mudou
+// de base (bruto → líquido) e de percentual juntos, ver
+// calcularComissaoAfiliado.
+const ProporcaoComissaoAfiliadoPadrao = 0.45
 
 // calcularComissaoAfiliado é a fórmula única de comissão de afiliado,
 // usada tanto pelo repasse automático via Stripe Transfer quanto pelo
 // registro manual do Mercado Pago (ver RepasseAfiliadoService, Fase 5.5
-// do roadmap) — mudar aqui muda os dois processadores de uma vez, de
-// propósito, pra nunca desalinhar. proporcaoAfiliado vem de
-// domain.Afiliado.ComissaoPercentual — cada afiliado pode ter a própria,
-// não é mais um valor fixo global.
-func calcularComissaoAfiliado(pedidoTotal float64, plano string, proporcaoAfiliado float64) float64 {
-	taxaPercentual := TaxaPlataformaPercentual
-	switch plano {
-	case "pro":
-		taxaPercentual = 4.0
-	case "scale":
-		taxaPercentual = 1.5
-	}
-	return pedidoTotal * taxaPercentual / 100 * proporcaoAfiliado
+// do roadmap). Desde a Fase 7.5, aplica proporcaoAfiliado sobre o LUCRO
+// LÍQUIDO desse pedido — a comissão que a Drenux cobra da loja
+// (calcularComissaoEscalonada, Fase 7.2) menos o custo real do Mercado
+// Pago sobre o mesmo valor (custoRealMercadoPagoPercentual) — nunca sobre
+// a comissão bruta. Isso garante que a Drenux nunca opera no negativo
+// numa loja indicada, em qualquer volume: o afiliado nunca leva uma fatia
+// maior do que a margem que sobra depois do custo do processador.
+// proporcaoAfiliado vem de domain.Afiliado.ComissaoPercentual — cada
+// afiliado pode ter a própria, não é mais um valor fixo global. gmvAntes
+// é o GMV do mês da loja antes desse pedido (ver
+// calcularComissaoEscalonada).
+func calcularComissaoAfiliado(pedidoTotal float64, plano string, gmvAntes, proporcaoAfiliado float64) float64 {
+	comissaoDrenux := calcularComissaoEscalonada(plano, gmvAntes, pedidoTotal)
+	custoProcessador := pedidoTotal * custoRealMercadoPagoPercentual / 100
+	lucroLiquido := math.Max(0, comissaoDrenux-custoProcessador)
+	return lucroLiquido * proporcaoAfiliado
 }
 
 // valoresMensalidadePlano define o preço mensal (em reais) de cada plano
-// pago. O plano Start não entra aqui — não tem mensalidade.
+// pago. Start e Basic não entram aqui — nenhum dos dois tem mensalidade.
 var valoresMensalidadePlano = map[string]float64{
-	"pro":   129.0,
+	"pro":   99.0,
 	"scale": 349.0,
+}
+
+// ordemPlano define a hierarquia de planos, usada em dois lugares: (1)
+// MudarPlano, pra decidir se uma troca é upgrade (imediato) ou downgrade
+// (agendado); (2) validação de entrada — qualquer plano fora deste mapa é
+// inválido.
+var ordemPlano = map[string]int{"start": 0, "basic": 1, "pro": 2, "scale": 3}
+
+// temMensalidade diz se um plano tem cobrança recorrente (Pro/Scale) — só
+// esses passam por checkout/assinatura Stripe. Start e Basic são os dois
+// planos "grátis" (Basic tem comissão por pedido, mas nenhuma mensalidade).
+func temMensalidade(plano string) bool {
+	_, ok := valoresMensalidadePlano[plano]
+	return ok
 }
 
 type StripeService struct {
@@ -187,23 +200,20 @@ func (s *StripeService) CriarCheckout(ctx context.Context, pedidoID uint, fronte
 		})
 	}
 
-	// Comissão da plataforma varia por plano da loja — Start continua
-	// nos 8% de sempre; Pro/Scale usam a taxa reduzida acordada. Não
-	// incide sobre frete — mesma regra do Mercado Pago (ver
+	// Comissão da plataforma é escalonada por faixa de GMV mensal da loja
+	// (calcularComissaoEscalonada, Fase 7.2) — mesma fórmula usada pelo
+	// Mercado Pago. Não incide sobre frete — mesma regra de lá (ver
 	// MercadoPagoService.CriarCheckout, baseComissao). NOTA: essa rota
 	// (checkout de pedido via Stripe) está sem uso desde a Fase 5.2 —
 	// nenhuma rota chama CriarCheckout pra pedido hoje, o checkout migrou
 	// pro Mercado Pago — mantido corrigido só por consistência, caso essa
 	// rota volte a ser registrada algum dia.
-	taxaPercentual := TaxaPlataformaPercentual
-	switch loja.Plano {
-	case "pro":
-		taxaPercentual = 4.0
-	case "scale":
-		taxaPercentual = 1.5
-	}
 	baseComissao := pedido.Total - pedido.TaxaEntrega
-	taxaPlataforma := int64(math.Round(baseComissao * 100 * taxaPercentual / 100))
+	gmvAntes, err := s.pedidoRepo.SomarGMVMesAtual(loja.ID)
+	if err != nil {
+		return "", fmt.Errorf("calculando GMV do mês da loja %d: %w", loja.ID, err)
+	}
+	taxaPlataforma := int64(math.Round(calcularComissaoEscalonada(loja.Plano, gmvAntes, baseComissao) * 100))
 
 	params := &stripe.CheckoutSessionCreateParams{
 		Mode:       stripe.String(string(stripe.CheckoutSessionModePayment)),
@@ -422,10 +432,6 @@ func (s *StripeService) BuscarAssinaturaPendentePorSessionID(sessionID string) (
 	return s.assinaturaRepo.BuscarPorSessionID(sessionID)
 }
 
-// ordemPlano define a hierarquia pra decidir se uma troca é upgrade
-// (imediato) ou downgrade (agendado pro fim do ciclo).
-var ordemPlano = map[string]int{"start": 0, "pro": 1, "scale": 2}
-
 // MudarPlanoResultado informa o frontend se a troca já foi aplicada
 // (upgrade/troca entre pagos) ou se precisa redirecionar pro Checkout
 // (Start → Pro/Scale, quando ainda não existe assinatura).
@@ -442,7 +448,7 @@ type MudarPlanoResultado struct {
 //   - Qualquer downgrade: agenda pro fim do ciclo atual, sem mexer na
 //     assinatura agora — aplicado depois pelo webhook de renovação.
 func (s *StripeService) MudarPlano(ctx context.Context, lojaID uint, novoPlano string) (*MudarPlanoResultado, error) {
-	if novoPlano != "start" && novoPlano != "pro" && novoPlano != "scale" {
+	if _, ok := ordemPlano[novoPlano]; !ok {
 		return nil, fmt.Errorf("plano inválido: %s", novoPlano)
 	}
 
@@ -453,6 +459,15 @@ func (s *StripeService) MudarPlano(ctx context.Context, lojaID uint, novoPlano s
 
 	if novoPlano == loja.Plano && loja.PlanoAgendado == nil {
 		return nil, errors.New("essa loja já está nesse plano")
+	}
+
+	// Troca entre planos sem mensalidade (Start <-> Basic): aplica na
+	// hora, não existe cobrança nem assinatura envolvida nos dois lados.
+	if !temMensalidade(loja.Plano) && !temMensalidade(novoPlano) {
+		if err := s.lojaRepo.AtualizarPlano(loja.ID, novoPlano, "", ""); err != nil {
+			return nil, err
+		}
+		return &MudarPlanoResultado{Imediato: true}, nil
 	}
 
 	atual, novo := ordemPlano[loja.Plano], ordemPlano[novoPlano]
@@ -609,13 +624,16 @@ func (s *StripeService) processarRenovacaoAssinatura(payload []byte) error {
 
 	novoPlano := *loja.PlanoAgendado
 
-	if novoPlano == "start" {
+	if !temMensalidade(novoPlano) {
+		// Downgrade pra Start ou Basic — nenhum dos dois tem mensalidade,
+		// então a assinatura Stripe é cancelada de vez nos dois casos; só
+		// muda o plano final gravado na loja.
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		if _, err := s.client.V1Subscriptions.Cancel(ctx, loja.StripeSubscriptionID, nil); err != nil {
 			log.Printf("aviso: falha ao cancelar assinatura da loja %d no downgrade agendado: %v", loja.ID, err)
 		}
-		return s.lojaRepo.LimparAssinatura(loja.ID)
+		return s.lojaRepo.LimparAssinatura(loja.ID, novoPlano)
 	}
 
 	// Downgrade pra outro plano pago (ex: Scale → Pro)
@@ -841,7 +859,11 @@ func (s *StripeService) transferirComissaoAfiliado(pedido *domain.Pedido, loja *
 	// Comissão não incide sobre frete — mesma regra do marketplace_fee do
 	// Mercado Pago. NOTA: rota sem uso desde a Fase 5.2 (ver comentário em
 	// CriarCheckout acima) — corrigido só por consistência.
-	valorComissao := calcularComissaoAfiliado(pedido.Total-pedido.TaxaEntrega, loja.Plano, afiliado.ComissaoPercentual)
+	gmvAntes, err := s.pedidoRepo.SomarGMVMesAtual(loja.ID)
+	if err != nil {
+		log.Printf("aviso: não foi possível calcular GMV do mês da loja %d pro repasse de afiliado do pedido %d: %v", loja.ID, pedido.ID, err)
+	}
+	valorComissao := calcularComissaoAfiliado(pedido.Total-pedido.TaxaEntrega, loja.Plano, gmvAntes, afiliado.ComissaoPercentual)
 	valorCentavos := int64(math.Round(valorComissao * 100))
 	if valorCentavos <= 0 {
 		return

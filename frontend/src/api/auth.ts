@@ -8,6 +8,8 @@ interface CadastroInput {
   segmento_principal: 'alimenticio' | 'mercadoria';
   codigo_afiliado?: string;
   token_assinatura?: string;
+  /** "basic" pra nascer direto no Basic (sem mensalidade); omitido = Start. */
+  plano?: 'start' | 'basic';
 }
 
 interface LoginInput {

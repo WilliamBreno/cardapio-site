@@ -28,8 +28,10 @@ hora vale mais — este arquivo é o plano combinado, não uma trava.
 
 Drenux (antigo nome: Brenvo/Cardápio Site) é um SaaS multi-tenant de cardápio/loja online com
 pagamento integrado. Atende dois perfis de loja: **alimentício** (comida/bebida) e **mercadoria**
-(produtos não perecíveis, ex: roupas, artesanato). Monetização por assinatura (planos Start/Pro/Scale,
-ver `MeuPlano.tsx`) combinada com a taxa por pedido, que varia por plano.
+(produtos não perecíveis, ex: roupas, artesanato). Monetização por assinatura combinada com a taxa
+por pedido, que varia por plano — **planos e fórmula de comissão em processo de reestruturação, ver
+Fase 7 mais abaixo**. Até a Fase 7 ser implementada, o código ainda reflete o modelo antigo (3
+planos: Start/Pro/Scale, ver `MeuPlano.tsx`).
 
 **Processador de pagamento em migração: Stripe Connect → Mercado Pago (decisão final, fechada em
 23/07/2026, depois de avaliar Mercado Pago contra Asaas).** Ainda nenhuma empresa real está
@@ -37,11 +39,16 @@ cadastrada em produção, então a troca está sendo feita antes do lançamento 
 o Pix (na Stripe, hoje só disponível por convite pra empresas brasileiras), e no Mercado Pago
 especificamente: sem teto de quantidade de contas vinculadas (diferente da Asaas, que tem limite de
 10 subcontas até homologação regulatória) e Pix cobrado em percentual (0,99%), o que favorece o
-ticket baixo típico do segmento alimentício. Fórmula de comissão mantida como já decidido: Start
+ticket baixo típico do segmento alimentício. Ver a especificação completa da migração de processador
+na Fase 5, mais abaixo.
+
+**Fórmula de comissão — estado legado, em código até a Fase 7 ser implementada**: Start
 `max(pedido × 6,5%, R$2,50)` com a Drenux absorvendo a taxa do processador; Pro (R$129/mês+4%) e
-Scale (R$349/mês+1,5%) mantêm os mesmos números, com a loja absorvendo a taxa do processador — só
-troca o processador por trás, a lógica de quem paga a taxa em cada plano não muda. Ver a
-especificação completa da migração na Fase 5, mais abaixo.
+Scale (R$349/mês+1,5%), com a loja absorvendo a taxa do processador. **Isso está sendo substituído
+pela Fase 7** (planos Start/Basic/Pro/Scale, comissão escalonada por faixa de GMV mensal, e a Drenux
+sempre absorvendo a taxa do Mercado Pago em qualquer plano pago — sem distinção de "quem absorve" por
+plano como no modelo antigo). Ver Fase 7 pra especificação completa; este parágrafo documenta só o
+que está em produção agora, não o alvo.
 
 Stack: backend Go (Gin/GORM/PostgreSQL) em `backend/`, frontend React 19 + TypeScript + Vite +
 Tailwind v3 + TanStack Query + Zustand em `frontend/`.
@@ -514,6 +521,347 @@ em navegador real ainda`
    além de "mexer direto no banco") — William precisa decidir como/quando uma loja passa a ter
    esse campo `true` antes de vender o recurso de verdade.
 
+### Fase 7 — Reestruturação de planos (Start/Basic/Pro/Scale) e afiliados
+Status: `[x] concluída — 7.1 a 7.5 implementadas (12/08/2026)`
+
+**O que foi feito nessa sessão (7.1 + 7.2):**
+
+- **Planos renomeados/redefinidos em todo lugar que lia `Loja.Plano`**: `ordemPlano` (agora
+  `start:0, basic:1, pro:2, scale:3`), validação nos dois handlers (`plano_handler.go` —
+  `mudarPlanoRequest` ganhou `basic` no `oneof`; `checkoutAssinaturaRequest` continua só
+  `pro scale`, de propósito — Basic não tem mensalidade, não passa por checkout), `domain/loja.go`
+  (comentário do campo `Plano`), `lib/planos.ts`, `MeuPlano.tsx`, `Planos.tsx`, `Inicio.tsx`,
+  `Cadastro.tsx` (as três cópias separadas do mapa de nome de plano — `NOME_PLANO`/`NOMES_PLANO` —
+  foram consolidadas num export só em `lib/planos.ts`). Mensalidade do Pro caiu de R$129 pra R$99
+  (`valoresMensalidadePlano`, `stripe_service.go`), Scale continua R$349.
+- **Start deixou de ter comissão** — removida a `pisoComissaoStart`/`calcularMarketplaceFee`
+  antiga (piso de R$2,50 + 6,5% flat). Start agora não passa pela tabela de comissão nenhuma (sem
+  split de pagamento, por definição da Fase 7.1).
+- **Comissão escalonada por faixa de GMV mensal** (`calcularComissaoEscalonada`, nova, em
+  `mercadopago_service.go`): tabela `faixasComissaoPorPlano` com as faixas exatas de
+  `docs/drenux-planos-comissoes-definido.md` § 2 (Basic 2,4%/1,5%/1,3%; Pro 1,8%/1,2%/1,05%; Scale
+  1,1% flat). A comissão é **marginal** (igual imposto progressivo) — se o valor de um pedido
+  cruza o teto de uma faixa dentro do mês, a fatia de cada lado paga o percentual da própria
+  faixa, não um "tudo ou nada" pela faixa mais alta atingida.
+- **GMV do mês corrente, novo**: `PedidoRepository.SomarGMVMesAtual` (novo) — soma
+  `total - taxa_entrega` de pedidos pagos desde o dia 1º do mês corrente (fuso
+  `America/Sao_Paulo`). **Achado importante durante a implementação**: `DashboardData.TotalMes`
+  (usado em Início/Meu Plano) é uma **janela rolante de 30 dias**, não um mês-calendário — não dá
+  pra reaproveitar pra decidir faixa de comissão (que precisa resetar todo dia 1º, por definição da
+  Fase 7.2) nem pro contador de pedidos do Start (Fase 7.3, ainda não implementada). Ficam como
+  números diferentes de propósito, os dois continuam existindo.
+- **Ordem de leitura do GMV corrigida no webhook**: `MercadoPagoService.ProcessarNotificacaoPagamento`
+  lia (teria lido, se implementado ingenuamente) o GMV do mês DEPOIS de marcar o próprio pedido
+  como pago, contando-o a mais nele mesmo. Corrigido lendo o GMV antes de `AtualizarStatus`.
+- **`calcularComissaoAfiliado` reescrita** pra aplicar `proporcaoAfiliado` sobre a comissão real
+  calculada por `calcularComissaoEscalonada`, em vez de recalcular um percentual próprio — nunca
+  mais pode divergir do valor cobrado da loja. Ganhou o parâmetro `gmvAntes`; os dois call sites
+  (`repasse_afiliado_service.go`, e o `transferirComissaoAfiliado` morto da Stripe) foram
+  atualizados. **Fórmula do afiliado em si não mudou** (continua ~37,6% da comissão, por decisão —
+  isso é Fase 7.5, não essa).
+- **`MudarPlano` (troca de plano pelo dono, `stripe_service.go`) ganhou um caminho novo**: troca
+  entre Start↔Basic (os dois sem mensalidade) agora é aplicada na hora, sem passar pelo Checkout
+  da Stripe — só Pro/Scale continuam exigindo cartão. Downgrade de um plano pago pra Basic (ou pra
+  Start) continua agendado pro fim do ciclo, igual já era pro Start; `processarRenovacaoAssinatura`
+  e `LimparAssinatura` foram generalizados pra aceitar qualquer plano-sem-mensalidade como destino
+  (antes só reconheciam "start" hardcoded).
+- **Cadastro pode nascer direto em Basic**: `cadastroRequest`/`CadastroInput` ganharam `Plano`
+  opcional (`"start"` por padrão, ou `"basic"`) — sem isso, o botão "Escolher Basic" da Planos.tsx
+  levaria pro cadastro normal e a loja nasceria silenciosamente no Start. Usa um parâmetro de URL
+  próprio (`?plano_desejado=`), separado do `?plano=` que já existia pro banner de "pagamento
+  confirmado" do checkout de Pro/Scale — são fluxos diferentes (um tem pagamento, o outro não).
+- **Frontend**: `lib/planos.ts` reescrito — `PlanoInfo.taxa` (número único) virou
+  `PlanoInfo.faixas` (array de faixas), com `custoPlano`/nova `taxaEfetivaPlano` fazendo o mesmo
+  cálculo marginal do backend. `planoMaisBarato` e o "mais barato"/"recomendado" dos cards agora
+  **excluem o Start da comparação** — como ele não tem comissão nem processa pagamento, ele sempre
+  "venceria" a comparação por ser sempre R$0, o que não faz sentido (não é uma alternativa
+  comparável de custo de processamento, é uma ausência de processamento).
+
+**Ressalvas antes de confiar em produção:**
+1. Nenhum teste manual em navegador — só `go build`/`go vet`/`gofmt -l` (limpos) e
+   `npx tsc -b`/`npm run build` (limpos) — validar o fluxo completo (simular troca de plano,
+   conferir a comissão de um pedido real que cruza um teto de faixa) antes de anunciar.
+2. Preço da assinatura Pro na Stripe é cacheado por `lookup_key` (`drenux_pro_mensal`) — se algum
+   Price de teste com o valor antigo (R$129) já existir numa conta Stripe usada nessa integração,
+   ele **não atualiza sozinho** (Price é imutável na Stripe); precisaria criar um novo Price/
+   lookup_key ou arquivar o antigo manualmente antes de usar em produção. Não é um problema de
+   código, é operacional.
+3. `LojaRepository.CancelarAssinaturaPlano` (chamado quando uma assinatura MP de Pro/Scale é
+   cancelada ou pausada pelo próprio Mercado Pago) continua revertendo pra **Start**, não Basic —
+   decisão conservadora, não especificada em nenhum dos dois documentos de planejamento; se o
+   William preferir que caia em Basic (mantém split ativo mesmo sem mensalidade), é uma troca de
+   uma linha em `loja_repository.go`.
+4. Fase 7.5 (nova fórmula de afiliado) — ver detalhe abaixo, implementada em 12/08/2026.
+
+**Fase 7.5 — nova fórmula de afiliado + bônus de ativação (implementada em 12/08/2026):**
+
+- **Fórmula: 45% do LUCRO LÍQUIDO** (era 37,6% do bruto) — `calcularComissaoAfiliado`
+  (`stripe_service.go`) agora calcula `lucroLiquido = max(0, comissaoEscalonada − custo real do
+  Mercado Pago sobre o mesmo valor)` e só depois aplica a proporção do afiliado. Constante nova
+  `custoRealMercadoPagoPercentual = 0.99`. `ProporcaoComissaoAfiliadoPadrao` (valor sugerido no
+  cadastro de afiliado novo) foi de `0.376` pra `0.45` — cada afiliado continua podendo ter a
+  própria proporção negociada (`Afiliado.ComissaoPercentual`), isso não mudou, só o padrão sugerido
+  e a base de cálculo. `ComissaoAfiliadoPercentual` (constante puramente documentativa, sem uso no
+  código, baseada no modelo antigo) foi removida — não fazia mais sentido nenhum número ilustrativo
+  único depois da comissão virar escalonada (Fase 7.2) E a base virar líquido (Fase 7.5) ao mesmo
+  tempo.
+- **Bônus de ativação** (pagamento único: Basic R$60 · Pro R$150 · Scale R$400, só se a loja
+  indicada atingir 30 pedidos nos primeiros 60 dias desde o cadastro): `domain.RepasseAfiliado`
+  ganhou `Tipo` (`recorrente` | `bonus_ativacao`) e `PedidoID` virou ponteiro (nulo pra bônus, que
+  não é atrelado a um pedido — o Postgres trata cada `NULL` como distinto numa `uniqueIndex`, então
+  isso não quebra a trava de duplicata dos lançamentos recorrentes). `RepasseAfiliadoService.
+  VerificarBonusAtivacao` (novo) é chamado a cada pedido pago via Mercado Pago de loja com afiliado
+  (mesmo ponto de `RegistrarPendente`, em `MercadoPagoService.ProcessarNotificacaoPagamento`) —
+  idempotente via `RepasseAfiliadoRepository.ExisteBonusAtivacao`. Novo
+  `PedidoRepository.ContarPedidosDesde` (conta pedidos a partir de uma data arbitrária, diferente do
+  `ContarPedidosMesAtual` da Fase 7.3, que é sempre mês-calendário).
+- **Start nunca gera nada disso** (nem recorrente nem bônus) — já era assim pro recorrente (sem
+  split, comissão sempre zero) e o bônus só é alcançável depois que a loja tem pelo menos um pedido
+  pago via Mercado Pago, o que por definição exige ter saído do Start.
+- **Painel `/drenux/afiliados` e `/afiliado/dashboard`**: não precisaram recalcular nada — os dois
+  só leem `RepasseAfiliado.Valor`, já gravado com a fórmula nova no momento do registro. Só
+  atualizada a exibição da lista pra mostrar "bônus de ativação" em vez de "pedido #null" quando
+  `tipo === 'bonus_ativacao'`. Formulário de cadastro de afiliado (`Afiliados.tsx`) — valor padrão
+  sugerido e o texto do rótulo atualizados de 37,6%/bruto pra 45%/líquido.
+- **Não implementado, como o roadmap já previa que ficasse pra depois**: bônus de upgrade (loja
+  indicada migra de plano) — valor ainda não definido, fora de escopo desta fase.
+
+Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (limpo nos arquivos tocados),
+`npx tsc -b` e `npm run build`, todos limpos. Nenhum teste de ponta a ponta contra um pagamento
+real do Mercado Pago — o cenário completo (loja nova, afiliado vinculado, 30 pedidos em 60 dias)
+não foi simulado nessa sessão. Como o roadmap já registrava, hoje só existe 1 afiliado cadastrado e
+nenhuma indicação ativa, então não há risco de a mudança de fórmula quebrar cálculo de comissão já
+em andamento pra ninguém.
+
+Com isso, as cinco sub-fases da Fase 7 (7.1–7.5) estão implementadas.
+
+**Fase 7.4 — gates de funcionalidade por plano (implementada em 12/08/2026):**
+
+Antes de implementar, investiguei o estado real do código (o roadmap tinha suposições desatualizadas,
+igual já tinha acontecido nas fases anteriores) e confirmei com o William dois pontos em aberto:
+
+- **"Gestão de entregadores"**: hoje não existe entidade `Entregador` nenhuma (login, cadastro,
+  atribuição) — é um link de compartilhamento de localização por pedido (`AtualizarLocalizacao`/
+  `CompartilharLocalizacao.tsx`), já funcional de ponta a ponta antes desta fase. **Confirmado com o
+  William**: esse mecanismo já conta como a "gestão de entregadores" da matriz — não construir uma
+  entidade própria agora.
+- **Achado à parte, corrigido junto**: `leaflet`/`react-leaflet` são usados em `RastrearPedido.tsx`
+  mas não estavam declarados no `frontend/package.json` (só sobravam no cache do Vite) — um `npm
+  install` limpo quebraria essa página. Adicionados `leaflet`, `react-leaflet` e `@types/leaflet`
+  como dependências reais.
+
+**O que foi implementado:**
+
+1. **Avisos automáticos de status via WhatsApp (Start ❌, Basic+ ✅)** — `PosPagamentoService.
+   notificarPagamento` (confirmação de pagamento) e `PedidoHandler.notificarSaiuParaEntrega` (saiu
+   pra entrega) agora pulam o aviso ao CLIENTE se `loja.Plano == "start"`. O aviso ao DONO da loja
+   (`EnviarNotificacaoAdmin`) não é gateado — não é um recurso de plano, é operação essencial da
+   loja, roda sempre.
+2. **Rastreamento em tempo real (Pro/Scale)** — já existia pronto (mapa Leaflet, polling a cada
+   10s, compartilhamento de GPS a cada 25s), só faltava o gate:
+   - Backend: `AtualizarLocalizacao` (Pedido e Solicitação) recusa com 403 se o plano não for
+     Pro/Scale. `Rastrear` (rota pública) devolve `disponivel: bool` em vez de erro — permite o
+     frontend mostrar uma mensagem, não uma tela de erro. Helper `rastreamentoDisponivel(plano)`
+     compartilhado entre `PedidoHandler` e `SolicitacaoHandler`.
+   - A mesma mensagem de WhatsApp de "saiu pra entrega" (item 1) agora só inclui o link de
+     rastreamento se o plano for Pro/Scale — Basic recebe o aviso de status sem o link.
+   - Frontend: `RastrearPedido.tsx` mostra "rastreamento não disponível" em vez do mapa quando
+     `disponivel` é `false`. `CompartilharLocalizacao.tsx` — pra quem não é Pro/Scale, o botão vira
+     "Marcar como saiu para entrega" (só o status, sem tentar GPS, que o backend recusaria mesmo).
+3. **Limite de 30 produtos (Start)** — não existia nenhuma checagem antes. `ProdutoRepository.
+   ContarPorLoja` (novo) + `ProdutoService.validarLimiteProdutosStart`, chamada no início de
+   `Criar`. Basic/Pro/Scale continuam ilimitados. **Decisão confirmada com o William**: a matriz
+   fala em "produtos/categorias" como uma linha só, mas o limite vale só pra **produtos** —
+   categorias continuam ilimitadas em qualquer plano, de propósito (categoria é estrutura do
+   cardápio, não um item que "ocupa espaço" do mesmo jeito; limitar ela tende a atrapalhar
+   organização sem ganho real). Confirmado via `CadastroEmMassaDialog.tsx` (Fase 3.2) que não existe
+   nenhum caminho de criação de produto que passe por fora de `ProdutoService.Criar` — o cadastro em
+   massa chama a mesma mutation produto a produto, então o limite vale igual lá.
+4. **Marca "Feito com Drenux" (visível até Basic, removível a partir do Pro)** — não existia antes.
+   `CatalogoHandler.BuscarCardapio` agora computa `mostrar_selo_drenux` (`plano != "pro" && plano !=
+   "scale"`) na resposta pública; `CardapioPublico.tsx` mostra um rodapé discreto linkando pra `/`
+   quando `true`.
+
+Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (limpo nos arquivos tocados),
+`npx tsc -b` e `npm run build`, todos limpos. Nenhum teste manual em navegador (em especial, o mapa
+Leaflet e o compartilhamento de GPS real não foram testados num device de verdade nessa sessão).
+
+**Fase 7.3 — contador, aviso e bloqueio do limite do Start (implementada em 12/08/2026):**
+
+- **`domain/loja.go`**: dois campos novos, `AvisoLimitePedidosEm` (quando o aviso de "passou de 30"
+  foi mandado) e `PedidosBloqueadosDesde` (quando o bloqueio de fato passou a valer — `nil` =
+  liberado). Os dois só valem pro mês em que foram gravados — se a data for de um mês anterior,
+  quem lê trata como se não existisse, sem precisar de nenhuma limpeza manual quando a cota reseta
+  no dia 1º. Constantes `LimitePedidosStart` (30) e `LimiteToleranciaBloqueioPedidos` (3 dias)
+  também ficaram em `domain` (não em `service`/`repository`) porque as duas camadas precisam do
+  mesmo valor.
+- **`PedidoRepository.ContarPedidosMesAtual`** (novo): conta pedidos não cancelados do mês
+  corrente por `created_at` (não `updated_at`/status pago — o Start não tem pagamento integrado
+  nenhum, então "pedido recebido" é o que importa, não "pedido pago"). Reaproveitei/limpei o
+  cálculo de início de mês que já existia em `SomarGMVMesAtual` (Fase 7.2), agora numa função só
+  (`inicioMesCalendario`).
+- **Aviso inicial, reativo, em `PedidoService.CriarPorSlug`** (`verificarLimiteStart`): só se
+  aplica a lojas Start. Se a loja já estiver bloqueada nesse mês, recusa o pedido (mensagem neutra
+  pro cliente final, sem menção a plano). Senão, se esse pedido é o que estoura os 30 do mês e
+  ainda não tinha avisado nesse mês, dispara o aviso por WhatsApp (`EnviarTextoAdmin`, mesmo padrão
+  de `avisarPagamentoNaoConfigurado`) e deixa o pedido passar normalmente — não bloqueia na hora,
+  como pedido.
+- **Bloqueio proativo, por rotina agendada** (`LojaService.VerificarLimiteStart`, novo endpoint
+  `POST /drenux/lojas/verificar-limite-start`, protegido por `X-Cron-Secret` igual
+  `/mercadopago/renovar-tokens` — aberto se o secret não estiver configurado, mesmo padrão dos
+  outros crons): pensada pra rodar 1x/dia via cron externo (cron-job.org). Só essa rotina bloqueia
+  de verdade (marca `PedidosBloqueadosDesde`) e avisa o dono — o motivo de precisar de uma rotina
+  agendada em vez de só checar tudo na hora do pedido é que o dono precisa saber que os pedidos
+  pararam mesmo que nenhum cliente novo tente pedir nos 3 dias seguintes ao aviso (senão ele só
+  descobre quando um cliente reclamar).
+- **Contador exposto em `GET /admin/loja`** (`LojaHandler.Buscar`/`lojaResponse`): `pedidos_mes_atual`
+  e `limite_start_bloqueado` (computados em `LojaService.LimitePedidosStart`, sempre, não só pra
+  Start — o frontend decide o que mostrar). `limite_start_bloqueado` já vem com a checagem de "é do
+  mês corrente" aplicada no backend — o frontend não precisa (nem deve) recalcular isso sozinho.
+- **Frontend (`Inicio.tsx`)**: contador "X/30 pedidos este mês" sempre visível pra loja Start (não só
+  perto do limite, como pedido), com aviso em tom de lembrete (não punição) quando passa de 30, e
+  banner mais forte quando `limite_start_bloqueado` é `true` — mesma frase exata do WhatsApp, pra
+  não ter uma mensagem no painel e outra no WhatsApp.
+
+Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (limpo nos arquivos tocados) e
+`npx tsc -b`/`npm run build`, todos limpos. Nenhum teste manual em navegador nem contra um cron
+real — não dá pra simular "3 dias depois" sem esperar de verdade ou mexer no relógio do banco.
+
+Combinado numa conversa separada com o Claude (chat) em ago/2026, fechada em
+`docs/drenux-planos-comissoes-definido.md` (referência completa de números e posicionamento
+competitivo — este bloco aqui é a tradução pra tarefa de implementação). Objetivo geral: sair de 3
+planos (Start/Pro/Scale, comissão fixa sem teto) pra 4 planos, com comissão escalonada por faixa de
+GMV mensal, nunca abaixo do custo real do Mercado Pago (~0,99%), e desacoplando "cardápio" de
+"pagamento integrado" — quem não quer split de pagamento nenhum tem opção 100% grátis pra sempre.
+
+**Antes de começar**: reler `docs/drenux-planos-comissoes-definido.md` inteiro — ele tem o raciocínio
+completo (por que cada número foi escolhido, comparação com concorrentes, guardrails financeiros) que
+não foi todo reproduzido aqui.
+
+**7.1 — Renomear e redefinir os planos**
+
+| Plano | Mensalidade | Split de pagamento | Pedidos |
+|---|---|---|---|
+| Start | R$0 | Não — loja recebe Pix na própria chave | 30/mês, recorrente (renova todo ciclo) |
+| Basic | R$0 | Sim | Ilimitado |
+| Pro | R$99 | Sim | Ilimitado |
+| Scale | R$349 | Sim | Ilimitado |
+
+- Onde hoje existe `Start/Pro/Scale` (`lib/planos.ts`, `MeuPlano.tsx`, `Planos.tsx`, e qualquer
+  lugar que leia `Loja.Plano`), vira `Start/Basic/Pro/Scale`. Verificar todo lugar que faz
+  `switch`/`if` no valor do plano antes de assumir que são só esses três arquivos.
+- `Loja.Plano` (ou equivalente) precisa aceitar o valor novo `basic`. Migração de dado: nenhuma loja
+  real em produção ainda (confirmado nas Fases 1 e 5), então não precisa de script de migração de
+  lojas existentes — só ajustar o enum/validação.
+- **Start deixa de ser o plano "com comissão"** — hoje `Start = max(pedido × 6,5%, R$2,50)`; no
+  modelo novo, Start não tem comissão nenhuma porque não tem split de pagamento nenhum. Quem hoje
+  seria "Start" no sentido antigo (comissão sem mensalidade) vira o novo **Basic**.
+
+**7.2 — Comissão escalonada por faixa de GMV mensal**
+
+Substitui o percentual fixo atual. Faixas (sobre o GMV mensal da loja, resetando a cada mês —
+confirmar com o código de fechamento mensal/relatório que já existe, tipo o que gera
+`dashboard.total_mes`, se dá pra reaproveitar a mesma lógica de "GMV do mês corrente"):
+
+- **Basic**: R$0–5.000 → 2,4% · R$5.000–20.000 → 1,5% · acima de R$20.000 → 1,3%
+- **Pro**: R$0–5.000 → 1,8% · R$5.000–20.000 → 1,2% · acima de R$20.000 → 1,05%
+- **Scale**: 1,1% flat sobre todo o GMV, sem faixa
+
+Guardrail obrigatório: nenhuma faixa pode ficar abaixo do custo real do Mercado Pago (~0,99%) — as
+faixas acima já respeitam isso com margem, não alterar sem recalcular contra
+`docs/drenux-planos-comissoes-definido.md` § 4.
+
+- `marketplace_fee`/`application_fee` calculado no checkout (Fase 5.2, `mercadopago_service.go`)
+  precisa mudar de percentual fixo por plano pra essa tabela escalonada — provavelmente uma função
+  `calcularComissaoEscalonada(plano string, gmvMesAcumulado float64, valorPedido float64) float64`
+  que decide em qual faixa o pedido cai dado o GMV já acumulado no mês antes desse pedido.
+- **Simplificação importante**: a distinção antiga "Start absorve a taxa do processador / Pro-Scale a
+  loja absorve" deixa de existir — em todos os planos pagos (Basic/Pro/Scale), a Drenux absorve a
+  taxa do Mercado Pago de dentro da própria comissão (é por isso que as faixas têm o guardrail acima
+  do custo). Se existir algum branch de código condicionando isso por plano, remover.
+
+**7.3 — Limite do Start: contador, aviso e bloqueio**
+
+- Contador de pedidos do mês corrente, visível no painel do lojista Start (ex: "18/30 pedidos este
+  mês") — sempre visível, não só quando perto do limite.
+- Ao passar de 30 pedidos no mês: aviso no painel + notificação (WhatsApp, reaproveitando o
+  whatsmeow já usado no projeto) sugerindo ativar o Basic. Pedidos continuam sendo aceitos
+  normalmente nesse momento — não bloqueia na hora.
+- 3 dias corridos depois do aviso, se a loja não tiver ativado o Basic: bloquear novos pedidos (não
+  afeta pedidos já em andamento) até (a) a loja ativar o Basic, ou (b) o mês virar e a cota resetar
+  — o que vier primeiro. Se a loja bate o limite perto do fim do mês, o reset natural pode chegar
+  antes dos 3 dias — comportamento esperado, não é bug.
+- Precisa de alguma rotina agendada pra checar "loja passou de 30 há mais de 3 dias e ainda não
+  ativou Basic" — ver se dá pra reaproveitar o mecanismo de cron que já existe no projeto
+  (cron-job.org, mencionado no contexto de outras rotinas) em vez de criar um novo.
+- Mensagem de bloqueio (painel + WhatsApp) precisa soar como lembrete, não penalidade — ex: "Sua
+  loja atingiu o limite do plano grátis — ative o Basic agora (sem custo) e volte a receber pedidos
+  na hora." Nunca "conta bloqueada" ou tom de punição.
+
+**7.4 — Gates de funcionalidade por plano**
+
+Matriz completa em `docs/drenux-planos-comissoes-definido.md` § "Matriz de funcionalidades". Os que
+mexem em comportamento novo (o resto da matriz é feature já existente, só precisa checar o plano
+antes de mostrar/permitir):
+- Avisos automáticos via WhatsApp pro cliente (status do pedido): Start não tem, Basic em diante tem.
+  Se esse recurso já existe e hoje roda pra todo mundo, precisa virar condicional por plano.
+- Rastreamento de entrega em tempo real (cliente vê no mapa) e gestão de entregadores: **recurso
+  novo, não existe ainda no sistema** — Pro e Scale. Isso é maior que os outros itens dessa fase
+  (envolve localização ao vivo, provavelmente reaproveitando Leaflet/Nominatim que já está no
+  stack) — se o William quiser, vale quebrar isso numa sub-fase própria (7.4.1) em vez de fazer
+  junto com o resto, dado o tamanho.
+- Start: até 30 produtos/categorias (hoje sem esse limite pra ninguém — checar onde cadastro de
+  produto valida hoje e adicionar a checagem por plano).
+- Marca "Feito com Drenux": removível a partir do Pro (checar se esse selo já existe no cardápio
+  público hoje ou se precisa ser criado do zero).
+
+**7.5 — Afiliados: nova fórmula (corrige a fórmula real, não uma hipotética)**
+
+**Importante**: a Fase 5.5 registra que a fórmula em produção hoje é `calcularComissaoAfiliado`
+(originalmente em `stripe_service.go`) = **~37,6% da taxa de plataforma (comissão bruta), igual pra
+qualquer plano**. Uma conversa anterior com o William partiu do pressuposto de que o Start usava uma
+fórmula diferente ("30% do lucro líquido") — isso nunca existiu no código, é engano de contexto, não
+alterar com base nele. A mudança abaixo é a partir da fórmula real (37,6% do bruto), não dessa
+hipotética.
+
+- Nova fórmula, substituindo `calcularComissaoAfiliado`: **45% do lucro líquido** (comissão da loja
+  no mês − custo real do Mercado Pago, ~0,99% do GMV), aplicada igual pra Basic/Pro/Scale. Mensalidade
+  fixa (Pro/Scale) continua **fora** da base de cálculo do afiliado, como já era.
+  - Start não gera comissão nenhuma (sem split), então não gera repasse recorrente de afiliado
+    enquanto a loja ficar só no Start — só passa a gerar quando a loja indicada ativar Basic/Pro/Scale.
+  - Motivo da mudança: com a comissão bruta caindo (Fase 7.2), pagar 37,6% do bruto passou a poder
+    exceder a margem real da Drenux em faixas de comissão mais finas (Pro/Scale nas faixas
+    superiores) — % do líquido nunca deixa isso acontecer, em nenhum volume, por construção.
+- **Novo**: bônus de ativação, pagamento único, quando a loja indicada completa onboarding + atinge
+  um mínimo de pedidos nos primeiros 60 dias (sugestão: 30 pedidos — mesmo número do limite do Start,
+  ajustar se fizer mais sentido outro valor). Só é pago se a loja ativar Basic, Pro ou Scale (Start
+  puro não gera bônus, pelo mesmo motivo do item acima).
+  - Basic: R$60 · Pro: R$150 · Scale: R$400
+  - Precisa de um jeito de registrar isso — provavelmente estender `RepasseAfiliado` com um campo de
+    tipo (`recorrente` vs `bonus_ativacao`) em vez de criar tabela nova, mas confirmar se o modelo
+    atual comporta isso de forma limpa antes de decidir.
+- **Em aberto, não implementar ainda**: bônus de upgrade (loja indicada migra de Start/Basic pra
+  Pro/Scale) — ideia validada com o William, valor ainda não definido. Não travar o resto da fase
+  nisso.
+- Área `/drenux/afiliados` (painel interno, Fase 5.5) precisa refletir a fórmula nova no cálculo
+  exibido — conferir se o valor é calculado ali ou só lido do que já foi gravado em
+  `RepasseAfiliado.Valor` no momento do pedido (nesse caso a UI não muda, só a função que gera o
+  registro).
+
+**Status dos afiliados no momento desta fase**: 1 afiliado cadastrado, nenhuma indicação iniciada
+ainda — sem risco de quebrar cálculo em produção pra afiliado ativo. Avaliar com o William se vale
+lançar com bônus dobrado só pro primeiro lote ("condição de fundador"), decisão dele, não bloqueia
+a implementação técnica.
+
+**Sugestão de quebra em sessões**, dado o tamanho da fase (o William pode pedir tudo de uma vez, mas
+por padrão seguir o mesmo critério de "uma fase por vez" das instruções lá em cima, tratando
+7.1–7.5 como sub-fases nesse espírito):
+1. 7.1 + 7.2 (nomes e taxas) — maior impacto financeiro, testar isolado primeiro.
+2. 7.3 (contador/aviso/bloqueio do Start) — depende de 7.1 existir.
+3. 7.4 (gates de funcionalidade) — rastreamento de entrega pode virar sub-fase própria (7.4.1) por
+   causa do tamanho, ver nota acima.
+4. 7.5 (afiliados) — independente das outras, pode ser feita em paralelo/antes se o William preferir.
+
 ## Backlog mais antigo, fora de escopo por enquanto (não iniciar sem o William pedir)
 
 Esses itens já existiam antes do roadmap atual e não fazem parte da sequência das 4 fases — só
@@ -531,3 +879,9 @@ ficam registrados aqui pra não sumirem do radar:
 - Cada fase é implementada e validada isoladamente, não tudo de uma vez.
 - shadcn é a base de tudo; Magic UI só onde faz sentido destacar algo pro cliente final ou no
   dashboard; React Bits fica de reserva, não como padrão.
+- **Fase 7**: limite do Start é 30 pedidos **por mês, recorrente** (renova todo ciclo, igual ao
+  concorrente Goomer) — não é um limite vitalício/total. Já foi discutido e revertido de vitalício
+  pra mensal antes de fechar a fase; não reabrir essa discussão sem o William pedir.
+- **Fase 7**: a fórmula real de afiliado em produção antes dessa fase é 37,6% da taxa de plataforma
+  (comissão bruta), não "30% do lucro líquido pro Start" — essa segunda fórmula nunca existiu no
+  código, é um engano de contexto de conversa anterior. Não usar como referência do "antes".

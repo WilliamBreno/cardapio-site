@@ -264,28 +264,58 @@ func (s *MercadoPagoService) trocarToken(ctx context.Context, extra map[string]s
 	return &tok, nil
 }
 
-// pisoComissaoStart é o valor mínimo de comissão no plano Start, protege
-// contra taxa fixa em pedidos de ticket muito baixo (ex: cartão da Mercado
-// Pago, que tem componente fixo de R$0,49 além do percentual).
-const pisoComissaoStart = 2.50
+// faixaComissao é um degrau da comissão escalonada: a fatia do GMV mensal
+// entre o teto da faixa anterior e `ateGMV` paga `percentual`. ateGMV = 0
+// marca a última faixa (sem teto).
+type faixaComissao struct {
+	ateGMV     float64
+	percentual float64
+}
 
-// calcularMarketplaceFee devolve a comissão da Drenux pra um pedido, de
-// acordo com o plano da loja. Start tem piso mínimo; Pro e Scale não.
-// Recebe a base de cálculo já sem a taxa de entrega (ver CriarCheckout) —
-// comissão não incide sobre frete.
-func calcularMarketplaceFee(base float64, plano string) float64 {
-	switch plano {
-	case "pro":
-		return math.Round(base*4.0) / 100
-	case "scale":
-		return math.Round(base*1.5) / 100
-	default: // start
-		percentual := math.Round(base*TaxaPlataformaPercentual) / 100
-		if percentual < pisoComissaoStart {
-			return pisoComissaoStart
-		}
-		return percentual
+// faixasComissaoPorPlano implementa a comissão escalonada por faixa de GMV
+// mensal (ver docs/plano-melhorias-drenux.md, Fase 7.2, e
+// docs/drenux-planos-comissoes-definido.md § 2) — cada faixa se aplica só
+// à fatia do GMV do mês que cai dentro dela, igual uma tabela progressiva.
+// Scale é flat (uma faixa só, sem teto). Start não entra aqui: não tem
+// split de pagamento, logo não gera comissão nenhuma.
+var faixasComissaoPorPlano = map[string][]faixaComissao{
+	"basic": {{5000, 2.4}, {20000, 1.5}, {0, 1.3}},
+	"pro":   {{5000, 1.8}, {20000, 1.2}, {0, 1.05}},
+	"scale": {{0, 1.1}},
+}
+
+// calcularComissaoEscalonada devolve a comissão da Drenux sobre um pedido,
+// considerando o GMV já acumulado nesse mês (gmvAntes, sem esse pedido)
+// pra saber em qual faixa (ou faixas, se o valor do pedido cruzar um teto)
+// ele cai. Substitui o percentual fixo por plano usado até a Fase 7.
+func calcularComissaoEscalonada(plano string, gmvAntes, valorPedido float64) float64 {
+	faixas, ok := faixasComissaoPorPlano[plano]
+	if !ok || valorPedido <= 0 {
+		return 0
 	}
+
+	comissao := 0.0
+	restante := valorPedido
+	pisoFaixa := 0.0
+	for _, faixa := range faixas {
+		tetoFaixa := faixa.ateGMV
+		if tetoFaixa == 0 {
+			tetoFaixa = math.MaxFloat64
+		}
+		gmvJaNaFaixa := math.Max(0, math.Min(gmvAntes, tetoFaixa)-pisoFaixa)
+		disponivelNaFaixa := math.Max(0, (tetoFaixa-pisoFaixa)-gmvJaNaFaixa)
+		fatiaNestaFaixa := math.Min(restante, disponivelNaFaixa)
+
+		comissao += fatiaNestaFaixa * faixa.percentual / 100
+		restante -= fatiaNestaFaixa
+		pisoFaixa = tetoFaixa
+
+		if restante <= 0 {
+			break
+		}
+	}
+
+	return math.Round(comissao*100) / 100
 }
 
 // CriarCheckout monta uma preference de pagamento no Mercado Pago pra um
@@ -341,13 +371,18 @@ func (s *MercadoPagoService) CriarCheckout(ctx context.Context, pedidoID uint) (
 	// o frete (ver PedidoService.CriarPorSlug), então a base de cálculo
 	// aqui é só o subtotal dos itens.
 	baseComissao := pedido.Total - pedido.TaxaEntrega
-	marketplaceFee := calcularMarketplaceFee(baseComissao, loja.Plano)
 
-	// O Mercado Pago rejeita (invalid_marketplace_fee) se a comissão for
-	// maior que o total da preference — acontece de verdade em pedidos de
-	// ticket baixo no plano Start, cujo piso de R$2,50 sozinho já pode
-	// ultrapassar o total (ex: pedido de R$1). Nesse caso a Drenux fica só
-	// com o total do pedido como comissão, em vez de travar o checkout.
+	gmvAntes, err := s.pedidoRepo.SomarGMVMesAtual(loja.ID)
+	if err != nil {
+		return "", fmt.Errorf("calculando GMV do mês da loja %d: %w", loja.ID, err)
+	}
+	marketplaceFee := calcularComissaoEscalonada(loja.Plano, gmvAntes, baseComissao)
+
+	// Salvaguarda: o Mercado Pago rejeita (invalid_marketplace_fee) se a
+	// comissão for maior que o total da preference. Não deveria acontecer
+	// com as faixas atuais (todas bem abaixo de 100%), mas mantém a Drenux
+	// no máximo com o total do pedido como comissão em vez de travar o
+	// checkout, caso as faixas mudem no futuro.
 	if marketplaceFee > totalCobrado {
 		marketplaceFee = totalCobrado
 	}
@@ -665,6 +700,16 @@ func (s *MercadoPagoService) ProcessarNotificacaoPagamento(ctx context.Context, 
 		return nil // já processado — webhook pode repetir a mesma notificação
 	}
 
+	// GMV do mês tem que ser lido ANTES de marcar esse pedido como pago —
+	// SomarGMVMesAtual só soma pedidos com status='pago', então rodar essa
+	// consulta depois do AtualizarStatus abaixo contaria esse próprio
+	// pedido como "GMV de antes dele", desalinhando a faixa de comissão do
+	// afiliado (calcularComissaoEscalonada, mesma base do marketplace_fee).
+	gmvAntes, err := s.pedidoRepo.SomarGMVMesAtual(loja.ID)
+	if err != nil {
+		log.Printf("aviso: não foi possível calcular GMV do mês da loja %d pro repasse de afiliado: %v", loja.ID, err)
+	}
+
 	if err := s.pedidoRepo.AtualizarStatus(uint(pedidoID), domain.StatusPago); err != nil {
 		return fmt.Errorf("atualizando status do pedido %d: %w", pedidoID, err)
 	}
@@ -681,10 +726,18 @@ func (s *MercadoPagoService) ProcessarNotificacaoPagamento(ctx context.Context, 
 		// próprio afiliado (RegistrarPendente busca e aplica), não um
 		// valor fixo global.
 		baseComissao := pedido.Total - pedido.TaxaEntrega
-		if err := s.repasseService.RegistrarPendente(*loja.AfiliadoID, pedido.ID, loja.ID, baseComissao, loja.Plano); err != nil {
+		if err := s.repasseService.RegistrarPendente(*loja.AfiliadoID, pedido.ID, loja.ID, baseComissao, loja.Plano, gmvAntes); err != nil {
 			log.Printf("aviso: não foi possível registrar repasse de afiliado do pedido %d: %v", pedidoID, err)
 		} else {
 			log.Printf("pedido %d: repasse registrado como pendente pro afiliado %d", pedidoID, *loja.AfiliadoID)
+		}
+
+		// Bônus de ativação (Fase 7.5) — checado em todo pedido pago, mas só
+		// gera lançamento uma vez por loja (ExisteBonusAtivacao) e só depois
+		// de atingir o mínimo de pedidos dentro do prazo. Erro aqui não deve
+		// derrubar o processamento do pagamento em si.
+		if err := s.repasseService.VerificarBonusAtivacao(loja); err != nil {
+			log.Printf("aviso: não foi possível verificar bônus de ativação da loja %d: %v", loja.ID, err)
 		}
 	}
 

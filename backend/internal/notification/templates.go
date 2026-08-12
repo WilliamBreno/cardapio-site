@@ -41,12 +41,16 @@ func montarMensagemAdmin(pedido *domain.Pedido, lojaNome string) string {
 }
 
 // montarMensagemSaiuParaEntrega avisa o cliente que o pedido saiu pra
-// entrega, com o link de rastreamento em tempo real. Separada da
-// confirmação de pagamento porque acontece num momento diferente do
-// fluxo (só depois que o dono/entregador marca "saiu para entrega").
+// entrega. Separada da confirmação de pagamento porque acontece num
+// momento diferente do fluxo (só depois que o dono/entregador marca
+// "saiu para entrega"). linkRastreamento vazio = loja sem rastreamento em
+// tempo real no plano (Fase 7.4, Start/Basic) — manda só o aviso de
+// status, sem a linha do link.
 func montarMensagemSaiuParaEntrega(pedido *domain.Pedido, lojaNome, linkRastreamento string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Oba, %s! Seu pedido #%d na %s saiu para entrega. 🛵\n\n", pedido.ClienteNome, pedido.ID, lojaNome))
-	sb.WriteString(fmt.Sprintf("Acompanhe em tempo real: %s", linkRastreamento))
+	sb.WriteString(fmt.Sprintf("Oba, %s! Seu pedido #%d na %s saiu para entrega. 🛵", pedido.ClienteNome, pedido.ID, lojaNome))
+	if linkRastreamento != "" {
+		sb.WriteString(fmt.Sprintf("\n\nAcompanhe em tempo real: %s", linkRastreamento))
+	}
 	return sb.String()
 }

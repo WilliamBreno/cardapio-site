@@ -32,6 +32,7 @@ export function RastrearPedido() {
     entregador_latitude: number;
     entregador_longitude: number;
     entregador_atualizado_em: string | null;
+    disponivel: boolean;
   } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -98,6 +99,17 @@ export function RastrearPedido() {
       <div className="flex min-h-screen flex-col items-center justify-center gap-2 bg-fundo px-6 text-center">
         <p className="font-display text-xl text-tinta">Pedido entregue! 🎉</p>
         <p className="text-sm text-tinta-suave">Esperamos que aproveite.</p>
+      </div>
+    );
+  }
+
+  if (!dados.disponivel) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-2 bg-fundo px-6 text-center">
+        <p className="font-display text-xl text-tinta">Pedido saiu para entrega 🛵</p>
+        <p className="text-sm text-tinta-suave">
+          O rastreamento em tempo real não está disponível pra essa loja no momento.
+        </p>
       </div>
     );
   }

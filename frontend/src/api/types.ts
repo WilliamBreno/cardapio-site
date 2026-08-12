@@ -224,8 +224,13 @@ export interface Loja {
   tema: string;
   created_at: string;
   updated_at: string;
-  plano: string; // "start" | "pro" | "scale"
+  plano: string; // "start" | "basic" | "pro" | "scale"
   plano_agendado: string | null;
+  // Limite de pedidos/mês do plano Start (Fase 7.3) — sempre presentes,
+  // mesmo pra quem não é Start (o painel decide se mostra com base no
+  // plano). pedidos_mes_atual conta pelo mês-calendário corrente.
+  pedidos_mes_atual: number;
+  limite_start_bloqueado: boolean;
   // Sugestão Inteligente (Fase 6) — recurso pago à parte. "ativa" liga/
   // desliga a exibição no carrinho do cliente livremente, contratada ou
   // não (sem contratar, a loja tem direito a 1 vínculo grátis que
@@ -263,6 +268,9 @@ export interface CardapioPublico {
     valor_minimo_pedido: number;
     tema: string;
     sugestao_inteligente_ativa: boolean;
+    // mostrar_selo_drenux (Fase 7.4): marca "Feito com Drenux" — visível
+    // pra Start/Basic, removível a partir do Pro (já computado no backend).
+    mostrar_selo_drenux: boolean;
   };
   categorias: Categoria[];
   subcategorias: Subcategoria[];

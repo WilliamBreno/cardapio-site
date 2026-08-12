@@ -68,6 +68,36 @@ func (r *LojaRepository) AtualizarAvisoPagamentoNaoConfigurado(lojaID uint, quan
 	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Update("aviso_pagamento_nao_configurado_em", quando).Error
 }
 
+// AtualizarAvisoLimitePedidos registra quando o dono de uma loja Start foi
+// avisado de que passou os 30 pedidos do mês (Fase 7.3, ver
+// PedidoService.CriarPorSlug).
+func (r *LojaRepository) AtualizarAvisoLimitePedidos(lojaID uint, quando time.Time) error {
+	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Update("aviso_limite_pedidos_em", quando).Error
+}
+
+// AtualizarBloqueioLimitePedidos marca que o bloqueio de novos pedidos
+// (Fase 7.3) passou a valer pra essa loja — setado pela rotina agendada
+// (ver LojaService.VerificarLimiteStart), não no momento do pedido.
+func (r *LojaRepository) AtualizarBloqueioLimitePedidos(lojaID uint, quando time.Time) error {
+	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Update("pedidos_bloqueados_desde", quando).Error
+}
+
+// ListarStartParaBloquearLimite devolve lojas Start avisadas do limite de
+// pedidos há pelo menos 3 dias corridos, ainda dentro do mês em que o
+// aviso foi mandado (senão a cota já resetou sozinha) e ainda não
+// bloqueadas — usado pela rotina agendada da Fase 7.3.
+func (r *LojaRepository) ListarStartParaBloquearLimite(agora time.Time) ([]domain.Loja, error) {
+	inicioMes := time.Date(agora.Year(), agora.Month(), 1, 0, 0, 0, 0, agora.Location())
+	limiteAviso := agora.Add(-domain.LimiteToleranciaBloqueioPedidos)
+
+	var lojas []domain.Loja
+	err := r.db.Where(
+		"plano = ? AND aviso_limite_pedidos_em IS NOT NULL AND aviso_limite_pedidos_em >= ? AND aviso_limite_pedidos_em <= ? AND pedidos_bloqueados_desde IS NULL",
+		"start", inicioMes, limiteAviso,
+	).Find(&lojas).Error
+	return lojas, err
+}
+
 // BuscarPorMercadoPagoUserID é usado pelo webhook do Mercado Pago pra
 // achar de qual loja é um pagamento — a notificação identifica o
 // vendedor pelo "collector_id" (aqui salvo como MercadoPagoUserID), não
@@ -184,12 +214,12 @@ func (r *LojaRepository) AtualizarPlanoAgendado(lojaID uint, planoAgendado *stri
 	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Update("plano_agendado", planoAgendado).Error
 }
 
-// LimparAssinatura remove os dados da assinatura Stripe da loja —
-// usado quando um downgrade agendado pro Start é aplicado (cancela a
-// assinatura de vez).
-func (r *LojaRepository) LimparAssinatura(lojaID uint) error {
+// LimparAssinatura remove os dados da assinatura Stripe da loja — usado
+// quando um downgrade agendado pra um plano sem mensalidade (Start ou
+// Basic) é aplicado (cancela a assinatura de vez).
+func (r *LojaRepository) LimparAssinatura(lojaID uint, plano string) error {
 	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Updates(map[string]interface{}{
-		"plano":                  "start",
+		"plano":                  plano,
 		"plano_agendado":         nil,
 		"stripe_subscription_id": "",
 	}).Error

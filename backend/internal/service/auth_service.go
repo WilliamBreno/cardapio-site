@@ -35,6 +35,7 @@ type CadastroInput struct {
 	SegmentoPrincipal string // "alimenticio" | "mercadoria" — define tipo padrão de produto e categorias iniciais
 	CodigoAfiliado    string // opcional — vem do ?ref=CODIGO capturado no frontend
 	TokenAssinatura   string // opcional — vem de /cadastro/finalizar?token=XXX, só existe pra planos Pro/Scale
+	Plano             string // opcional — "start" (padrão) ou "basic", escolhido em Planos.tsx. Ignorado se TokenAssinatura vier preenchido.
 }
 
 // Cadastrar cria o usuário, a loja dele e as categorias padrão tudo numa
@@ -75,11 +76,16 @@ func (s *AuthService) Cadastrar(input CadastroInput) (string, error) {
 			segmento = domain.TipoProdutoAlimenticio
 		}
 
+		planoInicial := "start"
+		if input.Plano == "basic" {
+			planoInicial = "basic"
+		}
+
 		loja = domain.Loja{
 			UsuarioID:         usuario.ID,
 			Nome:              input.NomeLoja,
 			Slug:              slug,
-			Plano:             "start",
+			Plano:             planoInicial,
 			SegmentoPrincipal: segmento,
 		}
 

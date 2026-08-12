@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   atualizarStatusEntrega, atualizarLocalizacao,
   atualizarStatusEntregaSolicitacao, atualizarLocalizacaoSolicitacao,
 } from '../../api/rastreamento';
+import { buscarLoja } from '../../api/admin';
 
 const INTERVALO_MS = 25_000; // 25 segundos, conforme definido
 
@@ -12,6 +14,13 @@ export function CompartilharLocalizacao() {
   const navigate = useNavigate();
   const location = useLocation();
   const pedidoId = Number(id);
+
+  // Rastreamento em tempo real é Pro/Scale (Fase 7.4) — sem isso, a tela
+  // ainda deixa marcar "saiu para entrega"/"entregue" (isso não é
+  // exclusivo de plano), só não tenta compartilhar GPS, que o backend ia
+  // recusar de qualquer forma.
+  const { data: loja } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
+  const temRastreamento = loja?.plano === 'pro' || loja?.plano === 'scale';
 
   // Mesma tela serve tanto pra entrega de um pedido normal quanto pra
   // entrega de itens guardados (SolicitacaoEntrega) — os dois têm os
@@ -39,7 +48,7 @@ export function CompartilharLocalizacao() {
   }, []);
 
   async function iniciarCompartilhamento() {
-    if (!navigator.geolocation) {
+    if (temRastreamento && !navigator.geolocation) {
       setErro('Esse navegador não suporta geolocalização.');
       return;
     }
@@ -49,6 +58,13 @@ export function CompartilharLocalizacao() {
       await atualizarStatus(pedidoId, 'saiu_para_entrega');
     } catch {
       setErro('Não foi possível marcar o pedido como "saiu para entrega". Tenta de novo.');
+      return;
+    }
+
+    if (!temRastreamento) {
+      // Plano sem rastreamento em tempo real (Fase 7.4) — só marca o
+      // status, sem tentar compartilhar GPS (o backend recusaria mesmo).
+      setCompartilhando(true);
       return;
     }
 
@@ -110,23 +126,27 @@ export function CompartilharLocalizacao() {
         {!compartilhando ? (
           <>
             <p className="text-sm text-tinta-suave">
-              Ao iniciar, o cliente vai poder acompanhar sua localização em tempo real
-              até você marcar a entrega como concluída. Mantenha essa aba aberta
-              enquanto estiver a caminho.
+              {temRastreamento
+                ? 'Ao iniciar, o cliente vai poder acompanhar sua localização em tempo real até você marcar a entrega como concluída. Mantenha essa aba aberta enquanto estiver a caminho.'
+                : 'Isso marca o pedido como "saiu para entrega" e avisa o cliente. Rastreamento em tempo real (mapa ao vivo) é um recurso do plano Pro.'}
             </p>
             <button
               onClick={iniciarCompartilhamento}
               className="mt-4 w-full rounded-full bg-acento py-3 font-semibold text-superficie"
             >
-              🛵 Iniciar entrega e compartilhar localização
+              {temRastreamento ? '🛵 Iniciar entrega e compartilhar localização' : '🛵 Marcar como saiu para entrega'}
             </button>
           </>
         ) : (
           <>
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
-              <p className="text-sm font-medium text-tinta">Compartilhando localização...</p>
-            </div>
+            {temRastreamento ? (
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
+                <p className="text-sm font-medium text-tinta">Compartilhando localização...</p>
+              </div>
+            ) : (
+              <p className="text-sm font-medium text-tinta">Pedido marcado como saiu para entrega.</p>
+            )}
             {ultimaAtualizacao && (
               <p className="mt-1 text-xs text-tinta-suave">
                 Última atualização: {ultimaAtualizacao.toLocaleTimeString('pt-BR')}

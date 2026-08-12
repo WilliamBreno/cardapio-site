@@ -70,10 +70,17 @@ export async function iniciarOnboardingStripeAfiliado(): Promise<{ url: string }
 // esse valor é registrado como pendente e repassado via Pix por fora).
 export type StatusRepasse = 'pendente' | 'pago';
 
+// TipoRepasse (Fase 7.5): 'recorrente' é a fatia da comissão de um pedido
+// específico (pedido_id preenchido); 'bonus_ativacao' é o pagamento único
+// quando a loja indicada ativa um plano pago dentro do prazo (pedido_id
+// vem null — não é atrelado a um pedido).
+export type TipoRepasse = 'recorrente' | 'bonus_ativacao';
+
 export interface RepasseAfiliado {
   id: number;
   afiliado_id: number;
-  pedido_id: number;
+  pedido_id: number | null;
+  tipo: TipoRepasse;
   loja_id: number;
   loja?: { id: number; nome: string; slug: string };
   valor: number;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { buscarCardapio } from '../api/catalogo';
 import { ProdutoCard } from '../components/ProdutoCard';
@@ -308,6 +308,15 @@ export function CardapioPublico() {
           onFechar={() => setGuardadosAberto(false)}
           slug={slug!}
         />
+      )}
+
+      {data.loja.mostrar_selo_drenux && (
+        <p className="pb-24 pt-8 text-center text-xs text-tinta-suave/70">
+          Feito com{' '}
+          <Link to="/" className="font-medium text-tinta-suave underline underline-offset-2">
+            Drenux
+          </Link>
+        </p>
       )}
     </div>
   );

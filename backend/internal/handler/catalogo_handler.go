@@ -55,6 +55,10 @@ func (h *CatalogoHandler) BuscarCardapio(c *gin.Context) {
 			"taxa_entrega_valor":         cardapio.Loja.TaxaEntregaValor,
 			"valor_minimo_pedido":        cardapio.Loja.ValorMinimoPedido,
 			"tema":                       cardapio.Loja.Tema,
+			// mostrar_selo_drenux (Fase 7.4): marca "Feito com Drenux" é
+			// removível a partir do Pro — computado aqui, não no frontend,
+			// pra manter a regra de plano num lugar só.
+			"mostrar_selo_drenux": cardapio.Loja.Plano != "pro" && cardapio.Loja.Plano != "scale",
 		},
 		"categorias":    cardapio.Categorias,
 		"subcategorias": cardapio.Subcategorias,

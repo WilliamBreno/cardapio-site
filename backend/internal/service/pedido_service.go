@@ -1,12 +1,15 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 	_ "time/tzdata"
 
 	"github.com/WilliamBreno/cardapio-backend/internal/domain"
+	"github.com/WilliamBreno/cardapio-backend/internal/notification"
 	"github.com/WilliamBreno/cardapio-backend/internal/repository"
 	"gorm.io/gorm"
 )
@@ -53,24 +56,26 @@ type PedidoInput struct {
 }
 
 type PedidoService struct {
-	db               *gorm.DB
-	lojaRepo         *repository.LojaRepository
-	pedidoRepo       *repository.PedidoRepository
-	cupomRepo        *repository.CupomRepository
-	comboRepo        *repository.ComboRepository
-	sugestaoRepo     *repository.SugestaoProdutoRepository
-	distanciaService *DistanciaService
+	db                 *gorm.DB
+	lojaRepo           *repository.LojaRepository
+	pedidoRepo         *repository.PedidoRepository
+	cupomRepo          *repository.CupomRepository
+	comboRepo          *repository.ComboRepository
+	sugestaoRepo       *repository.SugestaoProdutoRepository
+	distanciaService   *DistanciaService
+	notificationSender notification.NotificationSender
 }
 
-func NewPedidoService(db *gorm.DB, distanciaService *DistanciaService) *PedidoService {
+func NewPedidoService(db *gorm.DB, distanciaService *DistanciaService, notificationSender notification.NotificationSender) *PedidoService {
 	return &PedidoService{
-		db:               db,
-		lojaRepo:         repository.NewLojaRepository(db),
-		pedidoRepo:       repository.NewPedidoRepository(db),
-		cupomRepo:        repository.NewCupomRepository(db),
-		comboRepo:        repository.NewComboRepository(db),
-		sugestaoRepo:     repository.NewSugestaoProdutoRepository(db),
-		distanciaService: distanciaService,
+		db:                 db,
+		lojaRepo:           repository.NewLojaRepository(db),
+		pedidoRepo:         repository.NewPedidoRepository(db),
+		cupomRepo:          repository.NewCupomRepository(db),
+		comboRepo:          repository.NewComboRepository(db),
+		sugestaoRepo:       repository.NewSugestaoProdutoRepository(db),
+		distanciaService:   distanciaService,
+		notificationSender: notificationSender,
 	}
 }
 
@@ -118,6 +123,9 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 
 	// Validações da loja antes de aceitar o pedido
 	if err := validarLojaAberta(loja); err != nil {
+		return nil, err
+	}
+	if err := s.verificarLimiteStart(loja); err != nil {
 		return nil, err
 	}
 	// Pedidos "guardar" não têm data de retirada — os itens ficam
@@ -488,6 +496,73 @@ func validarLojaAberta(loja *domain.Loja) error {
 	}
 
 	return nil
+}
+
+// verificarLimiteStart aplica o limite de pedidos/mês do plano Start (Fase
+// 7.3): não bloqueia nada por conta própria (isso é papel da rotina
+// agendada, ver LojaService.VerificarLimiteStart, que também avisa o dono
+// por WhatsApp antes de bloquear de vez) — só (1) recusa o pedido se a
+// loja já estiver marcada como bloqueada nesse mês, e (2) dispara o aviso
+// inicial de "passou de 30" no exato pedido que estoura a cota, sem
+// segurar esse pedido (ele é aceito normalmente, só o aviso é disparado).
+func (s *PedidoService) verificarLimiteStart(loja *domain.Loja) error {
+	if loja.Plano != "start" {
+		return nil
+	}
+
+	inicioMes := inicioMesCalendarioService()
+
+	if loja.PedidosBloqueadosDesde != nil && !loja.PedidosBloqueadosDesde.Before(inicioMes) {
+		return errors.New("essa loja está temporariamente indisponível pra novos pedidos — tenta de novo mais tarde")
+	}
+
+	pedidosNoMes, err := s.pedidoRepo.ContarPedidosMesAtual(loja.ID)
+	if err != nil {
+		log.Printf("aviso: não foi possível contar pedidos do mês da loja %d pro limite do Start: %v", loja.ID, err)
+		return nil // erro de leitura não deve travar o pedido do cliente
+	}
+
+	jaAvisadoEsseMes := loja.AvisoLimitePedidosEm != nil && !loja.AvisoLimitePedidosEm.Before(inicioMes)
+	if pedidosNoMes+1 > domain.LimitePedidosStart && !jaAvisadoEsseMes {
+		s.avisarLimitePedidos(loja)
+	}
+
+	return nil
+}
+
+// avisarLimitePedidos manda o aviso (painel + WhatsApp) de que a loja
+// Start passou de 30 pedidos no mês — tom de sugestão, não de punição
+// (pedidos continuam sendo aceitos normalmente até o bloqueio, 3 dias
+// depois, ver VerificarLimiteStart).
+func (s *PedidoService) avisarLimitePedidos(loja *domain.Loja) {
+	if err := s.lojaRepo.AtualizarAvisoLimitePedidos(loja.ID, time.Now()); err != nil {
+		log.Printf("aviso: não foi possível registrar o aviso de limite de pedidos da loja %d: %v", loja.ID, err)
+		return
+	}
+
+	if s.notificationSender == nil || loja.WhatsappNumero == "" {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		texto := fmt.Sprintf(
+			"🎉 Sua loja já passou de %d pedidos este mês — parabéns pelo movimento!\n\nO plano Start tem esse limite. Ative o Basic (sem mensalidade) pra continuar recebendo pedidos sem parar. Você ainda tem alguns dias antes do limite pausar novos pedidos.\n\nAtiva em Meu Plano, no painel da Drenux.",
+			domain.LimitePedidosStart,
+		)
+		if err := s.notificationSender.EnviarTextoAdmin(ctx, loja.WhatsappNumero, texto); err != nil {
+			log.Printf("falha ao enviar aviso de limite de pedidos da loja %d: %v", loja.ID, err)
+		}
+	}()
+}
+
+// inicioMesCalendarioService é a mesma conta de inicioMesCalendario (repository),
+// duplicada aqui porque o pacote repository não exporta ela e não vale a
+// pena criar um pacote compartilhado só pra 4 linhas.
+func inicioMesCalendarioService() time.Time {
+	fusoBrasil, _ := time.LoadLocation("America/Sao_Paulo")
+	agora := time.Now().In(fusoBrasil)
+	return time.Date(agora.Year(), agora.Month(), 1, 0, 0, 0, 0, fusoBrasil)
 }
 
 // validarDataRetirada aplica as regras do modo de pedido da loja.

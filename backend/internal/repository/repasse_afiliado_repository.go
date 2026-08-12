@@ -31,6 +31,20 @@ func (r *RepasseAfiliadoRepository) ExistePorPedido(pedidoID uint) (bool, error)
 	return total > 0, nil
 }
 
+// ExisteBonusAtivacao diz se essa loja já tem um lançamento de bônus de
+// ativação registrado (pendente ou pago) — garante que o bônus (Fase
+// 7.5) só é gerado uma vez por loja, mesmo que VerificarBonusAtivacao
+// rode de novo em pedidos seguintes.
+func (r *RepasseAfiliadoRepository) ExisteBonusAtivacao(lojaID uint) (bool, error) {
+	var total int64
+	if err := r.db.Model(&domain.RepasseAfiliado{}).
+		Where("loja_id = ? AND tipo = ?", lojaID, domain.TipoRepasseBonusAtivacao).
+		Count(&total).Error; err != nil {
+		return false, err
+	}
+	return total > 0, nil
+}
+
 // ListarPorAfiliado devolve o extrato completo (pendente + pago) de um
 // afiliado, mais recente primeiro — usado tanto no painel do próprio
 // afiliado quanto no detalhe que o admin Drenux vê.

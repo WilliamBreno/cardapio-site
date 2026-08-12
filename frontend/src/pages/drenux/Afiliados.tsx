@@ -72,9 +72,10 @@ function CriarAfiliadoForm({ onCriado }: { onCriado: () => void }) {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
-  // Percentual "cru" (37.6), não a fração — converte pra fração (0.376)
-  // só na hora de mandar pro backend, que é como domain.Afiliado guarda.
-  const [comissao, setComissao] = useState('37.6');
+  // Percentual "cru" (45), não a fração — converte pra fração (0.45) só
+  // na hora de mandar pro backend, que é como domain.Afiliado guarda.
+  // Base é o LUCRO LÍQUIDO da comissão (Fase 7.5), não mais o bruto.
+  const [comissao, setComissao] = useState('45');
   const [erro, setErro] = useState<string | null>(null);
   const [criado, setCriado] = useState<{ nome: string; codigo: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -152,7 +153,7 @@ function CriarAfiliadoForm({ onCriado }: { onCriado: () => void }) {
       />
       <div>
         <label className="mb-1 block text-xs font-medium text-tinta-suave">
-          Comissão desse afiliado — % da taxa de plataforma que ele recebe (padrão: 37,6%)
+          Comissão desse afiliado — % do lucro líquido da comissão que ele recebe (padrão: 45%)
         </label>
         <div className="flex items-center gap-2">
           <input
@@ -335,7 +336,10 @@ function AfiliadoCard({
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-tinta">
-                        {r.loja?.nome ?? `Loja #${r.loja_id}`} <span className="text-tinta-suave">· pedido #{r.pedido_id}</span>
+                        {r.loja?.nome ?? `Loja #${r.loja_id}`}{' '}
+                        <span className="text-tinta-suave">
+                          · {r.tipo === 'bonus_ativacao' ? 'bônus de ativação' : `pedido #${r.pedido_id}`}
+                        </span>
                       </p>
                       <p className="text-xs text-tinta-suave">{formatarData(r.created_at)}</p>
                     </div>

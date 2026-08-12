@@ -13,22 +13,28 @@ import (
 type LojaHandler struct {
 	lojaService      *service.LojaService
 	distanciaService *service.DistanciaService
+	cronSecret       string
 }
 
-func NewLojaHandler(lojaService *service.LojaService, distanciaService *service.DistanciaService) *LojaHandler {
+func NewLojaHandler(lojaService *service.LojaService, distanciaService *service.DistanciaService, cronSecret string) *LojaHandler {
 	return &LojaHandler{
 		lojaService:      lojaService,
 		distanciaService: distanciaService,
+		cronSecret:       cronSecret,
 	}
 }
 
-// lojaResponse agrega o domain.Loja com campos computados que não vêm do
-// banco — hoje só PodeEditarSegmento, que diz pro frontend se mostra o
-// seletor de segmento como editável ou travado (ver
-// LojaService.PodeEditarSegmento).
+// lojaResponse agrega o domain.Loja com campos computados que não vêm
+// direto do banco: PodeEditarSegmento (se mostra o seletor de segmento
+// como editável ou travado, ver LojaService.PodeEditarSegmento) e o
+// contador/bloqueio de pedidos do plano Start (Fase 7.3, ver
+// LojaService.LimitePedidosStart) — sempre presentes, mesmo pra lojas que
+// não são Start (o painel decide se mostra com base no plano).
 type lojaResponse struct {
 	domain.Loja
-	PodeEditarSegmento bool `json:"pode_editar_segmento"`
+	PodeEditarSegmento   bool `json:"pode_editar_segmento"`
+	PedidosMesAtual      int  `json:"pedidos_mes_atual"`
+	LimiteStartBloqueado bool `json:"limite_start_bloqueado"`
 }
 
 // Buscar atende GET /admin/loja
@@ -42,9 +48,16 @@ func (h *LojaHandler) Buscar(c *gin.Context) {
 		return
 	}
 
+	pedidosNoMes, bloqueada, err := h.lojaService.LimitePedidosStart(loja)
+	if err != nil {
+		log.Printf("aviso: não foi possível calcular o limite de pedidos do Start da loja %d: %v", loja.ID, err)
+	}
+
 	c.JSON(http.StatusOK, lojaResponse{
-		Loja:               *loja,
-		PodeEditarSegmento: h.lojaService.PodeEditarSegmento(usuarioID),
+		Loja:                 *loja,
+		PodeEditarSegmento:   h.lojaService.PodeEditarSegmento(usuarioID),
+		PedidosMesAtual:      pedidosNoMes,
+		LimiteStartBloqueado: bloqueada,
 	})
 }
 
@@ -167,4 +180,24 @@ func (h *LojaHandler) AtualizarConfiguracoes(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"sucesso": true})
+}
+
+// VerificarLimiteStart atende POST /drenux/lojas/verificar-limite-start —
+// rota pública protegida por X-Cron-Secret (mesmo padrão de
+// MercadoPagoHandler.RenovarTokens), pensada pra ser chamada por um cron
+// externo (cron-job.org) uma vez por dia. Aplica o bloqueio de pedidos das
+// lojas Start que passaram os 30 pedidos do mês há mais de 3 dias e ainda
+// não migraram pro Basic (Fase 7.3, ver LojaService.VerificarLimiteStart).
+func (h *LojaHandler) VerificarLimiteStart(c *gin.Context) {
+	if h.cronSecret != "" && c.GetHeader("X-Cron-Secret") != h.cronSecret {
+		c.JSON(http.StatusUnauthorized, gin.H{"erro": "não autorizado"})
+		return
+	}
+
+	bloqueadas, erros := h.lojaService.VerificarLimiteStart(c.Request.Context())
+
+	c.JSON(http.StatusOK, gin.H{
+		"bloqueadas": bloqueadas,
+		"erros":      erros,
+	})
 }

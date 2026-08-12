@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { buscarDashboard, buscarLoja, listarProdutos, statusMercadoPago } from '../../api/admin';
-import { PLANOS, planoMaisBarato, custoPlano } from '../../lib/planos';
+import { PLANOS, planoMaisBarato, custoPlano, NOME_PLANO } from '../../lib/planos';
 import {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -12,7 +12,9 @@ function moeda(v: number) {
   return `R$ ${v.toFixed(2).replace('.', ',')}`;
 }
 
-const NOME_PLANO: Record<string, string> = { start: 'Start', pro: 'Pro', scale: 'Scale' };
+// LIMITE_PEDIDOS_START espelha domain.LimitePedidosStart no backend (Fase
+// 7.3) — só pra exibição, o limite de verdade é aplicado no backend.
+const LIMITE_PEDIDOS_START = 30;
 
 // PassoOnboarding é uma linha do checklist "Primeiros passos" — feito
 // (com risco) ou pendente (clicável, leva pra tela de resolver).
@@ -115,6 +117,36 @@ export function Inicio() {
             Com o faturamento deste mês ({moeda(totalMes)}), o plano {NOME_PLANO[recomendado.id]} sai mais barato pra você — economize {moeda(economiaMensal)}/mês.
           </p>
           <p className="mt-1 text-xs text-tinta-suave">Ver em Meu Plano →</p>
+        </Link>
+      )}
+
+      {/* Limite de pedidos do plano Start (Fase 7.3) — contador sempre
+          visível, nunca só quando perto do limite. */}
+      {loja?.plano === 'start' && (
+        <Link
+          to="/admin/meu-plano"
+          className={`block rounded-2xl border p-4 shadow-sm transition ${
+            loja.limite_start_bloqueado
+              ? 'border-acento/50 bg-acento/10 hover:border-acento/70'
+              : 'border-tinta/10 bg-superficie hover:border-tinta/20'
+          }`}
+        >
+          <p className="text-sm font-medium text-tinta">
+            {loja.pedidos_mes_atual}/{LIMITE_PEDIDOS_START} pedidos este mês
+          </p>
+          {loja.limite_start_bloqueado ? (
+            <p className="mt-1 text-xs font-medium text-acento">
+              Sua loja atingiu o limite do plano grátis — ative o Basic agora (sem custo) e volte a receber
+              pedidos na hora.
+            </p>
+          ) : loja.pedidos_mes_atual > LIMITE_PEDIDOS_START ? (
+            <p className="mt-1 text-xs text-tinta-suave">
+              Você passou do limite do plano grátis — ative o Basic pra continuar recebendo pedidos sem
+              interrupção.
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-tinta-suave">Plano Start, limite recorrente por mês.</p>
+          )}
         </Link>
       )}
 

@@ -4,12 +4,7 @@ import { cadastrar } from '../api/auth';
 import { useAuthStore } from '../store/authStore';
 import { Campo } from '../components/Campo';
 import { rotuloCatalogo } from '../lib/utils';
-
-const NOMES_PLANO: Record<string, string> = {
-  start: 'Start',
-  pro: 'Pro',
-  scale: 'Scale',
-};
+import { NOME_PLANO } from '../lib/planos';
 
 export function Cadastro() {
   const navigate = useNavigate();
@@ -20,6 +15,11 @@ export function Cadastro() {
   const tokenAssinatura = searchParams.get('token_assinatura') || undefined;
   const emailPreenchido = searchParams.get('email') || '';
   const planoConfirmado = searchParams.get('plano');
+  // Vem de Planos.tsx quando o dono escolhe Start ou Basic (planos sem
+  // mensalidade) — nenhum pagamento envolvido, por isso um parâmetro
+  // separado de `plano` (que é só pro banner de pagamento confirmado).
+  const planoDesejadoParam = searchParams.get('plano_desejado');
+  const planoDesejado = planoDesejadoParam === 'basic' ? 'basic' : undefined;
 
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState(emailPreenchido);
@@ -42,6 +42,7 @@ export function Cadastro() {
         segmento_principal: segmento,
         codigo_afiliado: codigoAfiliado,
         token_assinatura: tokenAssinatura,
+        plano: planoDesejado,
       });
       setToken(token);
       navigate('/admin');
@@ -63,9 +64,9 @@ export function Cadastro() {
           <p className="mt-1 text-sm text-tinta-suave">Seu {rotuloCatalogo(segmento)} online em poucos minutos</p>
         </div>
 
-        {planoConfirmado && NOMES_PLANO[planoConfirmado] && (
+        {planoConfirmado && NOME_PLANO[planoConfirmado] && (
           <div className="rounded-lg bg-acento/10 px-3 py-2 text-center text-sm font-medium text-acento">
-            ✓ Pagamento do plano {NOMES_PLANO[planoConfirmado]} confirmado
+            ✓ Pagamento do plano {NOME_PLANO[planoConfirmado]} confirmado
           </div>
         )}
 

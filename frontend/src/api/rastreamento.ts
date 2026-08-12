@@ -5,6 +5,9 @@ interface RastrearResponse {
   entregador_latitude: number;
   entregador_longitude: number;
   entregador_atualizado_em: string | null;
+  // disponivel (Fase 7.4): rastreamento em tempo real é Pro/Scale — false
+  // não é erro, é o backend avisando que o plano da loja não inclui mapa.
+  disponivel: boolean;
 }
 
 // Chamadas administrativas (exigem token — o interceptor do client.ts já

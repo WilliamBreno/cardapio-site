@@ -29,9 +29,22 @@ export function Dashboard() {
     ? [...linksBase.slice(0, 2), { to: '/admin/solicitacoes', label: 'Guardados' }, ...linksBase.slice(2)]
     : linksBase;
 
+  // Estoque (Fase 8) — relatório é Pro/Scale, direto no menu só a partir
+  // desses planos; quem é Start/Basic não vê o link (a tela em si também
+  // bloqueia, isso aqui é só não mostrar caminho pra algo que vai barrar).
+  const comEstoque =
+    loja?.plano === 'pro' || loja?.plano === 'scale'
+      ? (() => {
+          const indiceProdutos = comGuardados.findIndex((l) => l.to === '/admin/produtos');
+          const copia = [...comGuardados];
+          copia.splice(indiceProdutos + 1, 0, { to: '/admin/estoque', label: 'Estoque' });
+          return copia;
+        })()
+      : comGuardados;
+
   // "Combo" vira "Kit" pra loja "mercadoria" (ver rotuloCombo).
   const rotuloCombos = `${rotuloCombo(loja?.segmento_principal)}s`;
-  const links = comGuardados.map((link) =>
+  const links = comEstoque.map((link) =>
     link.to === '/admin/combos' ? { ...link, label: rotuloCombos } : link
   );
 

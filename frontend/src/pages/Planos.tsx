@@ -8,10 +8,10 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { ShimmerButton } from '@/components/ui/shimmer-button';
 import {
-  Store, MessageCircle, Truck, Sparkles, BarChart3, TicketPercent, ArrowDown,
+  Store, MessageCircle, Truck, Sparkles, BarChart3, TicketPercent, ArrowDown, Check, X,
 } from 'lucide-react';
 import { criarCheckoutAssinatura } from '../api/planos';
-import { PLANOS, temaPlanos, FONTE_DRX_SERIF_CSS } from '../lib/planos';
+import { PLANOS, custoPlano, taxaEfetivaPlano, temaPlanos, FONTE_DRX_SERIF_CSS, RECURSOS_POR_PLANO } from '../lib/planos';
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -64,14 +64,22 @@ export function Planos() {
   }
 
   const custos = useMemo(
-    () => PLANOS.map((p) => ({ ...p, valorTaxa: p.taxa * faturamento, total: p.mensal + p.taxa * faturamento })),
+    () =>
+      PLANOS.map((p) => ({
+        ...p,
+        valorTaxa: custoPlano(p, faturamento) - p.mensal,
+        total: custoPlano(p, faturamento),
+      })),
     [faturamento]
   );
-  const menorCusto = Math.min(...custos.map((c) => c.total));
+  const menorCusto = Math.min(...custos.filter((c) => c.faixas.length > 0).map((c) => c.total));
 
   async function escolherPlano(planoId: string) {
-    if (planoId === 'start') {
-      navigate('/cadastro');
+    if (planoId === 'start' || planoId === 'basic') {
+      // plano_desejado (não `plano`) pra não colidir com o `?plano=` que
+      // Cadastro.tsx já usa pro banner de "pagamento confirmado" no
+      // retorno do checkout de Pro/Scale — aqui não houve pagamento nenhum.
+      navigate(`/cadastro?plano_desejado=${planoId}`);
       return;
     }
     setCarregando(planoId);
@@ -195,8 +203,9 @@ export function Planos() {
 
         <div className="space-y-4">
           {custos.map((p) => {
-            const recomendado = p.total === menorCusto;
-            const efetivo = faturamento > 0 ? (p.total / faturamento) * 100 : p.taxa * 100;
+            const semSplit = p.faixas.length === 0;
+            const recomendado = !semSplit && p.total === menorCusto;
+            const efetivo = taxaEfetivaPlano(p, faturamento) * 100;
 
             return (
               <Card key={p.id} className={recomendado ? 'ring-2 ring-primary' : ''}>
@@ -222,7 +231,9 @@ export function Planos() {
                       </div>
                       <div className="rounded-lg bg-secondary px-3 py-2.5">
                         <p className="text-xs text-muted-foreground">Taxa por pedido</p>
-                        <p className="text-lg font-semibold">{(p.taxa * 100).toFixed(1)}%</p>
+                        <p className="text-lg font-semibold">
+                          {semSplit ? 'Sem split' : `a partir de ${(p.faixas[0].taxa * 100).toFixed(1)}%`}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -234,17 +245,46 @@ export function Planos() {
                     <div className="flex items-center justify-between border-t border-border pt-3">
                       <div>
                         <p className="text-xs text-muted-foreground">
-                          {fmt(p.valorTaxa)} de taxa + {p.mensal === 0 ? 'R$ 0' : fmt(p.mensal)} de mensalidade
+                          {semSplit ? 'Sem taxa de pagamento' : `${fmt(p.valorTaxa)} de taxa`}
+                          {' + '}
+                          {p.mensal === 0 ? 'R$ 0' : fmt(p.mensal)} de mensalidade
                         </p>
                         <p className="drx-serif text-2xl font-medium text-primary">
                           R$ <NumberTicker value={p.total} className="text-primary" />
                           <span className="drx-serif text-sm font-normal text-muted-foreground"> /mês*</span>
                         </p>
                       </div>
-                      <span className="rounded-lg bg-secondary px-3 py-1.5 text-sm font-semibold">
-                        {efetivo.toFixed(1)}%
-                      </span>
+                      {!semSplit && (
+                        <span className="rounded-lg bg-secondary px-3 py-1.5 text-sm font-semibold">
+                          {efetivo.toFixed(1)}%
+                        </span>
+                      )}
                     </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      O que está incluso
+                    </p>
+                    <ul className="space-y-1.5 border-t border-border pt-3">
+                      {RECURSOS_POR_PLANO.map((r) => {
+                        const valor = r.valores[p.id];
+                        const incluso = valor !== '—';
+                        return (
+                          <li key={r.label} className="flex items-start gap-2 text-sm">
+                            {incluso ? (
+                              <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                            ) : (
+                              <X className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/40" />
+                            )}
+                            <span className={incluso ? 'text-foreground' : 'text-muted-foreground/50 line-through'}>
+                              {r.label}
+                              {incluso && valor !== '✓' ? ` — ${valor}` : ''}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
                 </CardContent>
 
@@ -304,8 +344,11 @@ export function Planos() {
             <AccordionItem value="recursos">
               <AccordionTrigger>O que muda entre os planos em termos de recursos?</AccordionTrigger>
               <AccordionContent>
-                Nada. Rastreamento em tempo real, frete dinâmico, guardar e entregar depois, sistema de afiliados —
-                todos os recursos do Drenux estão disponíveis em qualquer plano. Só muda como você paga.
+                Cardápio digital, frete calculado automaticamente, guardar e entregar depois e o programa de
+                afiliados valem pra qualquer plano. O Start tem limite de 30 produtos e 30 pedidos por mês (renova
+                todo mês) e não manda aviso automático de status pro cliente — a partir do Basic isso já é
+                ilimitado e o aviso vem incluso. Rastreamento de entrega em tempo real (mapa ao vivo) é exclusivo
+                do Pro e do Scale. A lista completa está em cada plano acima, em "O que está incluso".
               </AccordionContent>
             </AccordionItem>
           </Accordion>

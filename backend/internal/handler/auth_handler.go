@@ -23,6 +23,11 @@ type cadastroRequest struct {
 	SegmentoPrincipal string `json:"segmento_principal" binding:"required,oneof=alimenticio mercadoria"`
 	CodigoAfiliado    string `json:"codigo_afiliado"`
 	TokenAssinatura   string `json:"token_assinatura"`
+	// Plano opcional: "start" (padrão, se vazio) ou "basic" — os dois são
+	// planos sem mensalidade, então dá pra aplicar direto no cadastro, sem
+	// checkout. Pro/Scale só chegam aqui via TokenAssinatura (pagamento já
+	// confirmado antes do cadastro).
+	Plano string `json:"plano" binding:"omitempty,oneof=start basic"`
 }
 
 func (h *AuthHandler) Cadastrar(c *gin.Context) {
@@ -40,6 +45,7 @@ func (h *AuthHandler) Cadastrar(c *gin.Context) {
 		SegmentoPrincipal: req.SegmentoPrincipal,
 		CodigoAfiliado:    req.CodigoAfiliado,
 		TokenAssinatura:   req.TokenAssinatura,
+		Plano:             req.Plano,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})

@@ -233,7 +233,19 @@ export function Produtos() {
           {/* Linha 1: foto + nome */}
           <div className={`flex items-center gap-3 ${!produto.disponivel ? 'opacity-50' : ''}`}>
             <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-fundo">
-              {produto.foto_url ? <img src={logoMiniatura(produto.foto_url)} alt={produto.nome} className="h-full w-full object-cover" /> : <span className="font-display text-sm text-tinta/30">{produto.nome.charAt(0).toUpperCase()}</span>}
+              {/* Prioriza a galeria (fotos[0], já ordenada por "ordem" no
+                  backend) sobre foto_url — foto_url é o campo legado,
+                  mantido só pra produto antigo sem galeria. Sem isso, "tornar
+                  principal" na galeria parecia não ter efeito nenhum aqui,
+                  mesmo já refletindo certo no cardápio público. */}
+              {(() => {
+                const miniatura = produto.fotos?.[0]?.url ?? produto.foto_url;
+                return miniatura ? (
+                  <img src={logoMiniatura(miniatura)} alt={produto.nome} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="font-display text-sm text-tinta/30">{produto.nome.charAt(0).toUpperCase()}</span>
+                );
+              })()}
             </div>
             <p className="font-medium text-tinta truncate">{produto.nome}</p>
           </div>

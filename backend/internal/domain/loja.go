@@ -9,6 +9,19 @@ const (
 	ModoPedidoAgendado ModoPedido = "agendado"
 )
 
+// LimitePedidosStart é a cota de pedidos/mês do plano Start (Fase 7.3,
+// recorrente — reseta todo dia 1º).
+const LimitePedidosStart = 30
+
+// LimiteToleranciaBloqueioPedidos é a janela entre o aviso de "passou de
+// 30 pedidos" e o bloqueio de novos pedidos de fato (Fase 7.3) — 3 dias
+// corridos, ou o mês virar e a cota resetar, o que vier primeiro (esse
+// segundo caso é automático: um aviso de mês anterior já não conta como
+// aviso válido pro mês corrente). Vive em domain (não em service ou
+// repository) porque tanto PedidoService.verificarLimiteStart quanto
+// LojaRepository.ListarStartParaBloquearLimite precisam do mesmo valor.
+const LimiteToleranciaBloqueioPedidos = 3 * 24 * time.Hour
+
 // Loja representa o cardápio de um usuário.
 type Loja struct {
 	ID              uint    `gorm:"primaryKey" json:"id"`
@@ -105,9 +118,12 @@ type Loja struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	// Plano: "start" (padrão) | "pro" | "scale". StripeCustomerID e
+	// Plano: "start" (padrão) | "basic" | "pro" | "scale" (ver
+	// docs/plano-melhorias-drenux.md, Fase 7.1). Start e Basic não têm
+	// mensalidade — a diferença entre eles é só ter ou não split de
+	// pagamento (comissão por pedido) ativo. StripeCustomerID e
 	// StripeSubscriptionID só são preenchidos quando há mensalidade
-	// (Pro/Scale) — Start nunca tem assinatura Stripe.
+	// (Pro/Scale) — Start e Basic nunca têm assinatura Stripe.
 	Plano                string `gorm:"size:20;default:'start'" json:"plano"`
 	StripeCustomerID     string `gorm:"size:100" json:"-"`
 	StripeSubscriptionID string `gorm:"size:100" json:"-"`
@@ -117,6 +133,21 @@ type Loja struct {
 	// ciclo atual). Populado por MudarPlano, limpo depois que o webhook
 	// de renovação aplica a troca.
 	PlanoAgendado *string `gorm:"size:20" json:"plano_agendado"`
+
+	// Limite de pedidos/mês do plano Start (Fase 7.3, 30/mês, recorrente
+	// — reseta todo dia 1º). AvisoLimitePedidosEm marca quando o aviso de
+	// "passou de 30 pedidos" foi mandado pro dono via WhatsApp (ver
+	// PedidoService.CriarPorSlug) — usado tanto pra não avisar de novo no
+	// mesmo mês quanto como início da janela de 3 dias de tolerância antes
+	// do bloqueio. PedidosBloqueadosDesde marca quando o bloqueio de fato
+	// passou a valer (setado pela rotina agendada, ver
+	// LojaService.VerificarLimiteStart) — nil = pedidos novos liberados
+	// normalmente. Os dois só valem pro mês em que foram gravados: se a
+	// data guardada for de um mês anterior, quem lê trata como se não
+	// existisse (a cota reseta sozinha todo dia 1º, sem precisar limpar
+	// esses campos manualmente).
+	AvisoLimitePedidosEm   *time.Time `json:"-"`
+	PedidosBloqueadosDesde *time.Time `json:"pedidos_bloqueados_desde"`
 }
 
 func (Loja) TableName() string {

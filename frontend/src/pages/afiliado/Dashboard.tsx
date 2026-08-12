@@ -171,7 +171,10 @@ export function DashboardAfiliado() {
                   <li key={r.id} className="flex items-center justify-between rounded-xl bg-fundo px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-tinta">
-                        {r.loja?.nome ?? `Loja #${r.loja_id}`} <span className="text-tinta-suave">· pedido #{r.pedido_id}</span>
+                        {r.loja?.nome ?? `Loja #${r.loja_id}`}{' '}
+                        <span className="text-tinta-suave">
+                          · {r.tipo === 'bonus_ativacao' ? 'bônus de ativação' : `pedido #${r.pedido_id}`}
+                        </span>
                       </p>
                       <p className="text-xs text-tinta-suave">
                         {r.status === 'pago' && r.pago_em ? `Pago em ${formatarData(r.pago_em)}` : `Gerado em ${formatarData(r.created_at)}`}

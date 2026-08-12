@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -61,6 +62,16 @@ type Config struct {
 	// sem sistema de login próprio: só um secret compartilhado no header
 	// X-Drenux-Admin-Secret, já que só o William usa essas rotas.
 	DrenuxAdminSecret string
+
+	// Rate limiting por IP (ver internal/middleware/rate_limit.go).
+	// "Geral" se aplica a toda a API; "Auth" é mais apertado, só nas
+	// rotas sensíveis a força bruta (login, cadastro, esqueci senha,
+	// /drenux/*). Configurável por env var pra dar pra apertar/afrouxar
+	// sem precisar de deploy de código novo.
+	RateLimitGeralPorMinuto int
+	RateLimitGeralBurst     int
+	RateLimitAuthPorMinuto  int
+	RateLimitAuthBurst      int
 }
 
 func Load() *Config {
@@ -96,6 +107,11 @@ func Load() *Config {
 		MercadoPagoAccessToken: getEnv("MERCADOPAGO_ACCESS_TOKEN", ""),
 		APIPublicURL:           getEnv("API_PUBLIC_URL", "http://localhost:8080"),
 		DrenuxAdminSecret:      getEnv("DRENUX_ADMIN_SECRET", ""),
+
+		RateLimitGeralPorMinuto: getEnvInt("RATE_LIMIT_GERAL_POR_MINUTO", 100),
+		RateLimitGeralBurst:     getEnvInt("RATE_LIMIT_GERAL_BURST", 40),
+		RateLimitAuthPorMinuto:  getEnvInt("RATE_LIMIT_AUTH_POR_MINUTO", 10),
+		RateLimitAuthBurst:      getEnvInt("RATE_LIMIT_AUTH_BURST", 5),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -138,4 +154,17 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	value, ok := os.LookupEnv(key)
+	if !ok {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		log.Printf("aviso: %s=%q não é um número válido, usando o padrão (%d)", key, value, fallback)
+		return fallback
+	}
+	return parsed
 }

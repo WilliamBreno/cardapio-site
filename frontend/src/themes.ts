@@ -120,4 +120,20 @@ export const TEMAS: Tema[] = [
     fundo: '#FDF0E8',
     superficie: '#FFF7F2',
   },
+  {
+    id: 'lavanda',
+    nome: 'Lavanda',
+    descricao: 'Floral, chá, brunch, doceria delicada',
+    acento: '#8A5CB8',
+    fundo: '#EEE8F6',
+    superficie: '#F8F5FC',
+  },
+  {
+    id: 'terracota',
+    nome: 'Terracota',
+    descricao: 'Pizzaria artesanal, forno a lenha, trattoria',
+    acento: '#B05230',
+    fundo: '#EED2BC',
+    superficie: '#F8E8DA',
+  },
 ];

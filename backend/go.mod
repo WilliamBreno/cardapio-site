@@ -3,6 +3,7 @@ module github.com/WilliamBreno/cardapio-backend
 go 1.25.0
 
 require (
+	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/joho/godotenv v1.5.1
@@ -11,6 +12,7 @@ require (
 	github.com/stripe/stripe-go/v86 v86.0.0
 	go.mau.fi/whatsmeow v0.0.0-20260616120636-eaa388b4e537
 	golang.org/x/crypto v0.53.0
+	golang.org/x/time v0.15.0
 	google.golang.org/protobuf v1.36.11
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
@@ -26,7 +28,6 @@ require (
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
-	github.com/gin-contrib/cors v1.7.7 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect

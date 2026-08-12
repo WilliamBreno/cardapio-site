@@ -26,15 +26,21 @@ type PosPagamentoService struct {
 	db                 *gorm.DB
 	pedidoRepo         *repository.PedidoRepository
 	lojaRepo           *repository.LojaRepository
+	usuarioRepo        *repository.UsuarioRepository
+	movimentacaoRepo   *repository.MovimentacaoEstoqueRepository
 	notificationSender notification.NotificationSender
+	emailSender        *notification.EmailSender
 }
 
-func NewPosPagamentoService(db *gorm.DB, notificationSender notification.NotificationSender) *PosPagamentoService {
+func NewPosPagamentoService(db *gorm.DB, notificationSender notification.NotificationSender, emailSender *notification.EmailSender) *PosPagamentoService {
 	return &PosPagamentoService{
 		db:                 db,
 		pedidoRepo:         repository.NewPedidoRepository(db),
 		lojaRepo:           repository.NewLojaRepository(db),
+		usuarioRepo:        repository.NewUsuarioRepository(db),
+		movimentacaoRepo:   repository.NewMovimentacaoEstoqueRepository(db),
 		notificationSender: notificationSender,
+		emailSender:        emailSender,
 	}
 }
 
@@ -60,7 +66,7 @@ func (s *PosPagamentoService) ProcessarPedidoPago(pedidoID uint) {
 	produtoRepo := repository.NewProdutoRepository(s.db)
 
 	for _, item := range pedido.Itens {
-		if alerta := s.descontarEstoque(produtoRepo, item.ProdutoID, item.VariacaoID, item.ProdutoNome, item.Quantidade); alerta != nil {
+		if alerta := s.descontarEstoque(produtoRepo, loja.ID, pedido.ID, item.ProdutoID, item.VariacaoID, item.ProdutoNome, item.Quantidade); alerta != nil {
 			s.notificarAlertaEstoque(pedido, loja, alerta.nome, alerta.restante)
 		}
 	}
@@ -73,13 +79,13 @@ func (s *PosPagamentoService) ProcessarPedidoPago(pedidoID uint) {
 	for _, combo := range pedido.Combos {
 		for _, item := range combo.Itens {
 			qtd := item.Quantidade * combo.Quantidade
-			if alerta := s.descontarEstoque(produtoRepo, item.ProdutoID, item.VariacaoID, item.ProdutoNome, qtd); alerta != nil {
+			if alerta := s.descontarEstoque(produtoRepo, loja.ID, pedido.ID, item.ProdutoID, item.VariacaoID, item.ProdutoNome, qtd); alerta != nil {
 				s.notificarAlertaEstoque(pedido, loja, alerta.nome, alerta.restante)
 			}
 		}
 	}
 
-	s.notificarPagamento(pedido, loja.Nome, loja.WhatsappNumero)
+	s.notificarPagamento(pedido, loja)
 
 	if pedido.PesoPendente && s.notificationSender != nil && loja.WhatsappNumero != "" {
 		nomes := nomesItensSemPeso(pedido.Itens)
@@ -109,8 +115,10 @@ type itemEmAlerta struct {
 // variação, da variação — mesma função usada tanto pra item avulso quanto
 // pra componente de combo (ver chamadas em ProcessarPedidoPago). Erros de
 // subtração só são logados (nunca interrompem o pós-pagamento inteiro por
-// causa de um item).
-func (s *PosPagamentoService) descontarEstoque(produtoRepo *repository.ProdutoRepository, produtoID uint, variacaoID *uint, produtoNome string, quantidade int) *itemEmAlerta {
+// causa de um item). Registra a movimentação (Fase 8) sempre que o item
+// tinha controle de estoque ativo — pra loja de qualquer plano, mesmo
+// que a leitura desse histórico seja exclusiva do Scale.
+func (s *PosPagamentoService) descontarEstoque(produtoRepo *repository.ProdutoRepository, lojaID, pedidoID, produtoID uint, variacaoID *uint, produtoNome string, quantidade int) *itemEmAlerta {
 	if variacaoID != nil {
 		variacaoRepo := repository.NewVariacaoRepository(s.db)
 		restante, err := variacaoRepo.SubtrairEstoque(*variacaoID, quantidade)
@@ -121,6 +129,7 @@ func (s *PosPagamentoService) descontarEstoque(produtoRepo *repository.ProdutoRe
 		if restante < 0 {
 			return nil
 		}
+		s.registrarMovimentoVenda(lojaID, produtoID, variacaoID, pedidoID, quantidade, restante)
 		v, emAlerta := variacaoRepo.BuscarEstoqueAlerta(*variacaoID)
 		if !emAlerta {
 			return nil
@@ -136,10 +145,30 @@ func (s *PosPagamentoService) descontarEstoque(produtoRepo *repository.ProdutoRe
 	if restante < 0 {
 		return nil
 	}
+	s.registrarMovimentoVenda(lojaID, produtoID, nil, pedidoID, quantidade, restante)
 	if _, emAlerta := produtoRepo.BuscarEstoqueAlerta(produtoID); !emAlerta {
 		return nil
 	}
 	return &itemEmAlerta{nome: produtoNome, restante: restante}
+}
+
+// registrarMovimentoVenda grava a linha de histórico (Fase 8) de um
+// desconto de estoque por venda — quantidade sempre negativa (delta),
+// diferente do restante devolvido por SubtrairEstoque (que já é o valor
+// absoluto final).
+func (s *PosPagamentoService) registrarMovimentoVenda(lojaID, produtoID uint, variacaoID *uint, pedidoID uint, quantidade, estoqueResultante int) {
+	mov := domain.MovimentacaoEstoque{
+		LojaID:            lojaID,
+		ProdutoID:         produtoID,
+		VariacaoID:        variacaoID,
+		Tipo:              domain.MovimentoEstoqueVenda,
+		Quantidade:        -quantidade,
+		EstoqueResultante: estoqueResultante,
+		PedidoID:          &pedidoID,
+	}
+	if err := s.movimentacaoRepo.Criar(&mov); err != nil {
+		log.Printf("aviso: não foi possível registrar movimentação de venda do produto %d (pedido %d): %v", produtoID, pedidoID, err)
+	}
 }
 
 func (s *PosPagamentoService) notificarAlertaEstoque(pedido *domain.Pedido, loja *domain.Loja, nomeItem string, restante int) {
@@ -152,31 +181,71 @@ func (s *PosPagamentoService) notificarAlertaEstoque(pedido *domain.Pedido, loja
 	if restante == 0 {
 		aviso = fmt.Sprintf("⚠️ Estoque esgotado — %s\n\nO produto *%s* acabou e foi marcado como indisponível automaticamente.", loja.Nome, nomeItem)
 	}
-	if err := s.notificationSender.EnviarNotificacaoAdmin(ctx, pedido, aviso, loja.WhatsappNumero); err != nil {
+	// Correção: chamava EnviarNotificacaoAdmin (que ignora esse texto e
+	// monta a mensagem padrão de "novo pedido pago", usando `aviso` no
+	// lugar do nome da loja por engano) — EnviarTextoAdmin é a função
+	// certa pra mensagem de texto livre, é literalmente pra isso que ela
+	// existe (ver o comentário dela em sender.go).
+	if err := s.notificationSender.EnviarTextoAdmin(ctx, loja.WhatsappNumero, aviso); err != nil {
 		log.Printf("falha ao enviar alerta de estoque: %v", err)
 	}
 }
 
-func (s *PosPagamentoService) notificarPagamento(pedido *domain.Pedido, lojaNome, whatsappNumero string) {
-	if s.notificationSender == nil {
-		log.Printf("WhatsApp não conectado — pedido %d foi pago mas a notificação foi pulada", pedido.ID)
+// notificarPagamento dispara os avisos de pagamento confirmado: pro
+// cliente e pro dono da loja. O aviso pro CLIENTE é o "aviso automático
+// de status" da matriz de planos (Fase 7.4) — Start não tem, então é
+// pulado nesse caso. O aviso pro DONO ("Pedidos via WhatsApp" na matriz)
+// muda de canal por plano desde a Fase 8.5, a pedido do William: Start
+// não tem NENHUMA interação via WhatsApp incluída — o dono recebe por
+// email em vez disso. Basic/Pro/Scale continuam por WhatsApp, sem
+// mudança nenhuma nesses planos.
+func (s *PosPagamentoService) notificarPagamento(pedido *domain.Pedido, loja *domain.Loja) {
+	log.Printf("pedido %d: disparando notificações de pagamento", pedido.ID)
+
+	if loja.Plano != "start" && s.notificationSender != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := s.notificationSender.EnviarConfirmacaoPedido(ctx, pedido, loja.Nome); err != nil {
+				log.Printf("falha ao notificar cliente do pedido %d: %v", pedido.ID, err)
+			}
+		}()
+	}
+
+	if loja.Plano == "start" {
+		s.notificarNovoPedidoPorEmail(pedido, loja)
 		return
 	}
-	log.Printf("pedido %d: disparando notificação WhatsApp pro cliente e pro dono da loja", pedido.ID)
 
+	if s.notificationSender == nil {
+		log.Printf("WhatsApp não conectado — pedido %d foi pago mas o aviso ao dono foi pulado", pedido.ID)
+		return
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		if err := s.notificationSender.EnviarConfirmacaoPedido(ctx, pedido, lojaNome); err != nil {
-			log.Printf("falha ao notificar cliente do pedido %d: %v", pedido.ID, err)
+		if err := s.notificationSender.EnviarNotificacaoAdmin(ctx, pedido, loja.Nome, loja.WhatsappNumero); err != nil {
+			log.Printf("falha ao notificar admin do pedido %d: %v", pedido.ID, err)
 		}
 	}()
+}
 
+// notificarNovoPedidoPorEmail é o aviso de novo pedido pro dono de uma
+// loja Start — substitui o WhatsApp (Fase 8.5). Busca o email a partir
+// de Loja.UsuarioID porque o email de login mora em Usuario, não em Loja.
+func (s *PosPagamentoService) notificarNovoPedidoPorEmail(pedido *domain.Pedido, loja *domain.Loja) {
+	if s.emailSender == nil {
+		log.Printf("aviso: Resend não configurado — pedido %d (loja Start) foi pago mas o aviso por email foi pulado", pedido.ID)
+		return
+	}
+	usuario, err := s.usuarioRepo.BuscarPorID(loja.UsuarioID)
+	if err != nil {
+		log.Printf("aviso: não foi possível carregar o dono da loja %d pra avisar do pedido %d por email: %v", loja.ID, pedido.ID, err)
+		return
+	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		if err := s.notificationSender.EnviarNotificacaoAdmin(ctx, pedido, lojaNome, whatsappNumero); err != nil {
-			log.Printf("falha ao notificar admin do pedido %d: %v", pedido.ID, err)
+		if err := s.emailSender.EnviarNovoPedido(usuario.Email, loja.Nome, pedido); err != nil {
+			log.Printf("falha ao enviar email de novo pedido (loja %d, pedido %d): %v", loja.ID, pedido.ID, err)
 		}
 	}()
 }

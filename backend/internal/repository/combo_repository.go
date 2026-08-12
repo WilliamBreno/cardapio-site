@@ -13,6 +13,16 @@ func NewComboRepository(db *gorm.DB) *ComboRepository {
 	return &ComboRepository{db: db}
 }
 
+// ExisteComComponente diz se algum combo da loja usa esse produto como
+// componente — usado pra recusar a exclusão do produto com uma mensagem
+// amigável, em vez de deixar a constraint de FK do banco estourar um erro
+// cru (ver ProdutoService.Deletar).
+func (r *ComboRepository) ExisteComComponente(produtoID uint) (bool, error) {
+	var total int64
+	err := r.db.Model(&domain.ComboItem{}).Where("produto_id = ?", produtoID).Count(&total).Error
+	return total > 0, err
+}
+
 // ListarPorLoja devolve todo combo da loja, disponível ou não — o dono
 // precisa ver tudo pra poder reativar (mesmo padrão de ProdutoRepository).
 func (r *ComboRepository) ListarPorLoja(lojaID uint) ([]domain.Combo, error) {

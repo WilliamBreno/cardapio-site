@@ -5,9 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { NumberTicker } from '@/components/ui/number-ticker';
-import { PLANOS, custoPlano } from '../../lib/planos';
-
-const NOME_PLANO: Record<string, string> = { start: 'Start', pro: 'Pro', scale: 'Scale' };
+import { PLANOS, custoPlano, taxaEfetivaPlano, NOME_PLANO } from '../../lib/planos';
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -28,16 +26,21 @@ export function MeuPlano() {
   const [erro, setErro] = useState<string | null>(null);
 
   const custos = useMemo(
-    () => PLANOS.map((p) => ({ ...p, valorTaxa: p.taxa * faturamentoUsado, total: custoPlano(p, faturamentoUsado) })),
+    () =>
+      PLANOS.map((p) => ({
+        ...p,
+        valorTaxa: custoPlano(p, faturamentoUsado) - p.mensal,
+        total: custoPlano(p, faturamentoUsado),
+      })),
     [faturamentoUsado]
   );
-  const menorCusto = Math.min(...custos.map((c) => c.total));
+  const menorCusto = Math.min(...custos.filter((c) => c.faixas.length > 0).map((c) => c.total));
 
   async function escolherPlano(planoId: string) {
     setErro(null);
     setTrocando(planoId);
     try {
-      const resultado = await mudarPlano(planoId as 'start' | 'pro' | 'scale');
+      const resultado = await mudarPlano(planoId as 'start' | 'basic' | 'pro' | 'scale');
       if (resultado.checkout_url) {
         window.location.href = resultado.checkout_url;
         return;
@@ -119,9 +122,10 @@ export function MeuPlano() {
       {/* Cards de plano */}
       <div className="space-y-4">
         {custos.map((p) => {
+          const semSplit = p.faixas.length === 0;
           const ehAtual = p.id === loja.plano;
-          const recomendado = p.total === menorCusto && !ehAtual;
-          const efetivo = faturamentoUsado > 0 ? (p.total / faturamentoUsado) * 100 : p.taxa * 100;
+          const recomendado = !semSplit && p.total === menorCusto && !ehAtual;
+          const efetivo = taxaEfetivaPlano(p, faturamentoUsado) * 100;
 
           return (
             <Card
@@ -151,7 +155,9 @@ export function MeuPlano() {
                     </div>
                     <div className="rounded-lg bg-fundo px-3 py-2.5">
                       <p className="text-xs text-tinta-suave">Taxa por pedido</p>
-                      <p className="font-carimbo text-lg font-semibold text-tinta">{(p.taxa * 100).toFixed(1)}%</p>
+                      <p className="font-carimbo text-lg font-semibold text-tinta">
+                        {semSplit ? 'Sem split' : `a partir de ${(p.faixas[0].taxa * 100).toFixed(1)}%`}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -163,16 +169,20 @@ export function MeuPlano() {
                   <div className="flex items-center justify-between border-t border-tinta/10 pt-3">
                     <div>
                       <p className="text-xs text-tinta-suave">
-                        {fmt(p.valorTaxa)} de taxa + {p.mensal === 0 ? 'R$ 0' : fmt(p.mensal)} de mensalidade
+                        {semSplit ? 'Sem taxa de pagamento' : `${fmt(p.valorTaxa)} de taxa`}
+                        {' + '}
+                        {p.mensal === 0 ? 'R$ 0' : fmt(p.mensal)} de mensalidade
                       </p>
                       <p className="font-carimbo text-xl font-semibold text-tinta">
                         R$ <NumberTicker value={p.total} className="text-tinta dark:text-tinta" />
                         <span className="text-sm font-normal text-tinta-suave"> /mês*</span>
                       </p>
                     </div>
-                    <span className="rounded-lg bg-fundo px-3 py-1.5 text-sm font-semibold text-tinta">
-                      {efetivo.toFixed(1)}%
-                    </span>
+                    {!semSplit && (
+                      <span className="rounded-lg bg-fundo px-3 py-1.5 text-sm font-semibold text-tinta">
+                        {efetivo.toFixed(1)}%
+                      </span>
+                    )}
                   </div>
                 </div>
               </CardContent>

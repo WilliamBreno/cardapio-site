@@ -196,9 +196,21 @@ func (h *PedidoHandler) AtualizarStatusEntrega(c *gin.Context) {
 // notificarSaiuParaEntrega busca os dados atualizados e dispara a
 // mensagem de WhatsApp pro cliente. Roda em goroutine separada — se o
 // WhatsApp não estiver conectado ou a mensagem falhar, isso não deve
-// travar nem reverter a marcação de "saiu para entrega".
+// travar nem reverter a marcação de "saiu para entrega". Gates de plano
+// (Fase 7.4): Start não tem avisos automáticos de status nenhum (não
+// manda mensagem); Basic tem o aviso mas sem link de rastreamento (não
+// tem rastreamento em tempo real); Pro/Scale mandam com o link.
 func (h *PedidoHandler) notificarSaiuParaEntrega(pedidoID, lojaID uint) {
 	if h.notificationSender == nil {
+		return
+	}
+
+	loja, err := h.lojaRepo.BuscarPorID(lojaID)
+	if err != nil {
+		log.Printf("aviso: não foi possível carregar loja %d pra notificar saída pra entrega: %v", lojaID, err)
+		return
+	}
+	if loja.Plano == "start" {
 		return
 	}
 
@@ -208,13 +220,10 @@ func (h *PedidoHandler) notificarSaiuParaEntrega(pedidoID, lojaID uint) {
 		return
 	}
 
-	loja, err := h.lojaRepo.BuscarPorID(lojaID)
-	if err != nil {
-		log.Printf("aviso: não foi possível carregar loja %d pra notificar saída pra entrega: %v", lojaID, err)
-		return
+	var link string
+	if loja.Plano == "pro" || loja.Plano == "scale" {
+		link = fmt.Sprintf("%s/%s/pedido/%d/rastrear?telefone=%s", h.frontendURL, loja.Slug, pedido.ID, pedido.ClienteTelefone)
 	}
-
-	link := fmt.Sprintf("%s/%s/pedido/%d/rastrear?telefone=%s", h.frontendURL, loja.Slug, pedido.ID, pedido.ClienteTelefone)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -228,9 +237,19 @@ type localizacaoRequest struct {
 	Longitude float64 `json:"longitude" binding:"required"`
 }
 
+// rastreamentoDisponivel diz se o plano de uma loja inclui rastreamento
+// de entrega em tempo real (Fase 7.4: Pro e Scale têm, Start e Basic não).
+// Compartilhado entre PedidoHandler e SolicitacaoHandler — os dois
+// fluxos têm exatamente a mesma regra.
+func rastreamentoDisponivel(plano string) bool {
+	return plano == "pro" || plano == "scale"
+}
+
 // AtualizarLocalizacao atende POST /admin/pedidos/:id/localizacao.
 // Chamado periodicamente (a cada ~25s) pelo navegador de quem está
 // entregando, enquanto a página de compartilhamento estiver aberta.
+// Recusa se a loja não estiver num plano com rastreamento em tempo real
+// (Fase 7.4).
 func (h *PedidoHandler) AtualizarLocalizacao(c *gin.Context) {
 	lojaID := c.GetUint("loja_id")
 
@@ -243,6 +262,16 @@ func (h *PedidoHandler) AtualizarLocalizacao(c *gin.Context) {
 	pedido, err := h.pedidoRepo.BuscarPorID(uint(pedidoID))
 	if err != nil || pedido.LojaID != lojaID {
 		c.JSON(http.StatusNotFound, gin.H{"erro": "pedido não encontrado"})
+		return
+	}
+
+	loja, err := h.lojaRepo.BuscarPorID(lojaID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "loja não encontrada"})
+		return
+	}
+	if !rastreamentoDisponivel(loja.Plano) {
+		c.JSON(http.StatusForbidden, gin.H{"erro": "rastreamento em tempo real disponível a partir do plano Pro"})
 		return
 	}
 
@@ -265,6 +294,10 @@ type rastrearResponse struct {
 	EntregadorLatitude     float64    `json:"entregador_latitude"`
 	EntregadorLongitude    float64    `json:"entregador_longitude"`
 	EntregadorAtualizadoEm *time.Time `json:"entregador_atualizado_em"`
+	// Disponivel diz se o plano da loja inclui rastreamento em tempo real
+	// (Fase 7.4) — false não é erro, é o frontend sabendo pra mostrar um
+	// aviso em vez do mapa (as coordenadas acima vêm zeradas nesse caso).
+	Disponivel bool `json:"disponivel"`
 }
 
 // Rastrear atende GET /lojas/:slug/pedidos/:id/rastrear?telefone=...
@@ -290,10 +323,21 @@ func (h *PedidoHandler) Rastrear(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, rastrearResponse{
-		StatusEntrega:          pedido.StatusEntrega,
-		EntregadorLatitude:     pedido.EntregadorLatitude,
-		EntregadorLongitude:    pedido.EntregadorLongitude,
-		EntregadorAtualizadoEm: pedido.EntregadorAtualizadoEm,
-	})
+	loja, err := h.lojaRepo.BuscarPorID(pedido.LojaID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "loja não encontrada"})
+		return
+	}
+	disponivel := rastreamentoDisponivel(loja.Plano)
+
+	resposta := rastrearResponse{
+		StatusEntrega: pedido.StatusEntrega,
+		Disponivel:    disponivel,
+	}
+	if disponivel {
+		resposta.EntregadorLatitude = pedido.EntregadorLatitude
+		resposta.EntregadorLongitude = pedido.EntregadorLongitude
+		resposta.EntregadorAtualizadoEm = pedido.EntregadorAtualizadoEm
+	}
+	c.JSON(http.StatusOK, resposta)
 }
