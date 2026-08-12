@@ -268,8 +268,8 @@ export interface CardapioPublico {
     valor_minimo_pedido: number;
     tema: string;
     sugestao_inteligente_ativa: boolean;
-    // mostrar_selo_drenux (Fase 7.4): marca "Feito com Drenux" — visível
-    // pra Start/Basic, removível a partir do Pro (já computado no backend).
+    // mostrar_selo_drenux: marca "Feito com Drenux" — visível só no Start,
+    // removível a partir do Basic (já computado no backend).
     mostrar_selo_drenux: boolean;
   };
   categorias: Categoria[];

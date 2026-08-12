@@ -80,8 +80,8 @@ export const RECURSOS_POR_PLANO: RecursoPlano[] = [
     valores: { start: '✓', basic: '✓', pro: '✓', scale: '✓' },
   },
   {
-    label: 'Pedidos via WhatsApp',
-    valores: { start: '✓', basic: '✓', pro: '✓', scale: '✓' },
+    label: 'Aviso de novo pedido pro dono',
+    valores: { start: 'por email', basic: 'WhatsApp', pro: 'WhatsApp', scale: 'WhatsApp' },
   },
   {
     label: 'Produtos cadastrados',
@@ -105,7 +105,7 @@ export const RECURSOS_POR_PLANO: RecursoPlano[] = [
   },
   {
     label: 'Marca "Feito com Drenux"',
-    valores: { start: 'visível', basic: 'visível', pro: 'removível', scale: 'removível' },
+    valores: { start: 'visível', basic: 'removível', pro: 'removível', scale: 'removível' },
   },
   {
     label: 'Controle de estoque',
