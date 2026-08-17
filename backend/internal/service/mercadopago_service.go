@@ -276,12 +276,22 @@ type faixaComissao struct {
 // mensal (ver docs/plano-melhorias-drenux.md, Fase 7.2, e
 // docs/drenux-planos-comissoes-definido.md § 2) — cada faixa se aplica só
 // à fatia do GMV do mês que cai dentro dela, igual uma tabela progressiva.
-// Scale é flat (uma faixa só, sem teto). Start não entra aqui: não tem
-// split de pagamento, logo não gera comissão nenhuma.
+// Start não entra aqui: não tem split de pagamento, logo não gera comissão
+// nenhuma.
+//
+// Scale ganhou uma segunda faixa (17/08/2026, a pedido do William): flat em
+// 1,1% até então fazia o Pro sempre sair mais barato, em qualquer
+// faturamento — a taxa marginal do Pro acima de R$20k (1,05%) já era menor
+// que o flat do Scale, então "Scale = volume alto, custo mínimo" nunca era
+// verdade de fato, só na descrição. Com 0,99% (o piso de custo real do
+// Mercado Pago, mesmo guardrail dos outros planos) acima de R$20k, o Scale
+// passa a compensar de verdade a partir de ~R$353.400/mês de faturamento —
+// alto, mas existe. Abaixo disso, o motivo de escolher Scale continua
+// sendo o controle de estoque completo, não o preço.
 var faixasComissaoPorPlano = map[string][]faixaComissao{
 	"basic": {{5000, 2.4}, {20000, 1.5}, {0, 1.3}},
 	"pro":   {{5000, 1.8}, {20000, 1.2}, {0, 1.05}},
-	"scale": {{0, 1.1}},
+	"scale": {{20000, 1.1}, {0, 0.99}},
 }
 
 // calcularComissaoEscalonada devolve a comissão da Drenux sobre um pedido,

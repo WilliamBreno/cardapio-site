@@ -52,7 +52,15 @@ export const PLANOS: PlanoInfo[] = [
     id: 'scale',
     nome: 'Scale',
     mensal: 349,
-    faixas: [{ ate: 0, taxa: 0.011 }],
+    // Faixa própria (17/08/2026): flat em 1,1% fazia o Pro sempre sair
+    // mais barato, em qualquer faturamento — a taxa marginal do Pro acima
+    // de R$20k (1,05%) já era menor que o flat do Scale. Com 0,99% (piso
+    // de custo real do Mercado Pago) acima de R$20k, o Scale passa a
+    // compensar de verdade em faturamentos bem altos (~R$353,4k/mês).
+    faixas: [
+      { ate: 20000, taxa: 0.011 },
+      { ate: 0, taxa: 0.0099 },
+    ],
     desc: 'Volume alto, custo mínimo + controle de estoque completo',
   },
 ];

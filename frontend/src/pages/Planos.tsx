@@ -550,6 +550,14 @@ export function Planos() {
             avançar pro Basic, não o faturamento.
           </p>
         </div>
+        <div className="mt-2 flex items-start gap-2 rounded-xl bg-card px-4 py-3 ring-1 ring-border">
+          <span className="text-muted-foreground">ⓘ</span>
+          <p className="text-xs text-muted-foreground">
+            O Scale só passa a compensar em custo pra faturamentos bem acima do que o simulador mostra (a partir
+            de umas centenas de milhares por mês). Até lá, o motivo real pra escolher o Scale é o controle de
+            estoque completo — reposição guiada e histórico de movimentação —, não o preço.
+          </p>
+        </div>
 
         {/* FAQ */}
         <div className="mt-16">

@@ -530,6 +530,16 @@ drenux.com.br. 7.3 (limite do Start) e 7.5 (fórmula de afiliado/bônus) **não 
 nessa auditoria** — seguem só com a validação de build da implementação original, sem teste contra
 um mês real batendo o limite nem uma indicação de afiliado com transação de verdade.
 
+**Correção na faixa do Scale (17/08/2026, a pedido do William)**: testando o simulador da página de
+planos, achei que o Scale (flat 1,1% desde o lançamento) nunca era o mais barato em nenhum
+faturamento — a taxa marginal do Pro acima de R$20k (1,05%) já era menor que o flat do Scale, então
+"Scale = volume alto, custo mínimo" nunca foi verdade na prática, só na descrição do plano. Corrigido
+dando ao Scale uma segunda faixa, igual Basic/Pro já tinham: `{20000, 1.1%}, {0, 0.99%}` (o piso de
+custo real do Mercado Pago) — mudado em `faixasComissaoPorPlano` (`mercadopago_service.go`) e
+`PLANOS` (`frontend/src/lib/planos.ts`), juntos. Isso cria um cruzamento real com o Pro em
+~R$353.400/mês — alto, mas existe. Abaixo disso, o motivo de escolher Scale continua sendo o
+controle de estoque completo, não o preço (nota explicando isso foi adicionada na própria página).
+
 **O que foi feito nessa sessão (7.1 + 7.2):**
 
 - **Planos renomeados/redefinidos em todo lugar que lia `Loja.Plano`**: `ordemPlano` (agora
