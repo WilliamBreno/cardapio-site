@@ -31,22 +31,33 @@ export function NumberTicker({
     stiffness: 400,
   })
   const isInView = useInView(ref, { once: true, margin: "0px" })
+  const jaRevelou = useRef(false)
 
+  // Primeira aparição: só anima (com o delay configurado) depois que o
+  // elemento entra na tela — efeito de "revelar contando" pra uso como
+  // estatística estática.
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null
+    if (!isInView || jaRevelou.current) return
+    const timer = setTimeout(() => {
+      motionValue.set(direction === "down" ? startValue : value)
+      jaRevelou.current = true
+    }, delay * 1000)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInView])
 
-    if (isInView) {
-      timer = setTimeout(() => {
-        motionValue.set(direction === "down" ? startValue : value)
-      }, delay * 1000)
-    }
-
-    return () => {
-      if (timer !== null) {
-        clearTimeout(timer)
-      }
-    }
-  }, [motionValue, isInView, delay, value, direction, startValue])
+  // Qualquer mudança de `value` DEPOIS da primeira revelação atualiza na
+  // hora, sem depender do elemento "entrar em vista" de novo —
+  // `useInView` com `once: true` só dispara uma vez, então sem este
+  // efeito à parte um valor plugado a estado ao vivo (ex: o total de
+  // cada plano em Planos.tsx/MeuPlano.tsx, recalculado a cada arrasto do
+  // slider) ficava travado no número de quando o elemento entrou na tela
+  // pela primeira vez — inclusive travado em 0 se isso nunca tinha
+  // acontecido ainda.
+  useEffect(() => {
+    if (!jaRevelou.current) return
+    motionValue.set(direction === "down" ? startValue : value)
+  }, [value, direction, startValue, motionValue])
 
   useEffect(
     () =>
