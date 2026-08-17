@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { criarCheckoutAssinatura } from '../api/planos';
 import { PLANOS, custoPlano, taxaEfetivaPlano, temaPlanos, FONTE_DRX_SERIF_CSS, RECURSOS_POR_PLANO } from '../lib/planos';
+import { TEMAS } from '../themes';
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -20,18 +21,23 @@ function fmt(v: number) {
 // PROVAS são blocos com tela real do sistema (dado fictício, sem cliente
 // real — ver docs/prints-apresentacao/) em vez de ícone genérico. Convence
 // mais que "ícone + frase solta" porque mostra o produto de verdade.
+// `aba` é o rótulo curto usado no seletor de abas; `titulo`/`texto` ficam
+// como legenda embaixo da foto grande.
 const PROVAS = [
   {
+    aba: 'Cardápio público',
     imagem: '/planos/prova-cardapio.png',
     titulo: 'Seu cardápio, do seu jeito',
     texto: 'Link e QR code prontos em minutos — sem aplicativo de terceiro escondendo seu cliente e cobrando comissão por fora.',
   },
   {
+    aba: 'Painel do dono',
     imagem: '/planos/prova-pedidos.png',
     titulo: 'Todo pedido, num painel só',
     texto: 'Status, cliente e valor de cada pedido organizados na hora — sem planilha, sem grupo de WhatsApp bagunçado.',
   },
   {
+    aba: 'Carrinho com sugestão',
     imagem: '/planos/prova-carrinho.png',
     titulo: 'O carrinho vende por você',
     texto: 'Sugestão certa na hora certa e cupom aplicado ali mesmo — ticket médio maior sem precisar convencer ninguém.',
@@ -76,7 +82,10 @@ export function Planos() {
   const [faturamento, setFaturamento] = useState(6000);
   const [carregando, setCarregando] = useState<string | null>(null);
   const [destacarCalculadora, setDestacarCalculadora] = useState(false);
+  const [abaProva, setAbaProva] = useState(0);
+  const [temaAtivo, setTemaAtivo] = useState('kraft');
   const calculadoraRef = useRef<HTMLDivElement>(null);
+  const prova = PROVAS[abaProva];
 
   function irParaCalculadora() {
     calculadoraRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -179,25 +188,96 @@ export function Planos() {
         </div>
       </section>
 
-      {/* Prova em tela real — em vez de ícone genérico, mostra a tela de
-          verdade (dado fictício, sem cliente real). */}
+      {/* Seletor de temas — usa o sistema REAL de cores do cardápio
+          (mesmas variáveis CSS de index.css, via data-tema), não é uma cor
+          ilustrativa desenhada à parte. Clicar troca o tema de verdade na
+          prévia ao lado. */}
       <section className="mx-auto max-w-5xl px-6 pb-16 pt-20">
-        <h2 className="drx-serif mb-10 text-center text-2xl font-medium sm:text-3xl">
-          Tudo que sua loja precisa pra vender mais, num lugar só
+        <p className="mb-2 text-center text-xs font-medium uppercase tracking-widest text-primary">
+          A cara da sua loja
+        </p>
+        <h2 className="drx-serif mb-3 text-center text-2xl font-medium sm:text-3xl">
+          {TEMAS.length} temas de cor — clica e vê a mudança na hora
         </h2>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {PROVAS.map((p) => (
-            <Card key={p.titulo} className="overflow-hidden border-0 ring-1 ring-border">
-              <img src={p.imagem} alt={p.titulo} className="aspect-[4/3] w-full object-cover object-top" />
-              <CardContent className="pt-5">
-                <p className="mb-1.5 text-sm font-semibold text-foreground">{p.titulo}</p>
-                <p className="text-sm leading-relaxed text-muted-foreground">{p.texto}</p>
-              </CardContent>
-            </Card>
+        <p className="mx-auto mb-10 max-w-md text-center text-sm text-muted-foreground">
+          Escolhe o tema que combina com sua marca — o cardápio inteiro muda de cor na hora, sem mexer em mais nada.
+        </p>
+
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_300px]">
+          <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-5">
+            {TEMAS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTemaAtivo(t.id)}
+                className={`rounded-xl border px-2.5 py-2.5 text-left transition ${
+                  temaAtivo === t.id ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <span className="mb-2 block h-5 w-full rounded-md" style={{ backgroundColor: t.acento }} />
+                <span className="text-[11px] font-medium text-foreground">{t.nome}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Prévia ao vivo — wrapper com data-tema aplica as variáveis CSS
+              de verdade (--color-fundo, --color-acento etc.), igual o
+              cardápio público de qualquer loja. */}
+          <div data-tema={temaAtivo} className="overflow-hidden rounded-2xl bg-fundo ring-1 ring-border">
+            <div className="bg-acento px-4 py-5 text-center">
+              <p className="font-display text-lg tracking-wide text-superficie">Sua Loja</p>
+            </div>
+            <div className="space-y-2.5 p-4">
+              <div className="rounded-xl bg-superficie p-3">
+                <p className="text-sm font-medium text-tinta">Produto de exemplo</p>
+                <p className="text-xs text-tinta-suave">Descrição curta do produto</p>
+                <p className="mt-1.5 font-carimbo text-sm font-semibold text-acento">R$ 26,00</p>
+              </div>
+              <div className="rounded-xl bg-superficie p-3">
+                <p className="text-sm font-medium text-tinta">Outro produto</p>
+                <p className="text-xs text-tinta-suave">Descrição curta do produto</p>
+                <p className="mt-1.5 font-carimbo text-sm font-semibold text-acento">R$ 12,00</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Prova em tela real, em abas — em vez de ícone genérico, mostra a
+          tela de verdade (dado fictício, sem cliente real), uma grande de
+          cada vez pra ficar bem nítida. */}
+      <section className="mx-auto max-w-4xl px-6 pb-16">
+        <p className="mb-2 text-center text-xs font-medium uppercase tracking-widest text-primary">
+          Funcionalidades em ação
+        </p>
+        <h2 className="drx-serif mb-8 text-center text-2xl font-medium sm:text-3xl">
+          Uma tela pra cada parte do trabalho
+        </h2>
+
+        <div className="mb-6 flex flex-wrap justify-center gap-2 border-b border-border pb-4">
+          {PROVAS.map((p, i) => (
+            <button
+              key={p.aba}
+              onClick={() => setAbaProva(i)}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                abaProva === i
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {p.aba}
+            </button>
           ))}
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card className="overflow-hidden border-0 ring-1 ring-border">
+          <img src={prova.imagem} alt={prova.titulo} className="w-full object-cover object-top" />
+          <CardContent className="py-5 text-center">
+            <p className="mb-1.5 text-base font-semibold text-foreground">{prova.titulo}</p>
+            <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">{prova.texto}</p>
+          </CardContent>
+        </Card>
+
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {FUNCOES.map((f) => (
             <Card key={f.titulo} className="border-0 ring-1 ring-border">
               <CardContent className="pt-6">
