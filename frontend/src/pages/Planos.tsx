@@ -25,8 +25,8 @@ const FUNCOES = [
   },
   {
     icone: MessageCircle,
-    titulo: 'Pedidos notificados no seu WhatsApp',
-    texto: 'Cada venda mostra automaticamente no seu WhatsApp. Nenhum pedido se perde, nenhuma plataforma fica no meio do caminho.',
+    titulo: 'Pedidos notificados na hora',
+    texto: 'Cada venda avisa automaticamente — por WhatsApp a partir do Basic, por email no Start. Nenhum pedido se perde, nenhuma plataforma fica no meio do caminho.',
   },
   {
     icone: Truck,

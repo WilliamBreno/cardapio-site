@@ -271,6 +271,10 @@ export interface CardapioPublico {
     // mostrar_selo_drenux: marca "Feito com Drenux" — visível só no Start,
     // removível a partir do Basic (já computado no backend).
     mostrar_selo_drenux: boolean;
+    // avisos_whatsapp_cliente: false no Start — cliente não recebe
+    // confirmação de pagamento nem aviso de saída pra entrega via
+    // WhatsApp nesse plano (já computado no backend).
+    avisos_whatsapp_cliente: boolean;
   };
   categorias: Categoria[];
   subcategorias: Subcategoria[];

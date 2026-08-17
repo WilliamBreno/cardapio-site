@@ -187,7 +187,9 @@ export function CardapioPublico() {
     <div className="min-h-screen bg-fundo pb-28" data-tema={data.loja.tema || 'kraft'}>
       {pagamentoConfirmado && (
         <div className="bg-emerald-600 px-6 py-3 text-center text-sm font-medium text-white">
-          Pedido confirmado! Você vai receber uma mensagem no WhatsApp com os detalhes.
+          {data.loja.avisos_whatsapp_cliente
+            ? 'Pedido confirmado! Você vai receber uma mensagem no WhatsApp com os detalhes.'
+            : 'Pedido confirmado! Acompanhe o status em "Meus pedidos".'}
         </div>
       )}
 

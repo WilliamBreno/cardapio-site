@@ -60,6 +60,14 @@ func (h *CatalogoHandler) BuscarCardapio(c *gin.Context) {
 			// Scale removiam) — computado aqui, não no frontend, pra manter
 			// a regra de plano num lugar só.
 			"mostrar_selo_drenux": cardapio.Loja.Plano == "start",
+			// avisos_whatsapp_cliente: diz se o CLIENTE recebe aviso
+			// automático por WhatsApp (confirmação de pagamento, saiu pra
+			// entrega) — Start não tem (ver PosPagamentoService.
+			// notificarPagamento e PedidoHandler.notificarSaiuParaEntrega,
+			// os dois pulam o cliente quando o plano é Start). Usado pra
+			// não prometer WhatsApp que nunca chega na mensagem de "pedido
+			// confirmado" do cardápio público.
+			"avisos_whatsapp_cliente": cardapio.Loja.Plano != "start",
 		},
 		"categorias":    cardapio.Categorias,
 		"subcategorias": cardapio.Subcategorias,
