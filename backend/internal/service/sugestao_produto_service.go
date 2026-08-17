@@ -229,7 +229,7 @@ func (s *SugestaoProdutoService) MontarSugestoesCarrinho(lojaID uint, produtosNo
 			SugestaoID:       sugestao.ID,
 			ProdutoID:        sugestao.ProdutoSugeridoID,
 			Nome:             sugestao.ProdutoSugerido.Nome,
-			FotoURL:          sugestao.ProdutoSugerido.FotoURL,
+			FotoURL:          fotoPrincipal(sugestao.ProdutoSugerido),
 			Preco:            base,
 			PrecoComDesconto: sugestao.PrecoComDesconto(base),
 		}
@@ -245,6 +245,18 @@ func (s *SugestaoProdutoService) MontarSugestoesCarrinho(lojaID uint, produtosNo
 func descontoEmReais(sugestao domain.SugestaoProduto) float64 {
 	base := sugestao.ProdutoSugerido.Preco
 	return base - sugestao.PrecoComDesconto(base)
+}
+
+// fotoPrincipal prioriza a galeria (Fotos[0], já ordenada por "ordem") sobre
+// FotoURL — mesmo critério usado em todo o resto do app (ver ProdutoCard.tsx
+// e o fix do thumbnail de Produtos.tsx nesta mesma sessão). Sem isso, um
+// produto cadastrado só com fotos na galeria (o fluxo normal de upload)
+// aparecia sem foto nenhuma na seção "Quem pediu isso também levou".
+func fotoPrincipal(produto domain.Produto) string {
+	if len(produto.Fotos) > 0 {
+		return produto.Fotos[0].URL
+	}
+	return produto.FotoURL
 }
 
 func (s *SugestaoProdutoService) Deletar(lojaID, sugestaoID uint) error {

@@ -34,6 +34,9 @@ func (r *SugestaoProdutoRepository) ListarPorProdutosOrigem(lojaID uint, produto
 	}
 	var sugestoes []domain.SugestaoProduto
 	err := r.db.Preload("ProdutoSugerido").Preload("ProdutoSugerido.Categoria").
+		Preload("ProdutoSugerido.Fotos", func(db *gorm.DB) *gorm.DB {
+			return db.Order("ordem, id")
+		}).
 		Where("loja_id = ? AND produto_origem_id IN ?", lojaID, produtoIDs).
 		Find(&sugestoes).Error
 	return sugestoes, err
