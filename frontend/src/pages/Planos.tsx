@@ -8,7 +8,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { ShimmerButton } from '@/components/ui/shimmer-button';
 import {
-  Store, MessageCircle, Truck, Sparkles, BarChart3, TicketPercent, ArrowDown, Check, X,
+  MessageCircle, Truck, Sparkles, BarChart3, TicketPercent, ArrowDown, Check, X,
 } from 'lucide-react';
 import { criarCheckoutAssinatura } from '../api/planos';
 import { PLANOS, custoPlano, taxaEfetivaPlano, temaPlanos, FONTE_DRX_SERIF_CSS, RECURSOS_POR_PLANO } from '../lib/planos';
@@ -17,36 +17,57 @@ function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
+// PROVAS são blocos com tela real do sistema (dado fictício, sem cliente
+// real — ver docs/prints-apresentacao/) em vez de ícone genérico. Convence
+// mais que "ícone + frase solta" porque mostra o produto de verdade.
+const PROVAS = [
+  {
+    imagem: '/planos/prova-cardapio.png',
+    titulo: 'Seu cardápio, do seu jeito',
+    texto: 'Link e QR code prontos em minutos — sem aplicativo de terceiro escondendo seu cliente e cobrando comissão por fora.',
+  },
+  {
+    imagem: '/planos/prova-pedidos.png',
+    titulo: 'Todo pedido, num painel só',
+    texto: 'Status, cliente e valor de cada pedido organizados na hora — sem planilha, sem grupo de WhatsApp bagunçado.',
+  },
+  {
+    imagem: '/planos/prova-carrinho.png',
+    titulo: 'O carrinho vende por você',
+    texto: 'Sugestão certa na hora certa e cupom aplicado ali mesmo — ticket médio maior sem precisar convencer ninguém.',
+  },
+];
+
 const FUNCOES = [
-  {
-    icone: Store,
-    titulo: 'Cardápio com a sua cara',
-    texto: 'Link e QR code próprios, no ar em minutos — sem app de terceiro cobrando por fora e escondendo seu cliente.',
-  },
-  {
-    icone: MessageCircle,
-    titulo: 'Pedidos notificados na hora',
-    texto: 'Cada venda avisa automaticamente — por WhatsApp a partir do Basic, por email no Start. Nenhum pedido se perde, nenhuma plataforma fica no meio do caminho.',
-  },
   {
     icone: Truck,
     titulo: 'Frete calculado sozinho',
-    texto: 'O cliente digita o endereço e o sistema calcula a distância e o valor na hora — sem tabela manual, sem prejuízo escondido.',
-  },
-  {
-    icone: Sparkles,
-    titulo: 'Sugestão inteligente',
-    texto: 'O carrinho sugere o produto certo na hora certa. Ticket médio maior sem você precisar convencer ninguém.',
+    texto: 'Cliente digita o endereço, o frete sai calculado na hora — sem tabela manual, sem prejuízo escondido.',
   },
   {
     icone: BarChart3,
     titulo: 'Números em tempo real',
-    texto: 'Faturamento, pedidos e mais vendidos num painel só. Decisão com dado — não com "acho que vendeu bem".',
+    texto: 'Faturamento, pedidos e mais vendidos num painel só — decisão com dado, não com "achismo".',
   },
   {
     icone: TicketPercent,
     titulo: 'Cupons de desconto',
-    texto: 'Crie promoções pra atrair cliente novo ou recompensar quem já compra — você define o valor e a validade.',
+    texto: 'Crie um cupom em segundos pra atrair cliente novo ou recompensar quem já compra.',
+  },
+];
+
+// Prévia das duas mensagens automáticas reais que o cliente recebe —
+// texto fiel ao que sai de verdade (ver notification/templates.go), só com
+// nome/loja/pedido trocados por dado fictício. Só 2 estágios: não existe
+// aviso de "preparando" no sistema hoje.
+const CONVERSA_WHATSAPP = [
+  {
+    quando: 'Pagamento confirmado',
+    texto: 'Oi, Maria! Seu pedido #128 na Cardápio Exemplo foi confirmado.\n\n1x Hambúrguer Bacon — R$ 26,00\n\nTotal: R$ 26,00\nRetirada: hoje às 19h30\n\nObrigado pela preferência!',
+  },
+  {
+    quando: 'Saiu para entrega',
+    texto: 'Oba, Maria! Seu pedido #128 na Cardápio Exemplo saiu para entrega. 🛵\n\nAcompanhe em tempo real: drenux.com.br/…/rastrear',
   },
 ];
 
@@ -140,14 +161,43 @@ export function Planos() {
         <p className="mt-4 max-w-md text-sm text-muted-foreground">
           Comece de graça, sem risco. Migre quando o faturamento pedir — sem multa, sem fidelidade.
         </p>
+        <span className="mt-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary">
+          <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
+          Zero comissão até você mesmo ligar o Pix automático
+        </span>
       </section>
 
-      {/* O que o Drenux resolve pro dono do negócio */}
-      <section className="mx-auto max-w-4xl px-6 pb-20">
+      {/* Barra de confiança — sinaliza stack sério sem precisar de número
+          de cliente que ainda não temos. */}
+      <section className="border-y border-border">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-6 py-6 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          <span>Pagamento via Mercado Pago</span>
+          <span className="text-primary/40">•</span>
+          <span>Pix automático</span>
+          <span className="text-primary/40">•</span>
+          <span>Avisos por WhatsApp</span>
+        </div>
+      </section>
+
+      {/* Prova em tela real — em vez de ícone genérico, mostra a tela de
+          verdade (dado fictício, sem cliente real). */}
+      <section className="mx-auto max-w-5xl px-6 pb-16 pt-20">
         <h2 className="drx-serif mb-10 text-center text-2xl font-medium sm:text-3xl">
           Tudo que sua loja precisa pra vender mais, num lugar só
         </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {PROVAS.map((p) => (
+            <Card key={p.titulo} className="overflow-hidden border-0 ring-1 ring-border">
+              <img src={p.imagem} alt={p.titulo} className="aspect-[4/3] w-full object-cover object-top" />
+              <CardContent className="pt-5">
+                <p className="mb-1.5 text-sm font-semibold text-foreground">{p.titulo}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">{p.texto}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {FUNCOES.map((f) => (
             <Card key={f.titulo} className="border-0 ring-1 ring-border">
               <CardContent className="pt-6">
@@ -157,6 +207,33 @@ export function Planos() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      </section>
+
+      {/* Prévia de conversa — mostra os dois avisos automáticos reais que
+          o cliente recebe (texto fiel ao que o sistema manda de verdade). */}
+      <section className="border-y border-border bg-card/40">
+        <div className="mx-auto max-w-md px-6 py-16">
+          <div className="mb-8 flex items-center justify-center gap-2 text-center">
+            <MessageCircle className="h-5 w-5 text-primary" strokeWidth={1.75} />
+            <h2 className="drx-serif text-2xl font-medium sm:text-3xl">Seu cliente avisado, sem você mexer um dedo</h2>
+          </div>
+          <div className="space-y-3">
+            {CONVERSA_WHATSAPP.map((msg) => (
+              <div key={msg.quando}>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {msg.quando}
+                </p>
+                <div className="whitespace-pre-line rounded-2xl rounded-tl-sm bg-[#1f2c25] px-4 py-3 text-sm leading-relaxed text-[#e9f5ee] ring-1 ring-[#2f7a52]/40">
+                  {msg.texto}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-5 text-center text-xs text-muted-foreground">
+            Exemplo ilustrativo com dado fictício — a partir do Basic. No Start, o aviso de novo pedido chega por
+            email pro dono, sem esses avisos automáticos pro cliente.
+          </p>
         </div>
       </section>
 
