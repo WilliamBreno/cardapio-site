@@ -11,12 +11,29 @@ import {
   MessageCircle, Truck, Sparkles, BarChart3, TicketPercent, ArrowDown, Check, X,
 } from 'lucide-react';
 import { criarCheckoutAssinatura } from '../api/planos';
-import { PLANOS, custoPlano, taxaEfetivaPlano, temaPlanos, FONTE_DRX_SERIF_CSS, RECURSOS_POR_PLANO } from '../lib/planos';
+import {
+  PLANOS, custoPlano, taxaEfetivaPlano, temaPlanos, FONTE_DRX_SERIF_CSS, RECURSOS_POR_PLANO,
+  NOME_PLANO, FATURAMENTO_MAX_SIMULADOR, calcularFaixasRecomendadas,
+} from '../lib/planos';
 import { TEMAS } from '../themes';
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
+
+// Calculado uma vez só (PLANOS é constante, não muda em runtime) — alimenta
+// o mapa visual de faixas embaixo do slider, mostrando de cara em que
+// faturamento a recomendação de plano muda.
+const FAIXAS_RECOMENDADAS = calcularFaixasRecomendadas(FATURAMENTO_MAX_SIMULADOR);
+
+// Paleta só pra esse mapa de faixas — tons da mesma família (dourado →
+// bronze) pra não fugir da linha visual da página, mas dando pra
+// diferenciar plano por plano.
+const CORES_FAIXA: Record<string, string> = {
+  basic: 'bg-primary',
+  pro: 'bg-[#8a6a3a]',
+  scale: 'bg-[#5a4a30]',
+};
 
 // PROVAS são blocos com tela real do sistema (dado fictício, sem cliente
 // real — ver docs/prints-apresentacao/) em vez de ícone genérico. Convence
@@ -103,6 +120,10 @@ export function Planos() {
     [faturamento]
   );
   const menorCusto = Math.min(...custos.filter((c) => c.faixas.length > 0).map((c) => c.total));
+
+  const indiceFaixaAtual = FAIXAS_RECOMENDADAS.findIndex((fx) => faturamento >= fx.de && faturamento <= fx.ate);
+  const faixaAtualRecomendada = FAIXAS_RECOMENDADAS[indiceFaixaAtual === -1 ? FAIXAS_RECOMENDADAS.length - 1 : indiceFaixaAtual];
+  const proximaFaixaRecomendada = FAIXAS_RECOMENDADAS[(indiceFaixaAtual === -1 ? FAIXAS_RECOMENDADAS.length - 1 : indiceFaixaAtual) + 1];
 
   async function escolherPlano(planoId: string) {
     if (planoId === 'start' || planoId === 'basic') {
@@ -352,9 +373,50 @@ export function Planos() {
               value={[faturamento]}
               onValueChange={(v) => setFaturamento(Array.isArray(v) ? v[0] : v)}
               min={0}
-              max={20000}
+              max={FATURAMENTO_MAX_SIMULADOR}
               step={100}
             />
+
+            {/* Mapa de faixas — mostra de cara em que faturamento a
+                recomendação de plano muda, calculado de verdade (não é
+                estimativa) a partir das mesmas taxas dos cards abaixo. */}
+            <div className="mt-5">
+              <div className="flex h-2 overflow-hidden rounded-full">
+                {FAIXAS_RECOMENDADAS.map((fx) => (
+                  <div
+                    key={fx.de}
+                    className={CORES_FAIXA[fx.planoId]}
+                    style={{ width: `${((fx.ate - fx.de) / FATURAMENTO_MAX_SIMULADOR) * 100}%` }}
+                  />
+                ))}
+              </div>
+              <div className="relative h-2.5">
+                <div
+                  className="absolute top-0 h-2.5 w-0.5 -translate-x-1/2 bg-foreground"
+                  style={{ left: `${Math.min(100, (faturamento / FATURAMENTO_MAX_SIMULADOR) * 100)}%` }}
+                />
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                {FAIXAS_RECOMENDADAS.map((fx) => (
+                  <span key={fx.de} className="flex items-center gap-1.5">
+                    <span className={`h-2 w-2 rounded-full ${CORES_FAIXA[fx.planoId]}`} />
+                    {NOME_PLANO[fx.planoId]} — {fx.de === 0 ? 'até' : `${fmt(fx.de)} até`} {fx.ate >= FATURAMENTO_MAX_SIMULADOR ? 'o fim' : fmt(fx.ate)}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm text-muted-foreground">
+              Com esse faturamento, o <strong className="text-foreground">{NOME_PLANO[faixaAtualRecomendada.planoId]}</strong> é o mais
+              barato.
+              {proximaFaixaRecomendada && (
+                <>
+                  {' '}
+                  Passando de <strong className="text-foreground">{fmt(proximaFaixaRecomendada.de)}</strong>, o{' '}
+                  <strong className="text-foreground">{NOME_PLANO[proximaFaixaRecomendada.planoId]}</strong> passa a compensar.
+                </>
+              )}
+            </p>
           </CardContent>
         </Card>
 
@@ -478,6 +540,14 @@ export function Planos() {
           <p className="text-xs text-muted-foreground">
             Mensalidade e taxa são os valores fixos de cada plano. O total mostrado é uma projeção com base no
             faturamento que você simulou acima — o valor real muda conforme suas vendas no mês.
+          </p>
+        </div>
+        <div className="mt-2 flex items-start gap-2 rounded-xl bg-card px-4 py-3 ring-1 ring-border">
+          <span className="text-muted-foreground">ⓘ</span>
+          <p className="text-xs text-muted-foreground">
+            O Start fica fora do mapa de faixas acima — ele não cobra taxa nenhuma, então não é uma questão de
+            "ficar mais caro", e sim de limite: até 30 pedidos e 30 produtos por mês. Passar disso é o sinal pra
+            avançar pro Basic, não o faturamento.
           </p>
         </div>
 

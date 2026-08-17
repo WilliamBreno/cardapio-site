@@ -155,6 +155,42 @@ export function planoMaisBarato(faturamento: number): PlanoInfo {
   );
 }
 
+// FATURAMENTO_MAX_SIMULADOR precisa cobrir o cruzamento real entre Basic e
+// Pro (~R$29.600 com as taxas atuais — confirmado numericamente, não é um
+// chute) — com o simulador limitado a R$20.000 como estava antes, o cliente
+// nunca via esse cruzamento por mais que arrastasse o slider até o fim.
+export const FATURAMENTO_MAX_SIMULADOR = 50000;
+
+export interface FaixaRecomendada {
+  de: number;
+  ate: number;
+  planoId: PlanoInfo['id'];
+}
+
+// calcularFaixasRecomendadas varre [0, faturamentoMax] e agrupa em faixas
+// contíguas de qual plano com split (Basic/Pro/Scale) sai mais barato —
+// é o que alimenta o mapa visual embaixo do slider, pra mostrar de cara em
+// que faturamento a recomendação muda, sem o cliente ter que arrastar o
+// slider centímetro por centímetro pra descobrir sozinho.
+export function calcularFaixasRecomendadas(faturamentoMax: number, passo = 50): FaixaRecomendada[] {
+  const comparaveis = PLANOS.filter((p) => p.faixas.length > 0);
+  const faixas: FaixaRecomendada[] = [];
+
+  for (let f = 0; f <= faturamentoMax; f += passo) {
+    const maisBarato = comparaveis.reduce((menor, p) =>
+      custoPlano(p, f) < custoPlano(menor, f) ? p : menor
+    );
+    const atual = faixas[faixas.length - 1];
+    if (atual && atual.planoId === maisBarato.id) {
+      atual.ate = f;
+    } else {
+      faixas.push({ de: f, ate: f, planoId: maisBarato.id });
+    }
+  }
+
+  return faixas;
+}
+
 // Sobrescreve só os tokens de cor do shadcn — preto e dourado, puxados da
 // marca — dentro de um wrapper com esse `style`. Não mexe em nada do
 // sistema de temas do cardápio público (--color-fundo, --color-tinta
