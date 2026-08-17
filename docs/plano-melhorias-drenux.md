@@ -522,7 +522,13 @@ em navegador real ainda`
    esse campo `true` antes de vender o recurso de verdade.
 
 ### Fase 7 — Reestruturação de planos (Start/Basic/Pro/Scale) e afiliados
-Status: `[x] concluída — 7.1 a 7.5 implementadas (12/08/2026)`
+Status: `[x] concluída — 7.1 a 7.5 implementadas (12/08/2026)`. **Confirmado em produção em
+17/08/2026** (auditoria pontual, fora do fluxo normal de fase): 7.1 (Basic existe e aparece no
+site), 7.2 (matriz de recursos/comissão escalonada refletida na página de planos) e 7.4 (gates de
+plano — avisos de WhatsApp por plano, selo "Feito com Drenux") verificados direto no
+drenux.com.br. 7.3 (limite do Start) e 7.5 (fórmula de afiliado/bônus) **não foram reverificados
+nessa auditoria** — seguem só com a validação de build da implementação original, sem teste contra
+um mês real batendo o limite nem uma indicação de afiliado com transação de verdade.
 
 **O que foi feito nessa sessão (7.1 + 7.2):**
 
