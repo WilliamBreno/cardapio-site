@@ -166,8 +166,18 @@ export function planoMaisBarato(faturamento: number): PlanoInfo {
 // FATURAMENTO_MAX_SIMULADOR precisa cobrir o cruzamento real entre Basic e
 // Pro (~R$29.600 com as taxas atuais — confirmado numericamente, não é um
 // chute) — com o simulador limitado a R$20.000 como estava antes, o cliente
-// nunca via esse cruzamento por mais que arrastasse o slider até o fim.
+// nunca via esse cruzamento por mais que arrastasse o slider até o fim. É o
+// alcance do SLIDER (arrastar) — continua em 50.000 de propósito: o
+// cruzamento Pro→Scale fica muito mais adiante (~R$353.400) e um slider
+// linear até lá deixaria a faixa 0-50k (onde a grande maioria dos
+// faturamentos reais cai) apertada demais pra arrastar com precisão.
 export const FATURAMENTO_MAX_SIMULADOR = 50000;
+
+// FATURAMENTO_MAX_ANALISE cobre o cruzamento Pro→Scale (~R$353.400) com
+// folga — usado pro campo de digitar valor exato e pro cálculo de faixas
+// que alimenta a frase "a partir de R$X, o Y passa a compensar" (não o
+// desenho do slider em si, que fica só até FATURAMENTO_MAX_SIMULADOR).
+export const FATURAMENTO_MAX_ANALISE = 500000;
 
 export interface FaixaRecomendada {
   de: number;

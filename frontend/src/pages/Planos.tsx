@@ -13,7 +13,7 @@ import {
 import { criarCheckoutAssinatura } from '../api/planos';
 import {
   PLANOS, custoPlano, taxaEfetivaPlano, temaPlanos, FONTE_DRX_SERIF_CSS, RECURSOS_POR_PLANO,
-  NOME_PLANO, FATURAMENTO_MAX_SIMULADOR, calcularFaixasRecomendadas,
+  NOME_PLANO, FATURAMENTO_MAX_SIMULADOR, FATURAMENTO_MAX_ANALISE, calcularFaixasRecomendadas,
 } from '../lib/planos';
 import { TEMAS } from '../themes';
 
@@ -21,10 +21,31 @@ function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
-// Calculado uma vez só (PLANOS é constante, não muda em runtime) — alimenta
-// o mapa visual de faixas embaixo do slider, mostrando de cara em que
-// faturamento a recomendação de plano muda.
-const FAIXAS_RECOMENDADAS = calcularFaixasRecomendadas(FATURAMENTO_MAX_SIMULADOR);
+// Calculado uma vez só (PLANOS é constante, não muda em runtime). Usa o
+// horizonte de ANÁLISE (bem maior que o do slider) porque o cruzamento
+// Pro→Scale fica bem além de onde dá pra arrastar — sem isso, a frase
+// "X é o mais barato" nunca encontraria a faixa do Scale e ficaria presa
+// dizendo "Pro" pra qualquer faturamento digitado acima do que o slider
+// alcança.
+const FAIXAS_RECOMENDADAS = calcularFaixasRecomendadas(FATURAMENTO_MAX_ANALISE);
+
+// Só a fatia [0, FATURAMENTO_MAX_SIMULADOR] das faixas acima — é o que
+// desenha a barrinha colorida embaixo do slider. Recortada à parte pra não
+// esmagar visualmente a faixa Basic/Pro (onde a esmagadora maioria dos
+// faturamentos reais cai) num mapa que teria que caber o Scale lá na ponta,
+// 7x mais longe.
+const FAIXAS_BARRA = FAIXAS_RECOMENDADAS.filter((fx) => fx.de < FATURAMENTO_MAX_SIMULADOR).map((fx) => ({
+  ...fx,
+  ate: Math.min(fx.ate, FATURAMENTO_MAX_SIMULADOR),
+}));
+
+// Primeiro faturamento (redondo, com uma folga de R$5.000 acima do
+// cruzamento exato) em que o Scale passa a ser o mais barato — alimenta o
+// atalho "Ver quando o Scale compensa".
+const FATURAMENTO_SCALE_COMPENSA = (() => {
+  const faixaScale = FAIXAS_RECOMENDADAS.find((fx) => fx.planoId === 'scale');
+  return faixaScale ? Math.ceil((faixaScale.de + 5000) / 1000) * 1000 : null;
+})();
 
 // Paleta só pra esse mapa de faixas — tons da mesma família (dourado →
 // bronze) pra não fugir da linha visual da página, mas dando pra
@@ -370,19 +391,46 @@ export function Planos() {
           </CardHeader>
           <CardContent>
             <Slider
-              value={[faturamento]}
+              value={[Math.min(faturamento, FATURAMENTO_MAX_SIMULADOR)]}
               onValueChange={(v) => setFaturamento(Array.isArray(v) ? v[0] : v)}
               min={0}
               max={FATURAMENTO_MAX_SIMULADOR}
               step={100}
             />
 
+            {/* Faturamento exato — o slider só arrasta até
+                FATURAMENTO_MAX_SIMULADOR (bom pra precisão no dia a dia),
+                mas o cruzamento em que o Scale compensa fica bem mais longe
+                — sem um jeito de digitar o valor, não tinha como simular
+                esse ponto de jeito nenhum. */}
+            <div className="mt-3 flex items-center gap-2">
+              <label htmlFor="faturamento-exato" className="text-xs text-muted-foreground">
+                Ou digite um valor exato:
+              </label>
+              <input
+                id="faturamento-exato"
+                type="number"
+                min={0}
+                max={FATURAMENTO_MAX_ANALISE}
+                step={100}
+                value={faturamento}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (!Number.isNaN(v)) setFaturamento(Math.max(0, Math.min(v, FATURAMENTO_MAX_ANALISE)));
+                }}
+                className="w-32 rounded-lg border border-input bg-secondary px-2 py-1 text-sm text-foreground"
+              />
+            </div>
+
             {/* Mapa de faixas — mostra de cara em que faturamento a
                 recomendação de plano muda, calculado de verdade (não é
-                estimativa) a partir das mesmas taxas dos cards abaixo. */}
+                estimativa) a partir das mesmas taxas dos cards abaixo.
+                Só desenha até FATURAMENTO_MAX_SIMULADOR (o Scale nunca
+                aparece aqui — o cruzamento dele fica bem mais longe, ver
+                atalho abaixo). */}
             <div className="mt-5">
               <div className="flex h-2 overflow-hidden rounded-full">
-                {FAIXAS_RECOMENDADAS.map((fx) => (
+                {FAIXAS_BARRA.map((fx) => (
                   <div
                     key={fx.de}
                     className={CORES_FAIXA[fx.planoId]}
@@ -397,7 +445,7 @@ export function Planos() {
                 />
               </div>
               <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-                {FAIXAS_RECOMENDADAS.map((fx) => (
+                {FAIXAS_BARRA.map((fx) => (
                   <span key={fx.de} className="flex items-center gap-1.5">
                     <span className={`h-2 w-2 rounded-full ${CORES_FAIXA[fx.planoId]}`} />
                     {NOME_PLANO[fx.planoId]} — {fx.de === 0 ? 'até' : `${fmt(fx.de)} até`} {fx.ate >= FATURAMENTO_MAX_SIMULADOR ? 'o fim' : fmt(fx.ate)}
@@ -417,6 +465,15 @@ export function Planos() {
                 </>
               )}
             </p>
+
+            {FATURAMENTO_SCALE_COMPENSA && (
+              <button
+                onClick={() => setFaturamento(FATURAMENTO_SCALE_COMPENSA)}
+                className="mt-3 text-xs font-medium text-primary underline-offset-2 hover:underline"
+              >
+                Ver um faturamento em que o Scale compensa ({fmt(FATURAMENTO_SCALE_COMPENSA)}) →
+              </button>
+            )}
           </CardContent>
         </Card>
 
