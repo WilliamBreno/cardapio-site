@@ -869,8 +869,10 @@ por padrão seguir o mesmo critério de "uma fase por vez" das instruções lá 
 4. 7.5 (afiliados) — independente das outras, pode ser feita em paralelo/antes se o William preferir.
 
 ### Fase 9 — Controle de estoque (Pro relatório / Scale completo)
-Status: `[~] 9.1, 9.2 (só XML de NF-e) e 9.3 implementadas e testadas em 18/08/2026 — só falta 9.4
-(multi-loja, prioridade baixa) e a via "PDF via IA" de 9.2 (pendente de decisão sobre provedor)`
+Status: `[x] 9.1, 9.2 (só XML de NF-e) e 9.3 concluídas e testadas em 18/08/2026 — fase encerrada
+nesse escopo. Duas coisas ficam pendentes de propósito, cada uma esperando decisão do William antes
+de qualquer código: a via "PDF via IA" da 9.2 (provedor/credenciais) e a 9.4 completa (multi-loja —
+achado que não existe nem como base hoje, precisa de spec própria, ver nota na 9.4)`
 
 **Importante, ler antes de mexer em qualquer coisa nessa fase**: quando essa fase foi rascunhada
 (ago/2026), o Claude (chat) supôs que controle de estoque seria construído do zero. Auditoria
@@ -1094,9 +1096,23 @@ todos os números batendo com a API.
 Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (limpo nos arquivos tocados) e
 `npx tsc -b`/`npm run build`, todos limpos.
 
-**9.4 — Multi-loja consolidado, plano Scale**
-- Estoque por unidade da rede, visão consolidada — conecta com a gestão de rede que o Scale já tem
-  (Fase 7). Prioridade mais baixa que 9.1–9.3, ainda em aberto se faz sentido agora ou depois.
+**9.4 — Multi-loja consolidado, plano Scale — adiada em 18/08/2026, precisa de spec própria**
+
+**Achado antes de começar, mudou o entendimento da fase**: o texto original supõe que "a gestão de
+rede que o Scale já tem (Fase 7)" existe de verdade — não existe. Conferido no código:
+`domain.Loja.UsuarioID` tem `unique` no banco (`backend/internal/domain/loja.go:28`) — cada login
+só pode ter **uma** loja, sempre, sem exceção hoje. "Multi-loja / gestão de rede consolidada" nunca
+saiu da matriz de recursos do Scale (só texto de marketing, `docs/drenux-planos-comissoes-definido.md`
+§5) — não existe nenhum código, nem parcial, de um usuário dono de mais de uma loja.
+
+Isso muda o tamanho real da 9.4: não é "um relatório consolidado em cima de algo que já existe"
+(como 9.1–9.3 foram), é uma mudança estrutural no produto inteiro — precisa decidir como um login
+passa a enxergar várias lojas (loja "matriz" com filiais? grupo solto de lojas independentes?),
+como cobrança/plano funciona nesse caso (uma assinatura Scale cobre a rede toda, ou cada loja paga
+a própria?), e revisar todo handler do sistema, que hoje assume `loja_id` único por token
+(`middleware.AuthRequired` seta um `loja_id` só na claim do JWT). Decisão do William: **adiar** —
+fica pendente de especificação própria antes de qualquer código, mesmo padrão já usado com a via
+PDF+IA da Fase 9.2 (não travar o resto do roadmap nisso).
 
 ## Backlog mais antigo, fora de escopo por enquanto (não iniciar sem o William pedir)
 
