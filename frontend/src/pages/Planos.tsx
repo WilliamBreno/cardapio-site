@@ -298,10 +298,10 @@ export function Planos() {
             <button
               key={p.aba}
               onClick={() => setAbaProva(i)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              className={`rounded-full px-4 py-1.5 text-sm font-medium ring-1 transition ${
                 abaProva === i
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-primary text-primary-foreground ring-primary'
+                  : 'text-muted-foreground ring-border hover:text-foreground hover:ring-foreground/30'
               }`}
             >
               {p.aba}
