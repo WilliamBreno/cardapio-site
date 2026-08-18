@@ -201,16 +201,30 @@ export function Planos() {
       </section>
 
       {/* Barra de confiança — sinaliza stack sério sem precisar de número
-          de cliente que ainda não temos. No mobile vira carrossel horizontal
-          (scroll com swipe) em vez de quebrar linha — os itens não podem
-          encolher (shrink-0) senão o texto espreme e volta a quebrar. */}
-      <section className="border-y border-border">
-        <div className="mx-auto flex max-w-4xl items-center justify-start gap-x-10 overflow-x-auto px-6 py-6 text-xs font-medium uppercase tracking-widest text-muted-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center sm:overflow-visible">
-          <span className="shrink-0">Pagamento via Mercado Pago</span>
-          <span className="shrink-0 text-primary/40">•</span>
-          <span className="shrink-0">Pix automático</span>
-          <span className="shrink-0 text-primary/40">•</span>
-          <span className="shrink-0">Avisos por WhatsApp</span>
+          de cliente que ainda não temos. No mobile anda sozinha (marquee
+          infinito) em vez de exigir swipe manual — conteúdo duplicado uma
+          vez pra loop sem salto (ver @keyframes marquee em index.css). No
+          desktop (sm:) fica estática e centralizada, como sempre foi. */}
+      <section className="overflow-hidden border-y border-border">
+        <div className="mx-auto max-w-4xl px-6 py-6">
+          <div className="hidden flex-wrap items-center justify-center gap-x-10 text-xs font-medium uppercase tracking-widest text-muted-foreground sm:flex">
+            <span>Pagamento via Mercado Pago</span>
+            <span className="text-primary/40">•</span>
+            <span>Pix automático</span>
+            <span className="text-primary/40">•</span>
+            <span>Avisos por WhatsApp</span>
+          </div>
+          <div className="flex w-max animate-[marquee_20s_linear_infinite] gap-x-10 text-xs font-medium uppercase tracking-widest text-muted-foreground motion-reduce:animate-none sm:hidden">
+            {[0, 1].map((i) => (
+              <div key={i} className="flex shrink-0 items-center gap-x-10" aria-hidden={i === 1}>
+                <span>Pagamento via Mercado Pago</span>
+                <span className="text-primary/40">•</span>
+                <span>Pix automático</span>
+                <span className="text-primary/40">•</span>
+                <span>Avisos por WhatsApp</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

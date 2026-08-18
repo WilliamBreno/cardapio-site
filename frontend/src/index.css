@@ -258,3 +258,18 @@
     }
   }
 }
+
+/* marquee: usado pela barra de confiança da página de Planos no mobile
+   (animate-[marquee_20s_linear_infinite] via classe arbitrária do
+   Tailwind). O conteúdo é renderizado em dois grupos idênticos lado a
+   lado (largura total = 2x um grupo) — andar exatamente -50% desliza o
+   primeiro grupo pra fora bem no instante em que o segundo (idêntico)
+   assume a mesma posição, sem salto visível no loop. */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
