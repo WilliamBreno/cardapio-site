@@ -869,8 +869,8 @@ por padrão seguir o mesmo critério de "uma fase por vez" das instruções lá 
 4. 7.5 (afiliados) — independente das outras, pode ser feita em paralelo/antes se o William preferir.
 
 ### Fase 9 — Controle de estoque (Pro relatório / Scale completo)
-Status: `[~] 9.1 implementada e testada em 18/08/2026 (ficha técnica + CMV automático, Scale) — 9.2
-em diante seguem pendentes, dependem de 9.1 existir`
+Status: `[~] 9.1 e 9.2 (só XML de NF-e) implementadas e testadas em 18/08/2026 — 9.3/9.4 seguem
+pendentes; a via "PDF via IA" de 9.2 foi conscientemente deixada de fora, ver nota na própria 9.2`
 
 **Importante, ler antes de mexer em qualquer coisa nessa fase**: quando essa fase foi rascunhada
 (ago/2026), o Claude (chat) supôs que controle de estoque seria construído do zero. Auditoria
@@ -979,10 +979,61 @@ do teste):**
 Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (limpo nos arquivos tocados) e
 `npx tsc -b`/`npm run build`, todos limpos.
 
-**9.2 — Importação em massa, plano Scale**
-- Via principal: XML de nota fiscal (NF-e) — dado estruturado, sem OCR/IA.
-- Via alternativa: PDF via IA, sempre com tela de conferência antes de confirmar.
-- Depende de 9.1 existir (precisa ter insumo cadastrado antes de importar entrada de insumo).
+**9.2 — Importação em massa, plano Scale — via XML implementada e testada em 18/08/2026; via PDF+IA
+deixada de fora conscientemente**
+
+**Decisão de escopo, confirmada com o William antes de implementar**: essa fase tinha duas vias. A
+via PDF+IA exigiria escolher um provedor de IA e configurar credenciais novas (nada disso existe
+hoje — o projeto não tem NENHUMA integração de IA/LLM real; "Sugestão Inteligente" é só um nome
+comercial pra um recurso configurado manualmente, não chama nenhum modelo) e teria custo recorrente
+por PDF processado — mesmo tipo de decisão que travou a integração do Mercado Pago até ter
+credenciais de verdade. Implementada só a via XML (autocontida, sem dependência externa); a via
+PDF+IA fica pendente até o William decidir provedor/orçamento.
+
+O que foi construído:
+- `NFeImportService` (`nfe_import_service.go`, novo) — parseia o XML da NF-e via `encoding/xml`
+  (structs próprias, só os campos usados: `nNF`, `xNome` do emitente, e por item `xProd`/`uCom`/
+  `qCom`/`vUnCom`). Aceita tanto `<nfeProc>` (nota + protocolo, formato mais comum ao baixar do
+  portal do fornecedor) quanto `<NFe>` solto — tenta o primeiro, cai pro segundo.
+- **Sem upload multipart**: o XML é texto, então o navegador lê o arquivo com `File.text()` e manda
+  o conteúdo como string dentro de um `POST` JSON normal — esse backend não tem nenhum mecanismo de
+  upload multipart em lugar nenhum (fotos vão direto do navegador pro Cloudinary, nunca passam pelo
+  backend), não fazia sentido introduzir um só pra isso.
+- **Fluxo em duas etapas, com tela de conferência sempre** (decisão: apliquei a mesma exigência de
+  "sempre conferir antes de confirmar" do texto original (que falava só da via PDF) também pro XML —
+  mesmo sendo dado estruturado, a interpretação de "isso é um insumo novo ou já existe?" e "qual a
+  unidade de uso na receita?" não dá pra saber só pelo XML, tem que ter humano decidindo):
+  1. `POST /admin/insumos/importar-nfe/preview` — só leitura, nenhuma escrita no banco. Devolve
+     número da nota, fornecedor, e cada item com uma sugestão de insumo já cadastrado (match exato
+     por nome, sem diferenciar maiúsculo/minúsculo) ou `null` se não achou.
+  2. `POST /admin/insumos/importar-nfe/confirmar` — aplica o que o admin decidiu linha a linha:
+     `vincular` (soma estoque + atualiza custo de um insumo existente), `criar` (cria um insumo
+     novo, exige que o admin informe a unidade de uso na receita e o fator de conversão — o XML só
+     diz a unidade de *compra*, não tem como inferir isso), ou `ignorar`.
+- **Bug achado e corrigido durante o teste ao vivo**: a quantidade da NF-e vem na unidade de
+  *compra* (`qCom`, ex: 5 KG), mas `Insumo.EstoqueAtual` é sempre guardado na unidade de *uso* (ex:
+  gramas) — a primeira versão somava a quantidade crua sem converter pelo fator, fazendo "comprei
+  5kg" virar "5g" no estoque (1000x errado). Corrigido multiplicando pelo fator de conversão nos
+  dois caminhos (`criar` e `vincular`) antes de gravar — confirmado depois com um teste real: 5kg
+  importados de um insumo com fator 1000 e 10g já em estoque resultaram em 5010g, não 15g.
+- Cada confirmação registra `MovimentacaoInsumo` (tipo `reposicao`, motivo "Importação NF-e nº X"),
+  reaproveitando a mesma tabela de auditoria da Fase 9.1.
+
+Frontend: `components/admin/ImportarNFeModal.tsx` (novo) — botão "Importar NF-e" em
+`Insumos.tsx`, seletor de arquivo `.xml`, tela de conferência com uma linha por item do XML
+(nome, quantidade/unidade/custo editáveis, seletor vincular/criar/ignorar, campos extras de
+unidade de uso + fator quando "criar").
+
+**Testado ao vivo** (loja de teste temporária, mesmo padrão da Fase 9.1) com um XML de NF-e de
+exemplo (2 itens: um batendo com um insumo já cadastrado por nome em caixa diferente — confirma
+o match sem diferenciar maiúsculo/minúsculo —, outro sem match nenhum): prévia mostrou os dois
+itens corretamente classificados (`vincular`/`criar` sugeridos certos), ajuste manual de unidade
+de uso funcionou, e a confirmação gravou os valores certos — só depois de achar e corrigir o bug
+de conversão de unidade acima (a primeira tentativa gravou valores 1000x menores, seria um erro
+sério em produção se não fosse pego no teste).
+
+Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (limpo nos arquivos tocados) e
+`npx tsc -b`/`npm run build`, todos limpos.
 
 **9.3 — Lista de compras automática + relatórios avançados, plano Scale**
 - Lista de compras: cruza ficha técnica (9.1) + estoque mínimo, sugere o que comprar.

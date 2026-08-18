@@ -4,6 +4,7 @@ import {
   buscarLoja, listarInsumos, criarInsumo, atualizarInsumo, deletarInsumo, type Insumo, type InsumoInput,
 } from '../../api/admin';
 import { Campo } from '../../components/Campo';
+import { ImportarNFeModal } from '../../components/admin/ImportarNFeModal';
 
 const formVazio: InsumoInput = {
   nome: '',
@@ -29,6 +30,7 @@ export function Insumos() {
   const [form, setForm] = useState<InsumoInput>(formVazio);
   const [comEstoque, setComEstoque] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [mostrarImportarNFe, setMostrarImportarNFe] = useState(false);
 
   const invalidar = () => queryClient.invalidateQueries({ queryKey: ['insumos'] });
 
@@ -112,9 +114,17 @@ export function Insumos() {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl tracking-wide text-tinta">Insumos</h1>
         {!mostrarForm && (
-          <button onClick={abrirNovo} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie">
-            + Novo insumo
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setMostrarImportarNFe(true)}
+              className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta"
+            >
+              Importar NF-e
+            </button>
+            <button onClick={abrirNovo} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie">
+              + Novo insumo
+            </button>
+          </div>
         )}
       </div>
 
@@ -268,6 +278,8 @@ export function Insumos() {
       ) : (
         <p className="text-tinta-suave">Nenhum insumo cadastrado ainda.</p>
       )}
+
+      {mostrarImportarNFe && <ImportarNFeModal onFechar={() => setMostrarImportarNFe(false)} />}
     </div>
   );
 }

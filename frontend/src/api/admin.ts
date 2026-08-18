@@ -422,3 +422,41 @@ export async function salvarFichaTecnica(produtoId: number, itens: FichaTecnicaI
   const { data } = await api.put<FichaTecnica>(`/admin/produtos/${produtoId}/ficha-tecnica`, { itens });
   return data;
 }
+
+// Importação de insumo via XML de NF-e (Fase 9.2) — exclusivo do plano
+// Scale. O XML chega como texto puro (lido no navegador via
+// File.text()), sem upload multipart.
+export interface ItemNFeImportado {
+  nome: string;
+  unidade: string;
+  quantidade: number;
+  valor_unitario: number;
+  insumo_sugerido: number | null;
+}
+
+export interface PreviewNFe {
+  numero_nota: string;
+  fornecedor: string;
+  itens: ItemNFeImportado[];
+}
+
+export async function previewImportacaoNFe(xml: string): Promise<PreviewNFe> {
+  const { data } = await api.post<PreviewNFe>('/admin/insumos/importar-nfe/preview', { xml });
+  return data;
+}
+
+export interface ConfirmarItemNFeInput {
+  acao: 'vincular' | 'criar' | 'ignorar';
+  insumo_id?: number | null;
+  nome?: string;
+  unidade_compra?: string;
+  unidade_uso?: string;
+  fator_conversao?: number;
+  quantidade: number;
+  valor_unitario: number;
+}
+
+export async function confirmarImportacaoNFe(numeroNota: string, itens: ConfirmarItemNFeInput[]): Promise<Insumo[]> {
+  const { data } = await api.post<Insumo[]>('/admin/insumos/importar-nfe/confirmar', { numero_nota: numeroNota, itens });
+  return data;
+}

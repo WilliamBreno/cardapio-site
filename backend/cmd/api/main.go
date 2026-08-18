@@ -138,6 +138,11 @@ func main() {
 	fichaTecnicaService := service.NewFichaTecnicaService(db)
 	fichaTecnicaHandler := handler.NewFichaTecnicaHandler(fichaTecnicaService, repository.NewLojaRepository(db))
 
+	// Importação de insumo via XML de NF-e (Fase 9.2 do roadmap) —
+	// mesmo gate de plano Scale acima.
+	nfeImportService := service.NewNFeImportService(db)
+	nfeImportHandler := handler.NewNFeImportHandler(nfeImportService, repository.NewLojaRepository(db))
+
 	distanciaService := service.NewDistanciaService()
 
 	var whatsappSender notification.NotificationSender
@@ -348,6 +353,8 @@ func main() {
 	admin.DELETE("/insumos/:id", insumoHandler.Deletar)
 	admin.GET("/produtos/:id/ficha-tecnica", fichaTecnicaHandler.Buscar)
 	admin.PUT("/produtos/:id/ficha-tecnica", fichaTecnicaHandler.Salvar)
+	admin.POST("/insumos/importar-nfe/preview", nfeImportHandler.Preview)
+	admin.POST("/insumos/importar-nfe/confirmar", nfeImportHandler.Confirmar)
 
 	admin.GET("/dashboard", dashboardHandler.Dados)
 

@@ -34,6 +34,18 @@ func (r *InsumoRepository) ListarPorLoja(lojaID uint) ([]domain.Insumo, error) {
 	return insumos, nil
 }
 
+// BuscarPorNome acha um insumo da loja com esse nome exato (sem
+// diferenciar maiúsculo/minúsculo) — usado na importação de NF-e (Fase
+// 9.2) pra sugerir um insumo já cadastrado em vez de sempre propor criar
+// um novo.
+func (r *InsumoRepository) BuscarPorNome(lojaID uint, nome string) (*domain.Insumo, error) {
+	var insumo domain.Insumo
+	if err := r.db.Where("loja_id = ? AND LOWER(nome) = LOWER(?)", lojaID, nome).First(&insumo).Error; err != nil {
+		return nil, err
+	}
+	return &insumo, nil
+}
+
 func (r *InsumoRepository) Atualizar(insumo *domain.Insumo) error {
 	return r.db.Save(insumo).Error
 }
