@@ -347,3 +347,78 @@ export async function ajustarEstoque(input: AjustarEstoqueInput): Promise<{ esto
   const { data } = await api.post<{ estoque_atual: number }>('/admin/estoque/ajustar', input);
   return data;
 }
+
+// Insumos + Ficha técnica + CMV automático (Fase 9.1) — exclusivo do
+// plano Scale, o backend recusa com 403 fora desse plano.
+export interface Insumo {
+  id: number;
+  loja_id: number;
+  nome: string;
+  unidade_compra: string;
+  unidade_uso: string;
+  fator_conversao: number;
+  custo_unidade_compra: number;
+  estoque_atual: number | null;
+  estoque_alerta: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InsumoInput {
+  nome: string;
+  unidade_compra: string;
+  unidade_uso: string;
+  fator_conversao: number;
+  custo_unidade_compra: number;
+  estoque_atual: number | null;
+  estoque_alerta: number | null;
+}
+
+export async function listarInsumos(): Promise<Insumo[]> {
+  const { data } = await api.get<Insumo[]>('/admin/insumos');
+  return data;
+}
+
+export async function criarInsumo(input: InsumoInput): Promise<Insumo> {
+  const { data } = await api.post<Insumo>('/admin/insumos', input);
+  return data;
+}
+
+export async function atualizarInsumo(id: number, input: InsumoInput): Promise<Insumo> {
+  const { data } = await api.put<Insumo>(`/admin/insumos/${id}`, input);
+  return data;
+}
+
+export async function deletarInsumo(id: number): Promise<void> {
+  await api.delete(`/admin/insumos/${id}`);
+}
+
+export interface FichaTecnicaItem {
+  id: number;
+  produto_id: number;
+  insumo_id: number;
+  insumo: Insumo;
+  quantidade: number;
+}
+
+export interface FichaTecnica {
+  itens: FichaTecnicaItem[];
+  cmv: number;
+  preco: number;
+  margem: number;
+}
+
+export interface FichaTecnicaItemInput {
+  insumo_id: number;
+  quantidade: number;
+}
+
+export async function buscarFichaTecnica(produtoId: number): Promise<FichaTecnica> {
+  const { data } = await api.get<FichaTecnica>(`/admin/produtos/${produtoId}/ficha-tecnica`);
+  return data;
+}
+
+export async function salvarFichaTecnica(produtoId: number, itens: FichaTecnicaItemInput[]): Promise<FichaTecnica> {
+  const { data } = await api.put<FichaTecnica>(`/admin/produtos/${produtoId}/ficha-tecnica`, { itens });
+  return data;
+}

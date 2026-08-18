@@ -23,24 +23,30 @@ import (
 // afiliado NÃO está aqui porque hoje só existe via Stripe Transfer,
 // específico de cada processador (ver MercadoPagoService.processarPosPagamento).
 type PosPagamentoService struct {
-	db                 *gorm.DB
-	pedidoRepo         *repository.PedidoRepository
-	lojaRepo           *repository.LojaRepository
-	usuarioRepo        *repository.UsuarioRepository
-	movimentacaoRepo   *repository.MovimentacaoEstoqueRepository
-	notificationSender notification.NotificationSender
-	emailSender        *notification.EmailSender
+	db                     *gorm.DB
+	pedidoRepo             *repository.PedidoRepository
+	lojaRepo               *repository.LojaRepository
+	usuarioRepo            *repository.UsuarioRepository
+	movimentacaoRepo       *repository.MovimentacaoEstoqueRepository
+	fichaTecnicaRepo       *repository.FichaTecnicaRepository
+	insumoRepo             *repository.InsumoRepository
+	movimentacaoInsumoRepo *repository.MovimentacaoInsumoRepository
+	notificationSender     notification.NotificationSender
+	emailSender            *notification.EmailSender
 }
 
 func NewPosPagamentoService(db *gorm.DB, notificationSender notification.NotificationSender, emailSender *notification.EmailSender) *PosPagamentoService {
 	return &PosPagamentoService{
-		db:                 db,
-		pedidoRepo:         repository.NewPedidoRepository(db),
-		lojaRepo:           repository.NewLojaRepository(db),
-		usuarioRepo:        repository.NewUsuarioRepository(db),
-		movimentacaoRepo:   repository.NewMovimentacaoEstoqueRepository(db),
-		notificationSender: notificationSender,
-		emailSender:        emailSender,
+		db:                     db,
+		pedidoRepo:             repository.NewPedidoRepository(db),
+		lojaRepo:               repository.NewLojaRepository(db),
+		usuarioRepo:            repository.NewUsuarioRepository(db),
+		movimentacaoRepo:       repository.NewMovimentacaoEstoqueRepository(db),
+		fichaTecnicaRepo:       repository.NewFichaTecnicaRepository(db),
+		insumoRepo:             repository.NewInsumoRepository(db),
+		movimentacaoInsumoRepo: repository.NewMovimentacaoInsumoRepository(db),
+		notificationSender:     notificationSender,
+		emailSender:            emailSender,
 	}
 }
 
@@ -66,6 +72,9 @@ func (s *PosPagamentoService) ProcessarPedidoPago(pedidoID uint) {
 	produtoRepo := repository.NewProdutoRepository(s.db)
 
 	for _, item := range pedido.Itens {
+		if s.descontarInsumosSeFichaTecnica(loja, pedido.ID, item.ProdutoID, item.Quantidade) {
+			continue
+		}
 		if alerta := s.descontarEstoque(produtoRepo, loja.ID, pedido.ID, item.ProdutoID, item.VariacaoID, item.ProdutoNome, item.Quantidade); alerta != nil {
 			s.notificarAlertaEstoque(pedido, loja, alerta.nome, alerta.restante)
 		}
@@ -79,6 +88,9 @@ func (s *PosPagamentoService) ProcessarPedidoPago(pedidoID uint) {
 	for _, combo := range pedido.Combos {
 		for _, item := range combo.Itens {
 			qtd := item.Quantidade * combo.Quantidade
+			if s.descontarInsumosSeFichaTecnica(loja, pedido.ID, item.ProdutoID, qtd) {
+				continue
+			}
 			if alerta := s.descontarEstoque(produtoRepo, loja.ID, pedido.ID, item.ProdutoID, item.VariacaoID, item.ProdutoNome, qtd); alerta != nil {
 				s.notificarAlertaEstoque(pedido, loja, alerta.nome, alerta.restante)
 			}
@@ -150,6 +162,84 @@ func (s *PosPagamentoService) descontarEstoque(produtoRepo *repository.ProdutoRe
 		return nil
 	}
 	return &itemEmAlerta{nome: produtoNome, restante: restante}
+}
+
+// descontarInsumosSeFichaTecnica desconta os insumos da ficha técnica de
+// um produto (Fase 9.1), multiplicando a quantidade de cada insumo pela
+// quantidade vendida do produto. Devolve true se o produto tinha ficha
+// técnica (mesmo que algum insumo não tenha controle de estoque ativo) —
+// nesse caso o chamador NÃO deve cair pro desconto de estoque simples do
+// produto/variação (Fase 8), os dois caminhos são mutuamente exclusivos
+// por produto. Devolve false se o produto não tem ficha técnica, caso em
+// que o chamador segue pro caminho antigo, sem mudança nenhuma.
+//
+// Escopo v1: a ficha técnica é do produto, não da variação — a
+// quantidade de cada insumo não muda conforme a variação escolhida (ver
+// domain.FichaTecnicaItem).
+func (s *PosPagamentoService) descontarInsumosSeFichaTecnica(loja *domain.Loja, pedidoID, produtoID uint, quantidadeVendida int) bool {
+	temFicha, err := s.fichaTecnicaRepo.ExisteFichaTecnica(produtoID)
+	if err != nil {
+		log.Printf("erro ao verificar ficha técnica do produto %d: %v", produtoID, err)
+		return false
+	}
+	if !temFicha {
+		return false
+	}
+
+	itens, err := s.fichaTecnicaRepo.BuscarPorProduto(produtoID)
+	if err != nil {
+		log.Printf("erro ao carregar ficha técnica do produto %d: %v", produtoID, err)
+		return true
+	}
+
+	for _, item := range itens {
+		quantidadeConsumida := item.Quantidade * float64(quantidadeVendida)
+		restante, err := s.insumoRepo.SubtrairEstoque(item.InsumoID, quantidadeConsumida)
+		if err != nil {
+			log.Printf("erro ao subtrair estoque do insumo %d: %v", item.InsumoID, err)
+			continue
+		}
+		if restante < 0 {
+			continue // insumo sem controle de estoque ativo, ignora
+		}
+
+		s.registrarMovimentoInsumoVenda(loja.ID, item.InsumoID, pedidoID, quantidadeConsumida, restante)
+
+		insumo, emAlerta := s.insumoRepo.BuscarEstoqueAlerta(item.InsumoID)
+		if emAlerta {
+			s.notificarAlertaInsumo(loja, insumo.Nome, restante)
+		}
+	}
+	return true
+}
+
+func (s *PosPagamentoService) registrarMovimentoInsumoVenda(lojaID, insumoID, pedidoID uint, quantidade, estoqueResultante float64) {
+	mov := domain.MovimentacaoInsumo{
+		LojaID:            lojaID,
+		InsumoID:          insumoID,
+		Tipo:              domain.MovimentoEstoqueVenda,
+		Quantidade:        -quantidade,
+		EstoqueResultante: estoqueResultante,
+		PedidoID:          &pedidoID,
+	}
+	if err := s.movimentacaoInsumoRepo.Criar(&mov); err != nil {
+		log.Printf("aviso: não foi possível registrar movimentação de venda do insumo %d (pedido %d): %v", insumoID, pedidoID, err)
+	}
+}
+
+func (s *PosPagamentoService) notificarAlertaInsumo(loja *domain.Loja, nomeInsumo string, restante float64) {
+	if s.notificationSender == nil || loja.WhatsappNumero == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	aviso := fmt.Sprintf("⚠️ Alerta de estoque — %s\n\nO insumo *%s* chegou a %.2f restante(s).", loja.Nome, nomeInsumo, restante)
+	if restante == 0 {
+		aviso = fmt.Sprintf("⚠️ Estoque esgotado — %s\n\nO insumo *%s* acabou. Produtos que dependem dele podem ficar sem poder ser preparados até repor.", loja.Nome, nomeInsumo)
+	}
+	if err := s.notificationSender.EnviarTextoAdmin(ctx, loja.WhatsappNumero, aviso); err != nil {
+		log.Printf("falha ao enviar alerta de estoque de insumo: %v", err)
+	}
 }
 
 // registrarMovimentoVenda grava a linha de histórico (Fase 8) de um

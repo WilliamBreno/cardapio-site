@@ -42,9 +42,22 @@ export function Dashboard() {
         })()
       : comGuardados;
 
+  // Insumos (Fase 9.1) — ficha técnica + CMV automático, exclusivo do
+  // Scale — mesmo espírito acima, entra logo depois de "Estoque".
+  const comInsumos =
+    loja?.plano === 'scale'
+      ? (() => {
+          const indiceEstoque = comEstoque.findIndex((l) => l.to === '/admin/estoque');
+          const posicao = indiceEstoque === -1 ? comEstoque.findIndex((l) => l.to === '/admin/produtos') : indiceEstoque;
+          const copia = [...comEstoque];
+          copia.splice(posicao + 1, 0, { to: '/admin/insumos', label: 'Insumos' });
+          return copia;
+        })()
+      : comEstoque;
+
   // "Combo" vira "Kit" pra loja "mercadoria" (ver rotuloCombo).
   const rotuloCombos = `${rotuloCombo(loja?.segmento_principal)}s`;
-  const links = comEstoque.map((link) =>
+  const links = comInsumos.map((link) =>
     link.to === '/admin/combos' ? { ...link, label: rotuloCombos } : link
   );
 

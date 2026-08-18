@@ -530,45 +530,6 @@ drenux.com.br. 7.3 (limite do Start) e 7.5 (fórmula de afiliado/bônus) **não 
 nessa auditoria** — seguem só com a validação de build da implementação original, sem teste contra
 um mês real batendo o limite nem uma indicação de afiliado com transação de verdade.
 
-**Correção na faixa do Scale (17/08/2026, a pedido do William)**: testando o simulador da página de
-planos, achei que o Scale (flat 1,1% desde o lançamento) nunca era o mais barato em nenhum
-faturamento — a taxa marginal do Pro acima de R$20k (1,05%) já era menor que o flat do Scale, então
-"Scale = volume alto, custo mínimo" nunca foi verdade na prática, só na descrição do plano. Corrigido
-dando ao Scale uma segunda faixa, igual Basic/Pro já tinham: `{20000, 1.1%}, {0, 0.99%}` (o piso de
-custo real do Mercado Pago) — mudado em `faixasComissaoPorPlano` (`mercadopago_service.go`) e
-`PLANOS` (`frontend/src/lib/planos.ts`), juntos. Isso cria um cruzamento real com o Pro em
-~R$353.400/mês — alto, mas existe. Abaixo disso, o motivo de escolher Scale continua sendo o
-controle de estoque completo, não o preço (nota explicando isso foi adicionada na própria página).
-
-**Revisão da correção acima (18/08/2026, a pedido do William)**: mesmo com o cruzamento existindo
-matematicamente, o simulador só arrastava até R$50 mil — ninguém alcançava R$353 mil de verdade.
-William: "o scale atual só compensa pra empresas enormes [...] temos que reajustar isso, nem que
-seja necessário diminuir as taxas do scale". Investigando, a taxa já estava no piso permitido pelo
-guardrail (§4 do doc de comissões, ~0,99%) — não dava pra descer mais taxa sem violar o próprio
-guardrail. A alavanca real era a mensalidade: **Scale caiu de R$349 pra R$149,90/mês**, e a
-comissão foi achatada pra **0,99% flat desde R$0** (era só acima de R$20k). Resultado: cruzamento
-com o Pro em ~R$9.960/mês, com o Basic em ~R$20.940/mês — dentro do alcance normal do simulador,
-confirmado ao vivo via Playwright (R$25 mil → card do Scale mostra "Mais barato").
-
-Efeito colateral encontrado e discutido com o William antes de implementar: com a mensalidade do
-Pro (R$99) tão perto da nova mensalidade do Scale (R$149,90), **o Pro passou a nunca ser o mais
-barato dos três, em faturamento nenhum** — testei alternativas (baixar a taxa do Pro: quebra a
-janela do Scale ao inflar o mensalidade-gap necessário; subir a taxa do Basic: precisaria quase
-dobrar a faixa mais alta dele, de 1,3% pra ~1,6-1,7%, pra abrir uma janela de Pro de só ~R$1,3 mil,
-o que não compensa a perda de competitividade do Basic). William confirmou aceitar essa
-consequência — o Pro segue existindo como "os mesmos recursos do Scale, mensalidade menor, sem
-compromisso de alto volume", não como opção de menor custo. `Planos.tsx` ganhou um aviso explicando
-isso (substituindo o antigo aviso sobre o Scale só compensar em faturamento alto, que deixou de ser
-verdade). A funcionalidade adicionada na correção de 17/08 pra alcançar um cruzamento distante
-(campo de digitar valor exato até R$500 mil, atalho "ver quando o Scale compensa",
-`FATURAMENTO_MAX_ANALISE`) foi removida — o cruzamento agora cabe dentro do slider normal
-(R$50 mil), então essa complexidade parou de resolver um problema real.
-
-Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (arquivos tocados limpos), `npx tsc -b` e
-`npm run build`, todos limpos. Nenhuma credencial real de Stripe nesse ambiente — mudar a
-mensalidade do Scale em produção também exige um novo `lookup_key`/Price na Stripe (Price é
-imutável, mesma ressalva já registrada pro Pro na Fase 7.1), não é só código.
-
 **O que foi feito nessa sessão (7.1 + 7.2):**
 
 - **Planos renomeados/redefinidos em todo lugar que lia `Loja.Plano`**: `ordemPlano` (agora
@@ -906,6 +867,131 @@ por padrão seguir o mesmo critério de "uma fase por vez" das instruções lá 
 3. 7.4 (gates de funcionalidade) — rastreamento de entrega pode virar sub-fase própria (7.4.1) por
    causa do tamanho, ver nota acima.
 4. 7.5 (afiliados) — independente das outras, pode ser feita em paralelo/antes se o William preferir.
+
+### Fase 9 — Controle de estoque (Pro relatório / Scale completo)
+Status: `[~] 9.1 implementada e testada em 18/08/2026 (ficha técnica + CMV automático, Scale) — 9.2
+em diante seguem pendentes, dependem de 9.1 existir`
+
+**Importante, ler antes de mexer em qualquer coisa nessa fase**: quando essa fase foi rascunhada
+(ago/2026), o Claude (chat) supôs que controle de estoque seria construído do zero. Auditoria
+confirmou que **isso já existe e roda em produção**, só nunca foi documentado em nenhum arquivo do
+roadmap — mesmo tipo de desconexão que já aconteceu com a Fase 7 antes. A partir de agora, o que
+já existe fica registrado abaixo; não reconstruir.
+
+**O que já existe (confirmado por auditoria, NÃO reconstruir)**
+- `frontend/src/pages/admin/Estoque.tsx` — aba no menu, visível só pra Pro/Scale.
+- **Pro**: relatório somente leitura — lista de itens com estoque controlado, status "Esgotado" /
+  "Estoque baixo — N unidade(s)" / "N unidade(s)". Não edita por lá.
+- **Scale**: tudo do Pro, mais botão "Gerenciar" → modal com "Repor estoque" (soma um delta, motivo
+  opcional) e "Ajustar pra um valor" (define valor absoluto, motivo **obrigatório**), mais aba de
+  histórico de movimentação.
+- `domain.Produto` e `domain.VariacaoProduto` já têm `EstoqueAtual *int` + `EstoqueAlerta *int`
+  (nil = sem controle/ilimitado). Se a variação tiver valor preenchido, tem precedência sobre o
+  estoque geral do produto. `Combo` não tem campo de estoque — desconta dos produtos-componente na
+  hora da venda.
+- Desconto na venda é **atômico via SQL** (`GREATEST(estoque_atual - ?, 0)`) — já evita race
+  condition entre pagamentos concorrentes. O ponto de atenção que eu tinha levantado antes
+  ("dois clientes pegam a última unidade ao mesmo tempo") **já está resolvido**, não é mais item
+  em aberto.
+- Ao zerar: `Disponivel = false` automático no produto/variação, roda pra loja de qualquer plano
+  (o campo existe geral, só a tela de gestão é que é gateada Pro/Scale). Ao repor acima de zero
+  (via Scale): `Disponivel = true` automático.
+- Alerta é **WhatsApp**, não e-mail — `notificarAlertaEstoque`, mensagem diferente pra "estoque
+  baixo" (abaixo do limiar) vs "esgotado" (zerou e pausou sozinho).
+- `MovimentacaoEstoque` — tabela de auditoria já migrada, registra cada venda e cada
+  reposição/ajuste manual, com estoque resultante e referência ao pedido quando aplicável. A
+  "contagem física / auditoria formal" que eu tinha desenhado como sub-fase nova **já está
+  coberta** por isso — não precisa de sub-fase própria.
+
+**O que falta de verdade — únicos itens que são construção nova**
+
+**9.1 — Ficha técnica + CMV automático, plano Scale — implementada e testada em 18/08/2026**
+
+O que foi construído (backend):
+- `domain.Insumo` (tabela `insumos`, nova): `UnidadeCompra`/`UnidadeUso` livres (texto — "kg"/"g",
+  "fardo"/"unidade" etc., sem lista fechada), `FatorConversao` (quantas `UnidadeUso` equivalem a 1
+  `UnidadeCompra`) e `CustoUnidadeCompra`. `CustoPorUnidadeUso()` é sempre **derivado na hora**
+  (`CustoUnidadeCompra / FatorConversao`), nunca guardado — é assim que o CMV fica automático de
+  verdade: não existe um valor cacheado de custo pra invalidar/recalcular quando o preço do insumo
+  muda, o cálculo já lê o valor atual sempre. Estoque próprio do insumo (`EstoqueAtual`/
+  `EstoqueAlerta`, `*float64` — insumo se mede em fração, diferente do estoque de produto que é
+  `*int`), opcional, mesmo espírito nil=sem controle de `domain.Produto`.
+- `domain.FichaTecnicaItem` (tabela `ficha_tecnica_itens`, nova): insumo + quantidade por produto.
+  **Escopo v1, decisão consciente**: a ficha técnica é do **produto**, não da variação — todo
+  pedido desse produto consome a mesma receita, independente da variação escolhida. Ficha técnica
+  por variação não foi pedida agora, fica pra depois se precisar.
+- `domain.MovimentacaoInsumo` (tabela `movimentacoes_insumo`, nova, própria — não reaproveita
+  `MovimentacaoEstoque` porque lá `ProdutoID` é `NOT NULL`): mesmo padrão de auditoria da Fase 8
+  (venda/reposição/ajuste, reaproveitando o enum `TipoMovimentoEstoque` já existente).
+- `InsumoService`/`FichaTecnicaService` (+ handlers/rotas, `GET/POST/PUT/DELETE /admin/insumos`,
+  `GET/PUT /admin/produtos/:id/ficha-tecnica`) — CRUD com checagem de dono, mesmo padrão de
+  `SubcategoriaService`/`ComboService`. Insumo usado em alguma ficha técnica não pode ser excluído
+  (mensagem amigável, mesmo padrão de `ComboRepository.ExisteComComponente`). Salvar a ficha
+  técnica substitui a lista inteira (apaga+recria numa transação), mesmo padrão de
+  `ComboRepository.Atualizar`.
+- **Integração no momento da venda** (`PosPagamentoService.descontarInsumosSeFichaTecnica`, novo,
+  chamado antes de `descontarEstoque` tanto pra item avulso quanto pra componente de combo): se o
+  produto tem ficha técnica, desconta cada insumo (quantidade da receita × quantidade vendida) —
+  **atômico via SQL** (`GREATEST`, mesmo padrão de `ProdutoRepository.SubtrairEstoque`, evita race
+  condition entre pagamentos concorrentes) — e **não** cai mais no desconto de estoque simples do
+  produto/variação (os dois caminhos são mutuamente exclusivos por produto). Alerta de estoque
+  baixo/esgotado por WhatsApp, mesmo padrão do alerta de produto (`notificarAlertaInsumo`, mensagem
+  própria porque "produto" não faria sentido no texto pra um insumo).
+- `GET /admin/produtos/:id/ficha-tecnica` devolve `{itens, cmv, preco, margem}` — CMV somado a
+  partir do custo por unidade de uso de cada insumo, margem = preço − CMV.
+
+Frontend:
+- `pages/admin/Insumos.tsx` (rota `/admin/insumos`, nova) — CRUD de insumo, mesmo padrão visual de
+  `Cupons.tsx`. Bloqueado com upsell fora do Scale (mesmo padrão de `Estoque.tsx`).
+- `components/admin/FichaTecnicaModal.tsx` (novo) — aberto por um botão "Ficha técnica" no card do
+  produto em `Produtos.tsx` (só aparece pra loja Scale). Lista insumo+quantidade editável, CMV/
+  margem **recalculados no cliente a cada tecla** (mesma fórmula do backend, sem round-trip) e
+  reconciliados com a resposta real do servidor só ao salvar.
+- Link "Insumos" no menu (`Dashboard.tsx`), só pra loja Scale, logo depois de "Estoque".
+
+**Ressalvas de escopo, decididas conscientemente, não esquecidas:**
+1. Insumo achando estoque insuficiente **não bloqueia o checkout nem pausa o produto
+   automaticamente** — o consumo é só descontado (podendo ficar negativo pro GREATEST truncar em
+   zero) depois do pagamento confirmado, igual produto simples. Reservar estoque de insumo no
+   carrinho, ou pausar produto quando falta insumo, não foi pedido nessa fase — ficaria pra uma
+   fase própria se o William quiser.
+2. CMV só aparece dentro do modal de ficha técnica — não foi adicionado à listagem de produtos nem
+   a nenhum relatório novo (isso seria mais próximo de "9.3 — relatórios avançados").
+
+**Testado ao vivo (loja de teste temporária, promovida pra Scale direto no banco, removida depois
+do teste):**
+- CRUD de insumo via navegador: criar "Carne bovina moída" (kg → g, fator 1000, R$32/kg) — custo
+  por grama calculado e exibido corretamente (R$0,03/g) tanto no formulário quanto na listagem.
+- Ficha técnica de um produto ("Burguer Bacon", R$28): adicionar 100g de carne — CMV ao vivo no
+  modal bateu R$3,20, margem R$24,80, idêntico ao que o backend devolveu no `PUT`. Fechar e reabrir
+  o modal confirma que persiste certinho.
+- **Desconto automático na venda**, testado chamando `PosPagamentoService.ProcessarPedidoPago` de
+  ponta a ponta (o caminho real de pós-pagamento, não uma simulação isolada) num pedido de 2x
+  Burguer Bacon: insumo com 500g em estoque foi pra 300g (200g = 100g × 2, confirmado pelo SQL
+  `GREATEST(estoque_atual - 200, 0)` no log), e a movimentação ficou registrada
+  (`tipo=venda quantidade=-200 estoque_resultante=300 pedido_id=<o pedido de teste>`). Confirma que
+  o produto com ficha técnica realmente pulou o desconto de estoque simples (nenhuma query ao
+  estoque de `produtos` pra esse item) e foi só pelo caminho de insumo.
+- Não foi possível testar o alerta de WhatsApp de insumo baixo/esgotado nem o auto-pause (não
+  existe pra insumo, ver ressalva 1 acima) contra um número real — o mecanismo é idêntico ao já
+  comprovado em produção pra alerta de produto (Fase 8), risco baixo.
+
+Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (limpo nos arquivos tocados) e
+`npx tsc -b`/`npm run build`, todos limpos.
+
+**9.2 — Importação em massa, plano Scale**
+- Via principal: XML de nota fiscal (NF-e) — dado estruturado, sem OCR/IA.
+- Via alternativa: PDF via IA, sempre com tela de conferência antes de confirmar.
+- Depende de 9.1 existir (precisa ter insumo cadastrado antes de importar entrada de insumo).
+
+**9.3 — Lista de compras automática + relatórios avançados, plano Scale**
+- Lista de compras: cruza ficha técnica (9.1) + estoque mínimo, sugere o que comprar.
+- Relatórios: produtos parados, giro de estoque, valor total parado em estoque, insumos que mais
+  saem — confirmar se algum desses já existe em algum relatório atual antes de construir do zero.
+
+**9.4 — Multi-loja consolidado, plano Scale**
+- Estoque por unidade da rede, visão consolidada — conecta com a gestão de rede que o Scale já tem
+  (Fase 7). Prioridade mais baixa que 9.1–9.3, ainda em aberto se faz sentido agora ou depois.
 
 ## Backlog mais antigo, fora de escopo por enquanto (não iniciar sem o William pedir)
 

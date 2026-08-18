@@ -11,6 +11,7 @@ import type { Produto, VariacaoProduto } from '../../api/types';
 import { ProdutoFormFields } from '../../components/admin/ProdutoFormFields';
 import { VariacaoFormFields } from '../../components/admin/VariacaoFormFields';
 import { CadastroEmMassaDialog } from '../../components/admin/CadastroEmMassaDialog';
+import { FichaTecnicaModal } from '../../components/admin/FichaTecnicaModal';
 import { InfoTooltip } from '../../components/InfoTooltip';
 import { enviarImagem, logoMiniatura } from '../../api/upload';
 import { rotuloCatalogo } from '../../lib/utils';
@@ -164,6 +165,7 @@ export function Produtos() {
 
   // Fotos
   const [produtoFotos, setProdutoFotos] = useState<number | null>(null);
+  const [produtoFichaTecnica, setProdutoFichaTecnica] = useState<Produto | null>(null);
   const [enviandoFotoProduto, setEnviandoFotoProduto] = useState(false);
 
   const salvando = mutCriar.isPending || mutAtualizar.isPending;
@@ -275,6 +277,14 @@ export function Produtos() {
               >
                 Variações
               </button>
+              {loja?.plano === 'scale' && (
+                <button
+                  onClick={() => setProdutoFichaTecnica(produto)}
+                  className="rounded-full border border-tinta/15 px-2 py-1 text-xs font-semibold text-tinta-suave hover:border-acento hover:text-acento"
+                >
+                  Ficha técnica
+                </button>
+              )}
               <button onClick={() => alternarDisponibilidade(produto)} className={`rounded-full px-2 py-1 text-xs font-semibold ${produto.disponivel ? 'bg-douro/20 text-douro' : 'bg-tinta/10 text-tinta-suave'}`}>
                 {produto.disponivel ? 'Disponível' : 'Pausado'}
               </button>
@@ -526,6 +536,10 @@ export function Produtos() {
         </div>
       ) : (
         <p className="text-tinta-suave">Nenhum produto cadastrado ainda.</p>
+      )}
+
+      {produtoFichaTecnica && (
+        <FichaTecnicaModal produto={produtoFichaTecnica} onFechar={() => setProdutoFichaTecnica(null)} />
       )}
     </div>
   );

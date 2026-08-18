@@ -51,6 +51,9 @@ func main() {
 		&domain.SugestaoProduto{},
 		&domain.ConfiguracaoPlataforma{},
 		&domain.MovimentacaoEstoque{},
+		&domain.Insumo{},
+		&domain.FichaTecnicaItem{},
+		&domain.MovimentacaoInsumo{},
 	); err != nil {
 		log.Fatalf("erro ao migrar o banco: %v", err)
 	}
@@ -127,6 +130,13 @@ func main() {
 	// controle completo com reposição/histórico (Scale).
 	estoqueService := service.NewEstoqueService(db)
 	estoqueHandler := handler.NewEstoqueHandler(estoqueService, repository.NewLojaRepository(db))
+
+	// Insumo + Ficha técnica + CMV automático (Fase 9.1 do roadmap) —
+	// exclusivo do plano Scale, mesmo gate de EstoqueHandler nível 2.
+	insumoService := service.NewInsumoService(db)
+	insumoHandler := handler.NewInsumoHandler(insumoService, repository.NewLojaRepository(db))
+	fichaTecnicaService := service.NewFichaTecnicaService(db)
+	fichaTecnicaHandler := handler.NewFichaTecnicaHandler(fichaTecnicaService, repository.NewLojaRepository(db))
 
 	distanciaService := service.NewDistanciaService()
 
@@ -329,6 +339,15 @@ func main() {
 	admin.GET("/estoque/movimentacoes", estoqueHandler.Movimentacoes)
 	admin.POST("/estoque/repor", estoqueHandler.Repor)
 	admin.POST("/estoque/ajustar", estoqueHandler.Ajustar)
+
+	// Fase 9.1: insumo + ficha técnica + CMV automático — exclusivo do
+	// plano Scale, gate dentro do próprio handler (mesmo padrão acima).
+	admin.GET("/insumos", insumoHandler.Listar)
+	admin.POST("/insumos", insumoHandler.Criar)
+	admin.PUT("/insumos/:id", insumoHandler.Atualizar)
+	admin.DELETE("/insumos/:id", insumoHandler.Deletar)
+	admin.GET("/produtos/:id/ficha-tecnica", fichaTecnicaHandler.Buscar)
+	admin.PUT("/produtos/:id/ficha-tecnica", fichaTecnicaHandler.Salvar)
 
 	admin.GET("/dashboard", dashboardHandler.Dados)
 
