@@ -279,19 +279,22 @@ type faixaComissao struct {
 // Start não entra aqui: não tem split de pagamento, logo não gera comissão
 // nenhuma.
 //
-// Scale ganhou uma segunda faixa (17/08/2026, a pedido do William): flat em
-// 1,1% até então fazia o Pro sempre sair mais barato, em qualquer
-// faturamento — a taxa marginal do Pro acima de R$20k (1,05%) já era menor
-// que o flat do Scale, então "Scale = volume alto, custo mínimo" nunca era
-// verdade de fato, só na descrição. Com 0,99% (o piso de custo real do
-// Mercado Pago, mesmo guardrail dos outros planos) acima de R$20k, o Scale
-// passa a compensar de verdade a partir de ~R$353.400/mês de faturamento —
-// alto, mas existe. Abaixo disso, o motivo de escolher Scale continua
-// sendo o controle de estoque completo, não o preço.
+// Scale (18/08/2026, a pedido do William, revisando a correção do dia
+// anterior): a faixa em dois degraus (1,1% até R$20k, 0,99% acima) só
+// fazia o Scale compensar o Pro a partir de ~R$353.400/mês — faturamento
+// grande demais pra a maioria das lojas nunca ver esse cruzamento na
+// prática. O guardrail em docs/drenux-planos-comissoes-definido.md § 4 já
+// permite Pro/Scale operarem rente ao custo real do Mercado Pago (~0,99%)
+// porque a mensalidade cobre a diferença — então achatamos pra 0,99% flat
+// desde R$0 (era o piso só acima de R$20k, agora vale o GMV inteiro) e
+// baixamos a mensalidade de R$349 pra R$149,90 (ver valoresMensalidadePlano
+// em stripe_service.go, tem que mudar junto). Combinado, o cruzamento com o
+// Pro cai pra ~R$9.960/mês e com o Basic pra ~R$20.940/mês — bem mais
+// realista pra loja que já processa pagamento e cresceu.
 var faixasComissaoPorPlano = map[string][]faixaComissao{
 	"basic": {{5000, 2.4}, {20000, 1.5}, {0, 1.3}},
 	"pro":   {{5000, 1.8}, {20000, 1.2}, {0, 1.05}},
-	"scale": {{20000, 1.1}, {0, 0.99}},
+	"scale": {{0, 0.99}},
 }
 
 // calcularComissaoEscalonada devolve a comissão da Drenux sobre um pedido,

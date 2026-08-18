@@ -540,6 +540,35 @@ custo real do Mercado Pago) — mudado em `faixasComissaoPorPlano` (`mercadopago
 ~R$353.400/mês — alto, mas existe. Abaixo disso, o motivo de escolher Scale continua sendo o
 controle de estoque completo, não o preço (nota explicando isso foi adicionada na própria página).
 
+**Revisão da correção acima (18/08/2026, a pedido do William)**: mesmo com o cruzamento existindo
+matematicamente, o simulador só arrastava até R$50 mil — ninguém alcançava R$353 mil de verdade.
+William: "o scale atual só compensa pra empresas enormes [...] temos que reajustar isso, nem que
+seja necessário diminuir as taxas do scale". Investigando, a taxa já estava no piso permitido pelo
+guardrail (§4 do doc de comissões, ~0,99%) — não dava pra descer mais taxa sem violar o próprio
+guardrail. A alavanca real era a mensalidade: **Scale caiu de R$349 pra R$149,90/mês**, e a
+comissão foi achatada pra **0,99% flat desde R$0** (era só acima de R$20k). Resultado: cruzamento
+com o Pro em ~R$9.960/mês, com o Basic em ~R$20.940/mês — dentro do alcance normal do simulador,
+confirmado ao vivo via Playwright (R$25 mil → card do Scale mostra "Mais barato").
+
+Efeito colateral encontrado e discutido com o William antes de implementar: com a mensalidade do
+Pro (R$99) tão perto da nova mensalidade do Scale (R$149,90), **o Pro passou a nunca ser o mais
+barato dos três, em faturamento nenhum** — testei alternativas (baixar a taxa do Pro: quebra a
+janela do Scale ao inflar o mensalidade-gap necessário; subir a taxa do Basic: precisaria quase
+dobrar a faixa mais alta dele, de 1,3% pra ~1,6-1,7%, pra abrir uma janela de Pro de só ~R$1,3 mil,
+o que não compensa a perda de competitividade do Basic). William confirmou aceitar essa
+consequência — o Pro segue existindo como "os mesmos recursos do Scale, mensalidade menor, sem
+compromisso de alto volume", não como opção de menor custo. `Planos.tsx` ganhou um aviso explicando
+isso (substituindo o antigo aviso sobre o Scale só compensar em faturamento alto, que deixou de ser
+verdade). A funcionalidade adicionada na correção de 17/08 pra alcançar um cruzamento distante
+(campo de digitar valor exato até R$500 mil, atalho "ver quando o Scale compensa",
+`FATURAMENTO_MAX_ANALISE`) foi removida — o cruzamento agora cabe dentro do slider normal
+(R$50 mil), então essa complexidade parou de resolver um problema real.
+
+Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (arquivos tocados limpos), `npx tsc -b` e
+`npm run build`, todos limpos. Nenhuma credencial real de Stripe nesse ambiente — mudar a
+mensalidade do Scale em produção também exige um novo `lookup_key`/Price na Stripe (Price é
+imutável, mesma ressalva já registrada pro Pro na Fase 7.1), não é só código.
+
 **O que foi feito nessa sessão (7.1 + 7.2):**
 
 - **Planos renomeados/redefinidos em todo lugar que lia `Loja.Plano`**: `ordemPlano` (agora

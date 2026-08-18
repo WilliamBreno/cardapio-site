@@ -47,11 +47,24 @@ no prejuízo.
 - Automação (carrinho abandonado etc.)
 - Suporte prioritário
 
-### Scale — R$349/mês
+### Scale — R$149,90/mês
+*(revisado em 18/08/2026, ver nota abaixo)*
 - Tudo do Pro
-- Comissão flat: **1,1%** sobre todo o GMV
+- Comissão flat: **0,99%** sobre todo o GMV (piso de custo real do Mercado Pago)
 - Multi-loja / gestão de rede consolidada
 - Suporte dedicado
+
+**Nota de revisão (18/08/2026)**: o valor original desta seção (R$349/mês + 1,1% flat) fazia o
+Scale só compensar em custo a partir de ~R$353 mil/mês de GMV — faturamento alto demais pra a
+imensa maioria das lojas ver esse cruzamento na prática (William: "só compensa pra empresas
+enormes"). A taxa já estava no piso possível (guardrail §4), então a correção foi na mensalidade:
+caiu pra R$149,90. Consequência aceita conscientemente: com a mensalidade do Pro (R$99) tão perto
+da do Scale, o **Pro deixou de ter qualquer faixa de faturamento em que é o mais barato dos três**
+— ele segue existindo como "os recursos do Scale com mensalidade menor e sem compromisso de alto
+volume", não como opção de menor custo. A alternativa (encarecer o Basic o bastante pra abrir uma
+janela de preço pro Pro) foi avaliada e descartada — exigiria quase dobrar a taxa mais alta do
+Basic, o que piora sua posição competitiva por uma janela de Pro pequena demais pra valer a pena.
+Ver `docs/plano-melhorias-drenux.md`, Fase 7, pro detalhe completo da simulação.
 
 ## 3. Sugestão inteligente (IA) — cota por consumo
 Trava por custo real da chamada de API, não por nível de plano:
@@ -117,7 +130,7 @@ Trava por custo real da chamada de API, não por nível de plano:
 | Cardápio Web | Mensalidade fixa | R$169,99 a R$269,99/mês |
 | Rei do Delivery | Mensalidade fixa | R$49,90/mês |
 | iFood | Comissão (marketplace) | 12% a 27% por pedido |
-| **Drenux** | Freemium + comissão escalonada | R$0 a R$349/mês + 1,05%–2,4% |
+| **Drenux** | Freemium + comissão escalonada | R$0 a R$149,90/mês + 0,99%–2,4% |
 
 ## 8. Comunicação / UX — obrigatório
 - Nunca usar "comissão" isolado — ancorar em "taxa de processamento de pagamento", pra não puxar

@@ -65,7 +65,7 @@ func calcularComissaoAfiliado(pedidoTotal float64, plano string, gmvAntes, propo
 // pago. Start e Basic não entram aqui — nenhum dos dois tem mensalidade.
 var valoresMensalidadePlano = map[string]float64{
 	"pro":   99.0,
-	"scale": 349.0,
+	"scale": 149.90,
 }
 
 // ordemPlano define a hierarquia de planos, usada em dois lugares: (1)

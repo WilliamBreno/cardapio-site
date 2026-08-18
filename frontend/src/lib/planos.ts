@@ -51,16 +51,17 @@ export const PLANOS: PlanoInfo[] = [
   {
     id: 'scale',
     nome: 'Scale',
-    mensal: 349,
-    // Faixa própria (17/08/2026): flat em 1,1% fazia o Pro sempre sair
-    // mais barato, em qualquer faturamento — a taxa marginal do Pro acima
-    // de R$20k (1,05%) já era menor que o flat do Scale. Com 0,99% (piso
-    // de custo real do Mercado Pago) acima de R$20k, o Scale passa a
-    // compensar de verdade em faturamentos bem altos (~R$353,4k/mês).
-    faixas: [
-      { ate: 20000, taxa: 0.011 },
-      { ate: 0, taxa: 0.0099 },
-    ],
+    mensal: 149.9,
+    // Revisado 18/08/2026 (a pedido do William): a correção de 17/08 (faixa
+    // de dois degraus, 1,1%/0,99%) só fazia o Scale compensar o Pro a
+    // partir de ~R$353,4k/mês — faturamento alto demais pra a maioria das
+    // lojas ver esse cruzamento na prática. Achatado pra 0,99% flat desde
+    // R$0 (mesmo piso de custo real do Mercado Pago, agora vale o GMV
+    // inteiro) e mensalidade reduzida de R$349 pra R$149,90 — combinado,
+    // o cruzamento com o Pro cai pra ~R$9,96k/mês e com o Basic pra
+    // ~R$20,94k/mês. Mesmas faixas de backend/.../mercadopago_service.go
+    // (faixasComissaoPorPlano) — qualquer mudança aqui precisa espelhar lá.
+    faixas: [{ ate: 0, taxa: 0.0099 }],
     desc: 'Volume alto, custo mínimo + controle de estoque completo',
   },
 ];
@@ -163,21 +164,15 @@ export function planoMaisBarato(faturamento: number): PlanoInfo {
   );
 }
 
-// FATURAMENTO_MAX_SIMULADOR precisa cobrir o cruzamento real entre Basic e
-// Pro (~R$29.600 com as taxas atuais — confirmado numericamente, não é um
-// chute) — com o simulador limitado a R$20.000 como estava antes, o cliente
-// nunca via esse cruzamento por mais que arrastasse o slider até o fim. É o
-// alcance do SLIDER (arrastar) — continua em 50.000 de propósito: o
-// cruzamento Pro→Scale fica muito mais adiante (~R$353.400) e um slider
-// linear até lá deixaria a faixa 0-50k (onde a grande maioria dos
-// faturamentos reais cai) apertada demais pra arrastar com precisão.
+// FATURAMENTO_MAX_SIMULADOR precisa cobrir o cruzamento real Basic → Scale
+// (~R$20.940, desde a revisão de 18/08/2026 na mensalidade/taxa do Scale —
+// confirmado numericamente, não é chute). O Pro não entra nesse mapa: com a
+// mensalidade dele (R$99) tão perto da do Scale (R$149,90), ele nunca é o
+// mais barato em faturamento nenhum — decisão consciente do William, ver
+// docs/plano-melhorias-drenux.md § Fase 7 pra registro do porquê (a
+// alternativa exigiria quase dobrar a taxa do Basic, o que não compensa).
+// 50.000 dá folga confortável acima do cruzamento sem esmagar a régua.
 export const FATURAMENTO_MAX_SIMULADOR = 50000;
-
-// FATURAMENTO_MAX_ANALISE cobre o cruzamento Pro→Scale (~R$353.400) com
-// folga — usado pro campo de digitar valor exato e pro cálculo de faixas
-// que alimenta a frase "a partir de R$X, o Y passa a compensar" (não o
-// desenho do slider em si, que fica só até FATURAMENTO_MAX_SIMULADOR).
-export const FATURAMENTO_MAX_ANALISE = 500000;
 
 export interface FaixaRecomendada {
   de: number;
