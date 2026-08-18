@@ -201,14 +201,16 @@ export function Planos() {
       </section>
 
       {/* Barra de confiança — sinaliza stack sério sem precisar de número
-          de cliente que ainda não temos. */}
+          de cliente que ainda não temos. No mobile vira carrossel horizontal
+          (scroll com swipe) em vez de quebrar linha — os itens não podem
+          encolher (shrink-0) senão o texto espreme e volta a quebrar. */}
       <section className="border-y border-border">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-6 py-6 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          <span>Pagamento via Mercado Pago</span>
-          <span className="text-primary/40">•</span>
-          <span>Pix automático</span>
-          <span className="text-primary/40">•</span>
-          <span>Avisos por WhatsApp</span>
+        <div className="mx-auto flex max-w-4xl items-center justify-start gap-x-10 overflow-x-auto px-6 py-6 text-xs font-medium uppercase tracking-widest text-muted-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center sm:overflow-visible">
+          <span className="shrink-0">Pagamento via Mercado Pago</span>
+          <span className="shrink-0 text-primary/40">•</span>
+          <span className="shrink-0">Pix automático</span>
+          <span className="shrink-0 text-primary/40">•</span>
+          <span className="shrink-0">Avisos por WhatsApp</span>
         </div>
       </section>
 
