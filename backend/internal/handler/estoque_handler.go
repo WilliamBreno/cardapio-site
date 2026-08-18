@@ -15,12 +15,13 @@ import (
 // relatório (Pro e Scale, só leitura) e controle completo com reposição
 // guiada + histórico de movimentação (Scale, exclusivo).
 type EstoqueHandler struct {
-	estoqueService *service.EstoqueService
-	lojaRepo       *repository.LojaRepository
+	estoqueService         *service.EstoqueService
+	estoqueAvancadoService *service.EstoqueAvancadoService
+	lojaRepo               *repository.LojaRepository
 }
 
-func NewEstoqueHandler(estoqueService *service.EstoqueService, lojaRepo *repository.LojaRepository) *EstoqueHandler {
-	return &EstoqueHandler{estoqueService: estoqueService, lojaRepo: lojaRepo}
+func NewEstoqueHandler(estoqueService *service.EstoqueService, estoqueAvancadoService *service.EstoqueAvancadoService, lojaRepo *repository.LojaRepository) *EstoqueHandler {
+	return &EstoqueHandler{estoqueService: estoqueService, estoqueAvancadoService: estoqueAvancadoService, lojaRepo: lojaRepo}
 }
 
 // relatorioEstoqueDisponivel diz se o plano da loja inclui ao menos o
@@ -89,6 +90,46 @@ func (h *EstoqueHandler) Movimentacoes(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, movimentacoes)
+}
+
+// ListaDeCompras atende GET /admin/estoque/lista-compras — nível 2
+// (Scale), Fase 9.3.
+func (h *EstoqueHandler) ListaDeCompras(c *gin.Context) {
+	loja, ok := h.carregarLoja(c)
+	if !ok {
+		return
+	}
+	if !controleEstoqueCompletoDisponivel(loja.Plano) {
+		c.JSON(http.StatusForbidden, gin.H{"erro": "lista de compras disponível no plano Scale"})
+		return
+	}
+
+	itens, err := h.estoqueAvancadoService.ListaDeCompras(loja.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, itens)
+}
+
+// RelatoriosAvancados atende GET /admin/estoque/relatorios — nível 2
+// (Scale), Fase 9.3.
+func (h *EstoqueHandler) RelatoriosAvancados(c *gin.Context) {
+	loja, ok := h.carregarLoja(c)
+	if !ok {
+		return
+	}
+	if !controleEstoqueCompletoDisponivel(loja.Plano) {
+		c.JSON(http.StatusForbidden, gin.H{"erro": "relatórios avançados disponíveis no plano Scale"})
+		return
+	}
+
+	relatorios, err := h.estoqueAvancadoService.RelatoriosAvancados(loja.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, relatorios)
 }
 
 type reporEstoqueRequest struct {

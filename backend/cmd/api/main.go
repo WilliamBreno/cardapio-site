@@ -129,7 +129,8 @@ func main() {
 	// docs/plano-melhorias-drenux.md): relatório de estoque (Pro/Scale) e
 	// controle completo com reposição/histórico (Scale).
 	estoqueService := service.NewEstoqueService(db)
-	estoqueHandler := handler.NewEstoqueHandler(estoqueService, repository.NewLojaRepository(db))
+	estoqueAvancadoService := service.NewEstoqueAvancadoService(db)
+	estoqueHandler := handler.NewEstoqueHandler(estoqueService, estoqueAvancadoService, repository.NewLojaRepository(db))
 
 	// Insumo + Ficha técnica + CMV automático (Fase 9.1 do roadmap) —
 	// exclusivo do plano Scale, mesmo gate de EstoqueHandler nível 2.
@@ -344,6 +345,8 @@ func main() {
 	admin.GET("/estoque/movimentacoes", estoqueHandler.Movimentacoes)
 	admin.POST("/estoque/repor", estoqueHandler.Repor)
 	admin.POST("/estoque/ajustar", estoqueHandler.Ajustar)
+	admin.GET("/estoque/lista-compras", estoqueHandler.ListaDeCompras)
+	admin.GET("/estoque/relatorios", estoqueHandler.RelatoriosAvancados)
 
 	// Fase 9.1: insumo + ficha técnica + CMV automático — exclusivo do
 	// plano Scale, gate dentro do próprio handler (mesmo padrão acima).

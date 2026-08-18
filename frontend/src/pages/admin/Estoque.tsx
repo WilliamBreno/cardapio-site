@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   buscarLoja, buscarRelatorioEstoque, buscarMovimentacoesEstoque, reporEstoque, ajustarEstoque,
+  buscarListaDeCompras, buscarRelatoriosAvancados,
   type ItemEstoque, type MovimentacaoEstoque,
 } from '../../api/admin';
 
@@ -27,6 +28,9 @@ export function Estoque() {
 
   const completo = loja?.plano === 'scale';
   const [itemSelecionado, setItemSelecionado] = useState<ItemEstoque | null>(null);
+
+  const { data: listaCompras } = useQuery({ queryKey: ['lista-compras'], queryFn: buscarListaDeCompras, enabled: completo });
+  const { data: relatorios } = useQuery({ queryKey: ['relatorios-estoque'], queryFn: buscarRelatoriosAvancados, enabled: completo });
 
   if (loja && loja.plano !== 'pro' && loja.plano !== 'scale') {
     return (
@@ -101,6 +105,84 @@ export function Estoque() {
           onFechar={() => setItemSelecionado(null)}
           onAtualizado={() => queryClient.invalidateQueries({ queryKey: ['estoque'] })}
         />
+      )}
+
+      {completo && listaCompras && listaCompras.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="font-display text-lg tracking-wide text-tinta">Lista de compras</h2>
+          <p className="text-xs text-tinta-suave">Insumos abaixo do alerta configurado.</p>
+          <ul className="space-y-2">
+            {listaCompras.map((item) => (
+              <li key={item.insumo_id} className="rounded-xl bg-superficie px-4 py-3 shadow-sm">
+                <p className="text-sm font-medium text-tinta">{item.nome}</p>
+                <p className="text-xs text-tinta-suave">
+                  {item.estoque_atual}{item.unidade_uso} atual · alerta em {item.estoque_alerta}{item.unidade_uso} · comprar
+                  pelo menos {item.deficit_unidade_compra.toFixed(2)} {item.unidade_compra}
+                </p>
+                {item.produtos_afetados.length > 0 && (
+                  <p className="text-xs text-tinta-suave">Usado em: {item.produtos_afetados.join(', ')}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {completo && relatorios && (
+        <div className="space-y-4">
+          <h2 className="font-display text-lg tracking-wide text-tinta">Relatórios avançados</h2>
+
+          <div className="rounded-xl bg-superficie p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-tinta-suave">Valor parado em estoque (insumos)</p>
+            <p className="font-carimbo text-lg text-tinta">R$ {relatorios.valor_parado_estoque.toFixed(2).replace('.', ',')}</p>
+            <p className="mt-1 text-xs text-tinta-suave">{relatorios.valor_parado_observacao}</p>
+          </div>
+
+          <div className="rounded-xl bg-superficie p-4 shadow-sm">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-suave">Insumos que mais saem (30 dias)</p>
+            {relatorios.insumos_que_mais_saem.length === 0 ? (
+              <p className="text-sm text-tinta-suave">Nenhum consumo registrado nos últimos 30 dias.</p>
+            ) : (
+              <ul className="space-y-1 text-sm text-tinta">
+                {relatorios.insumos_que_mais_saem.map((i) => (
+                  <li key={i.insumo_id} className="flex justify-between">
+                    <span>{i.nome}</span>
+                    <span className="text-tinta-suave">{i.consumido_30d}{i.unidade_uso}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-superficie p-4 shadow-sm">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-suave">Giro de estoque (30 dias)</p>
+            {relatorios.giro_estoque.length === 0 ? (
+              <p className="text-sm text-tinta-suave">Nenhum produto com controle de estoque ativo.</p>
+            ) : (
+              <ul className="space-y-1 text-sm text-tinta">
+                {relatorios.giro_estoque.map((g) => (
+                  <li key={`${g.produto_id}-${g.variacao_nome}`} className="flex justify-between">
+                    <span>{g.produto_nome}{g.variacao_nome && ` — ${g.variacao_nome}`}</span>
+                    <span className="text-tinta-suave">{g.giro.toFixed(1)}x ({g.vendido_30d} vendido(s) / {g.estoque_atual} em estoque)</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-superficie p-4 shadow-sm">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-suave">Produtos parados (30 dias)</p>
+            {relatorios.produtos_parados.length === 0 ? (
+              <p className="text-sm text-tinta-suave">Nenhum produto disponível ficou sem vender nos últimos 30 dias.</p>
+            ) : (
+              <ul className="space-y-1 text-sm text-tinta">
+                {relatorios.produtos_parados.map((p) => (
+                  <li key={p.produto_id}>{p.produto_nome}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

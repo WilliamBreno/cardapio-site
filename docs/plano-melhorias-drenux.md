@@ -869,8 +869,8 @@ por padrão seguir o mesmo critério de "uma fase por vez" das instruções lá 
 4. 7.5 (afiliados) — independente das outras, pode ser feita em paralelo/antes se o William preferir.
 
 ### Fase 9 — Controle de estoque (Pro relatório / Scale completo)
-Status: `[~] 9.1 e 9.2 (só XML de NF-e) implementadas e testadas em 18/08/2026 — 9.3/9.4 seguem
-pendentes; a via "PDF via IA" de 9.2 foi conscientemente deixada de fora, ver nota na própria 9.2`
+Status: `[~] 9.1, 9.2 (só XML de NF-e) e 9.3 implementadas e testadas em 18/08/2026 — só falta 9.4
+(multi-loja, prioridade baixa) e a via "PDF via IA" de 9.2 (pendente de decisão sobre provedor)`
 
 **Importante, ler antes de mexer em qualquer coisa nessa fase**: quando essa fase foi rascunhada
 (ago/2026), o Claude (chat) supôs que controle de estoque seria construído do zero. Auditoria
@@ -1035,10 +1035,64 @@ sério em produção se não fosse pego no teste).
 Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (limpo nos arquivos tocados) e
 `npx tsc -b`/`npm run build`, todos limpos.
 
-**9.3 — Lista de compras automática + relatórios avançados, plano Scale**
-- Lista de compras: cruza ficha técnica (9.1) + estoque mínimo, sugere o que comprar.
-- Relatórios: produtos parados, giro de estoque, valor total parado em estoque, insumos que mais
-  saem — confirmar se algum desses já existe em algum relatório atual antes de construir do zero.
+**9.3 — Lista de compras automática + relatórios avançados, plano Scale — implementada e testada em
+18/08/2026**
+
+**Confirmado antes de implementar**: nenhum dos 4 relatórios pedidos já existia. O único relatório
+de estoque/venda que já existia era `DashboardService.BuscarDados` (`TopProdutos`, top 5 mais
+vendidos em 30 dias) — adjacente, mas não é nenhum dos 4 pedidos aqui, não foi reaproveitado como
+"já pronto" por engano.
+
+O que foi construído — `EstoqueAvancadoService` (`estoque_avancado_service.go`, novo), 2 rotas
+novas (`GET /admin/estoque/lista-compras`, `GET /admin/estoque/relatorios`), mesmo gate de plano
+Scale de reposição/ajuste/histórico (Fase 8, nível 2):
+
+- **Lista de compras** (`ListaDeCompras`): insumos com `EstoqueAtual <= EstoqueAlerta` (só entra
+  quem tem os dois campos configurados — sem `EstoqueAlerta` não tem como saber o que é "pouco"
+  pra aquele insumo específico). Sugere comprar até o alerta (não inventei uma margem de segurança
+  maior — não foi pedida), convertido também pra unidade de compra (é nela que o lojista compra de
+  verdade). Cruza com a ficha técnica (Fase 9.1) pra listar quais produtos dependem de cada insumo
+  em falta — o "cruza ficha técnica" do texto original.
+- **Produtos parados**: produtos disponíveis sem nenhuma venda paga nos últimos 30 dias.
+- **Giro de estoque**: só itens com controle de estoque ativo (mesmo universo do relatório simples
+  da Fase 8) — quantidade vendida em 30 dias ÷ estoque atual.
+- **Valor parado em estoque**: soma só o estoque de **insumo** ao custo cadastrado — decisão
+  documentada explicitamente na resposta da API (campo `valor_parado_observacao`), não escondida:
+  `Produto` não tem campo de custo (só preço de venda), e só teria custo conhecido através da ficha
+  técnica dos produtos que o usam, o que não é o mesmo conceito de "quanto vale o estoque parado
+  desse produto pronto" — não inventei um custo estimado pra produto só pra preencher o número.
+- **Insumos que mais saem**: soma o consumo (`MovimentacaoInsumo` tipo `venda`) dos últimos 30 dias
+  por insumo, top 10.
+
+**Dois bugs achados e corrigidos durante o teste ao vivo** (nenhum dos dois aparecia no `go build`/
+`go vet` — só testando com dado real):
+1. **Giro sempre saía 0, mesmo com venda real no período.** A query de "vendido nos últimos 30
+   dias" passava `variacaoID` (`*uint`, `nil` pra produto sem variação) direto como parâmetro `?`
+   de um `Raw()` só, esperando que o driver tratasse `nil` como `NULL` numa comparação `variacao_id
+   = ?`. Não tratou de forma confiável — testado ao vivo, sempre devolvia 0. Corrigido separando em
+   duas queries (uma pra `variacao_id IS NULL`, outra pra `variacao_id = valor`), decidido em Go em
+   vez de deixar pro SQL decidir com bind param nulo.
+2. **`insumos_que_mais_saem` sempre saía com `consumido_30d: 0`**, mesmo com a query certa e o dado
+   certo no banco. Causa: o `GORM` mapeia coluna de `Raw().Scan()` pro campo da struct convertendo o
+   nome do campo Go pra snake_case sozinho quando não tem tag — pra um campo chamado `Consumido30d`,
+   a conversão automática não bate com o alias `consumido_30d` da query (a fronteira letra→dígito
+   confunde o conversor). Corrigido com `gorm:"column:consumido_30d"` explícito no campo.
+
+Frontend: duas seções novas em `Estoque.tsx` (Lista de compras, Relatórios avançados), visíveis só
+Scale, mesmo padrão visual do resto da página — sem tela nova, a Fase 8 já tinha estabelecido
+"Estoque" como o hub certo pra isso.
+
+**Testado ao vivo** (loja de teste temporária, removida depois — mesmo padrão das fases 9.1/9.2):
+cenário com 2 produtos (um vendido 3x via `ProcessarPedidoPago` real, outro sem nenhuma venda) e 1
+insumo abaixo do alerta ligado por ficha técnica ao produto vendido. Confirmado, batendo exatamente
+com o esperado: lista de compras mostrou o insumo com o déficit certo e "Usado em: Produto
+Vendido"; giro do produto vendido saiu `0.15` (3 vendidos ÷ 20 em estoque); produtos parados listou
+só o produto sem venda; valor parado em estoque bateu R$0,40 (20g restantes × R$0,02/g); insumos
+que mais saem mostrou os 30g consumidos. Confirmado visualmente também no navegador (screenshot),
+todos os números batendo com a API.
+
+Validado com `go build ./...`, `go vet ./...`, `gofmt -l` (limpo nos arquivos tocados) e
+`npx tsc -b`/`npm run build`, todos limpos.
 
 **9.4 — Multi-loja consolidado, plano Scale**
 - Estoque por unidade da rede, visão consolidada — conecta com a gestão de rede que o Scale já tem

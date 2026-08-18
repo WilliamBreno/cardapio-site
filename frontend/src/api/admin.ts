@@ -348,6 +348,59 @@ export async function ajustarEstoque(input: AjustarEstoqueInput): Promise<{ esto
   return data;
 }
 
+// Lista de compras + relatórios avançados (Fase 9.3) — exclusivo do
+// plano Scale.
+export interface ItemListaCompras {
+  insumo_id: number;
+  nome: string;
+  estoque_atual: number;
+  estoque_alerta: number;
+  unidade_uso: string;
+  unidade_compra: string;
+  deficit_unidade_uso: number;
+  deficit_unidade_compra: number;
+  produtos_afetados: string[];
+}
+
+export async function buscarListaDeCompras(): Promise<ItemListaCompras[]> {
+  const { data } = await api.get<ItemListaCompras[]>('/admin/estoque/lista-compras');
+  return data;
+}
+
+export interface ItemProdutoParado {
+  produto_id: number;
+  produto_nome: string;
+}
+
+export interface ItemGiroEstoque {
+  produto_id: number;
+  produto_nome: string;
+  variacao_nome: string;
+  estoque_atual: number;
+  vendido_30d: number;
+  giro: number;
+}
+
+export interface ItemInsumoMaisSai {
+  insumo_id: number;
+  nome: string;
+  consumido_30d: number;
+  unidade_uso: string;
+}
+
+export interface RelatoriosAvancados {
+  produtos_parados: ItemProdutoParado[];
+  giro_estoque: ItemGiroEstoque[];
+  valor_parado_estoque: number;
+  valor_parado_observacao: string;
+  insumos_que_mais_saem: ItemInsumoMaisSai[];
+}
+
+export async function buscarRelatoriosAvancados(): Promise<RelatoriosAvancados> {
+  const { data } = await api.get<RelatoriosAvancados>('/admin/estoque/relatorios');
+  return data;
+}
+
 // Insumos + Ficha técnica + CMV automático (Fase 9.1) — exclusivo do
 // plano Scale, o backend recusa com 403 fora desse plano.
 export interface Insumo {
