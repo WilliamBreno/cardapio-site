@@ -1132,7 +1132,8 @@ fica pendente de especificação própria antes de qualquer código, mesmo padr�
 PDF+IA da Fase 9.2 (não travar o resto do roadmap nisso).
 
 ### Fase 10 — Banner, etapas de pedido, sugestão/cupom visíveis, analytics de cliente, relatório via WhatsApp, impressora Bluetooth
-Status: `[~] 10.1 e 10.3 implementadas e testadas em 19/08/2026 — 10.2, 10.4-10.7 seguem pendentes`
+Status: `[~] 10.1, 10.3 e 10.4 implementadas e testadas em 19/08/2026 — 10.2, 10.5-10.7 seguem
+pendentes`
 
 Combinada numa conversa com o William em 19/08/2026 — sete pedidos batidos juntos, quebrados aqui em
 sub-fases pra seguir o mesmo padrão do resto do roadmap (uma por vez). Antes de escrever a spec,
@@ -1250,19 +1251,29 @@ Testado ao vivo: pedido de teste criado direto no banco com `cupom_codigo`/`desc
 `sugestao_produto_id` preenchido — os dois selos ("Cupom TESTE10 · -R$2,00" e "💡 Sugestão") aparecem
 juntos no card do pedido, confirmado por screenshot. Validado com `npx tsc -b`/`npm run build`.
 
-**10.4 — Top cliente no Dashboard (por quantidade e por valor)**
+**10.4 — Top cliente no Dashboard (por quantidade e por valor) — implementada e testada em
+19/08/2026**
 
-Não existe hoje — `DashboardService.BuscarDados` (`backend/internal/service/dashboard_service.go`)
-não tem nada de ranking de cliente, só `TopProdutos` (produto, não cliente). Não existe entidade
+Não existia — `DashboardService.BuscarDados` (`backend/internal/service/dashboard_service.go`)
+não tinha nada de ranking de cliente, só `TopProdutos` (produto, não cliente). Não existe entidade
 `Cliente` no sistema — identidade de cliente é só `ClienteNome`/`ClienteTelefone` soltos em cada
-`Pedido` (confirmado, sem tabela própria) — o agrupamento tem que ser por `cliente_telefone` (mais
-estável que nome, que pode variar grafia entre pedidos da mesma pessoa).
+`Pedido` (confirmado, sem tabela própria) — o agrupamento é por `cliente_telefone` (mais estável
+que nome, que pode variar grafia entre pedidos da mesma pessoa).
 
-- `DashboardData` ganha `TopClientesPorPedidos []ClienteRanking` e `TopClientesPorValor
+- `DashboardData` ganhou `TopClientesPorPedidos []ClienteRanking` e `TopClientesPorValor
   []ClienteRanking`, com `ClienteRanking{ClienteNome, ClienteTelefone, TotalPedidos, ValorTotal}` —
   top 5 cada, só pedidos `status = 'pago'`, agrupado por `cliente_telefone` (nome exibido = o mais
-  recente usado por esse telefone, evita mostrar grafias antigas/erradas).
-- Frontend: duas listas pequenas em `Inicio.tsx`, ao lado do "Mais vendidos" que já existe.
+  recente usado por esse telefone, via `DISTINCT ON (cliente_telefone) ... ORDER BY
+  cliente_telefone, updated_at DESC` — evita mostrar grafias antigas/erradas). Sem janela de
+  tempo — é sobre o histórico inteiro da loja, diferente do `TopProdutos` (30 dias).
+- Frontend: duas listas pequenas em `Inicio.tsx` ("Clientes mais fiéis" / "Maiores clientes"),
+  lado a lado no desktop e empilhadas no mobile, logo abaixo do "Mais vendidos" que já existia.
+
+Testado ao vivo com dois clientes propositalmente divergentes (um com 3 pedidos de R$10, outro com
+1 pedido de R$100) — confirmado via API e visualmente que os dois rankings realmente ordenam por
+critérios diferentes (não é a mesma lista mostrada duas vezes): "Clientes mais fiéis" trouxe o de 3
+pedidos primeiro, "Maiores clientes" trouxe o de R$100 primeiro. Validado com `go build ./...`/
+`go vet ./...`/`gofmt -l` (backend) e `npx tsc -b`/`npm run build` (frontend), todos limpos.
 
 **10.5 — Relatório do Dashboard via WhatsApp (link `wa.me`), com filtro dia/semana/mês**
 

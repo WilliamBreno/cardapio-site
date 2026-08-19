@@ -60,6 +60,8 @@ export function Inicio() {
   const receita7Dias = data.receita_7_dias ?? [];
   const receita4Semanas = data.receita_4_semanas ?? [];
   const topProdutos = data.top_produtos ?? [];
+  const topClientesPorPedidos = data.top_clientes_por_pedidos ?? [];
+  const topClientesPorValor = data.top_clientes_por_valor ?? [];
   const totalSemana = data.total_semana ?? 0;
   const totalMes = data.total_mes ?? 0;
   const pedidosSemana = data.pedidos_semana ?? 0;
@@ -233,6 +235,52 @@ export function Inicio() {
               <Bar dataKey="quantidade" fill="rgb(var(--color-douro))" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Top clientes (Fase 10.4) — os dois rankings, quantidade e valor,
+          lado a lado no desktop e empilhados no mobile. */}
+      {(topClientesPorPedidos.length > 0 || topClientesPorValor.length > 0) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {topClientesPorPedidos.length > 0 && (
+            <div className="rounded-2xl bg-superficie p-5 shadow-sm">
+              <h2 className="mb-3 font-display text-base tracking-wide text-tinta">Clientes mais fiéis</h2>
+              <ul className="space-y-2">
+                {topClientesPorPedidos.map((cliente, i) => (
+                  <li key={cliente.cliente_telefone} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center gap-2 text-tinta">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-douro/15 text-xs font-semibold text-douro">
+                        {i + 1}
+                      </span>
+                      {cliente.cliente_nome}
+                    </span>
+                    <span className="shrink-0 text-tinta-suave">
+                      {cliente.total_pedidos} pedido{cliente.total_pedidos !== 1 ? 's' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {topClientesPorValor.length > 0 && (
+            <div className="rounded-2xl bg-superficie p-5 shadow-sm">
+              <h2 className="mb-3 font-display text-base tracking-wide text-tinta">Maiores clientes</h2>
+              <ul className="space-y-2">
+                {topClientesPorValor.map((cliente, i) => (
+                  <li key={cliente.cliente_telefone} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center gap-2 text-tinta">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-douro/15 text-xs font-semibold text-douro">
+                        {i + 1}
+                      </span>
+                      {cliente.cliente_nome}
+                    </span>
+                    <span className="shrink-0 font-carimbo text-tinta-suave">{moeda(cliente.valor_total)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

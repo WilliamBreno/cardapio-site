@@ -185,6 +185,17 @@ export interface DashboardData {
   receita_7_dias: { data: string; total: number }[];
   receita_4_semanas: { semana: string; total: number }[];
   top_produtos: { nome: string; quantidade: number }[];
+  top_clientes_por_pedidos: ClienteRanking[];
+  top_clientes_por_valor: ClienteRanking[];
+}
+
+// ClienteRanking (Fase 10.4) — não existe entidade Cliente no sistema,
+// o agrupamento é por cliente_telefone (ver dashboard_service.go).
+export interface ClienteRanking {
+  cliente_nome: string;
+  cliente_telefone: string;
+  total_pedidos: number;
+  valor_total: number;
 }
 
 // Tipo de cálculo da taxa de entrega:

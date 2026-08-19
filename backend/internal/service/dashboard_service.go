@@ -21,13 +21,27 @@ type TopProduto struct {
 	Quantidade int    `json:"quantidade"`
 }
 
+// ClienteRanking é uma linha do ranking de clientes (Fase 10.4) — não
+// existe entidade Cliente própria no sistema, então o agrupamento é por
+// ClienteTelefone (mais estável que o nome, que pode variar grafia entre
+// pedidos da mesma pessoa). ClienteNome é o mais recente usado por esse
+// telefone, pra não mostrar uma grafia antiga/errada.
+type ClienteRanking struct {
+	ClienteNome     string  `json:"cliente_nome"`
+	ClienteTelefone string  `json:"cliente_telefone"`
+	TotalPedidos    int     `json:"total_pedidos"`
+	ValorTotal      float64 `json:"valor_total"`
+}
+
 type DashboardData struct {
-	TotalSemana     float64         `json:"total_semana"`
-	TotalMes        float64         `json:"total_mes"`
-	PedidosSemana   int             `json:"pedidos_semana"`
-	Receita7Dias    []ReceitaDia    `json:"receita_7_dias"`
-	Receita4Semanas []ReceitaSemana `json:"receita_4_semanas"`
-	TopProdutos     []TopProduto    `json:"top_produtos"`
+	TotalSemana           float64          `json:"total_semana"`
+	TotalMes              float64          `json:"total_mes"`
+	PedidosSemana         int              `json:"pedidos_semana"`
+	Receita7Dias          []ReceitaDia     `json:"receita_7_dias"`
+	Receita4Semanas       []ReceitaSemana  `json:"receita_4_semanas"`
+	TopProdutos           []TopProduto     `json:"top_produtos"`
+	TopClientesPorPedidos []ClienteRanking `json:"top_clientes_por_pedidos"`
+	TopClientesPorValor   []ClienteRanking `json:"top_clientes_por_valor"`
 }
 
 type DashboardService struct {
@@ -117,6 +131,46 @@ func (s *DashboardService) BuscarDados(lojaID uint) (*DashboardData, error) {
 		LIMIT 5
 	`, lojaID).Scan(&topProdutos)
 	data.TopProdutos = topProdutos
+
+	// Top 5 clientes por quantidade de pedidos e top 5 por valor total
+	// gasto (Fase 10.4) — mesmo universo de sempre (só pedidos pagos),
+	// sem janela de tempo (é sobre o histórico inteiro da loja, não só
+	// os últimos 30 dias como TopProdutos).
+	var topClientesPorPedidos []ClienteRanking
+	s.db.Raw(`
+		WITH nomes_recentes AS (
+			SELECT DISTINCT ON (cliente_telefone) cliente_telefone, cliente_nome
+			FROM pedidos
+			WHERE loja_id = ? AND status = 'pago'
+			ORDER BY cliente_telefone, updated_at DESC
+		)
+		SELECT p.cliente_telefone, nr.cliente_nome, COUNT(*) AS total_pedidos, SUM(p.total) AS valor_total
+		FROM pedidos p
+		JOIN nomes_recentes nr ON nr.cliente_telefone = p.cliente_telefone
+		WHERE p.loja_id = ? AND p.status = 'pago'
+		GROUP BY p.cliente_telefone, nr.cliente_nome
+		ORDER BY total_pedidos DESC
+		LIMIT 5
+	`, lojaID, lojaID).Scan(&topClientesPorPedidos)
+	data.TopClientesPorPedidos = topClientesPorPedidos
+
+	var topClientesPorValor []ClienteRanking
+	s.db.Raw(`
+		WITH nomes_recentes AS (
+			SELECT DISTINCT ON (cliente_telefone) cliente_telefone, cliente_nome
+			FROM pedidos
+			WHERE loja_id = ? AND status = 'pago'
+			ORDER BY cliente_telefone, updated_at DESC
+		)
+		SELECT p.cliente_telefone, nr.cliente_nome, COUNT(*) AS total_pedidos, SUM(p.total) AS valor_total
+		FROM pedidos p
+		JOIN nomes_recentes nr ON nr.cliente_telefone = p.cliente_telefone
+		WHERE p.loja_id = ? AND p.status = 'pago'
+		GROUP BY p.cliente_telefone, nr.cliente_nome
+		ORDER BY valor_total DESC
+		LIMIT 5
+	`, lojaID, lojaID).Scan(&topClientesPorValor)
+	data.TopClientesPorValor = topClientesPorValor
 
 	return data, nil
 }
