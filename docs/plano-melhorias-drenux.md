@@ -1132,7 +1132,7 @@ fica pendente de especificação própria antes de qualquer código, mesmo padr�
 PDF+IA da Fase 9.2 (não travar o resto do roadmap nisso).
 
 ### Fase 10 — Banner, etapas de pedido, sugestão/cupom visíveis, analytics de cliente, relatório via WhatsApp, impressora Bluetooth
-Status: `[ ] pendente`
+Status: `[~] 10.3 implementada e testada em 19/08/2026 — 10.1, 10.2, 10.4-10.7 seguem pendentes`
 
 Combinada numa conversa com o William em 19/08/2026 — sete pedidos batidos juntos, quebrados aqui em
 sub-fases pra seguir o mesmo padrão do resto do roadmap (uma por vez). Antes de escrever a spec,
@@ -1210,7 +1210,7 @@ nenhum — precisa criar.
   3. O aviso de WhatsApp de "saiu pra entrega" que já existe (`pedido_handler.go`, dispara ao setar
      esse status) não muda de comportamento — só passa a ser uma etapa no meio de 4, não a única.
 
-**10.3 — Sugestão e cupom visíveis em Pedidos — cupom já existe, só falta sugestão**
+**10.3 — Sugestão e cupom visíveis em Pedidos — implementada e testada em 19/08/2026**
 
 Achado antes de implementar: **o cupom já aparece hoje**, `Pedidos.tsx` linhas 175-179 já mostram
 "Cupom {código} · -R$ {desconto}" quando `pedido.cupom_codigo` está preenchido — nada a fazer aqui,
@@ -1228,6 +1228,16 @@ de exibição:
 - `Pedidos.tsx`, no `.map` dos itens (linhas 142-149): item com `sugestao_produto_id` preenchido
   ganha um selo pequeno, tipo "💡 Sugestão" — mesmo espírito visual do selo "Combo" já usado em
   outras telas (Fase 6).
+
+Implementado exatamente como especificado acima: `sugestao_produto_id` adicionado em `ItemPedido`
+(`frontend/src/api/types.ts`), selo "💡 Sugestão" (`bg-douro/10 text-douro`, cor diferente do selo de
+combo pra distinguir os dois quando aparecem juntos) no `.map` de `Pedidos.tsx`. De quebra, o link
+"Iniciar entrega"/"Gerenciar entrega" (mesmo arquivo) ganhou o novo estilo neumorphic de botão (ver
+leva de melhorias de design de botão, mesmo dia).
+
+Testado ao vivo: pedido de teste criado direto no banco com `cupom_codigo`/`desconto` e um item com
+`sugestao_produto_id` preenchido — os dois selos ("Cupom TESTE10 · -R$2,00" e "💡 Sugestão") aparecem
+juntos no card do pedido, confirmado por screenshot. Validado com `npx tsc -b`/`npm run build`.
 
 **10.4 — Top cliente no Dashboard (por quantidade e por valor)**
 

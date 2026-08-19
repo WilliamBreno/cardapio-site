@@ -142,6 +142,9 @@ function PedidoCard({ pedido, segmentoLoja }: { pedido: Pedido; segmentoLoja?: T
         {pedido.itens.map((item) => (
           <p key={item.id} className="text-sm text-tinta">
             {item.quantidade}x {item.produto_nome}{' '}
+            {item.sugestao_produto_id !== null && (
+              <span className="rounded-full bg-douro/10 px-1.5 py-0.5 text-xs text-douro">💡 Sugestão</span>
+            )}{' '}
             <span className="text-tinta-suave">
               · R$ {(item.preco_unit * item.quantidade).toFixed(2).replace('.', ',')}
             </span>
@@ -186,7 +189,7 @@ function PedidoCard({ pedido, segmentoLoja }: { pedido: Pedido; segmentoLoja?: T
       {podeGerenciarEntrega && (
         <Link
           to={`/admin/pedidos/${pedido.id}/localizacao`}
-          className="mt-3 block rounded-full bg-acento px-4 py-2 text-center text-sm font-semibold text-superficie"
+          className="btn-neu-primario mt-3 block text-center"
         >
           {pedido.status_entrega === 'saiu_para_entrega' ? '📍 Gerenciar entrega' : '🛵 Iniciar entrega'}
         </Link>

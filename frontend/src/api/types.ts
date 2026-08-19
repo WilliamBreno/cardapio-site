@@ -297,6 +297,10 @@ export interface ItemPedido {
   tipo_produto: TipoProduto;
   peso_gramas: number;
   solicitacao_entrega_id: number | null;
+  // sugestao_produto_id: não nulo quando o item entrou no pedido pela
+  // Sugestão Inteligente do carrinho (Fase 6) — já vinha gravado no
+  // backend (domain.ItemPedido), só faltava nessa interface de leitura.
+  sugestao_produto_id: number | null;
 }
 
 // ItemGuardado é um ItemPedido comprado no modo "guardar" que ainda não
