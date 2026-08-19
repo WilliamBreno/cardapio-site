@@ -25,6 +25,7 @@ export function Configuracoes() {
 
   const [whatsapp, setWhatsapp] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [bannerUrl, setBannerUrl] = useState('');
   const [modoPedido, setModoPedido] = useState<'imediato' | 'agendado'>('imediato');
   const [antecedencia, setAntecedencia] = useState(24);
   const [abertura, setAbertura] = useState('');
@@ -51,11 +52,14 @@ export function Configuracoes() {
   const [assinandoSugestao, setAssinandoSugestao] = useState(false);
   const [enviandoLogo, setEnviandoLogo] = useState(false);
   const [erroLogo, setErroLogo] = useState<string | null>(null);
+  const [enviandoBanner, setEnviandoBanner] = useState(false);
+  const [erroBanner, setErroBanner] = useState<string | null>(null);
 
   useEffect(() => {
     if (loja) {
       setWhatsapp(loja.whatsapp_numero);
       setLogoUrl(loja.logo_url);
+      setBannerUrl(loja.banner_url ?? '');
       setModoPedido(loja.modo_pedido ?? 'imediato');
       setAntecedencia(loja.antecedencia_minima_horas || 24);
       setAbertura(loja.horario_abertura ?? '');
@@ -93,6 +97,7 @@ export function Configuracoes() {
     return {
       whatsapp_numero: whatsapp,
       logo_url: logoUrl,
+      banner_url: bannerUrl,
       modo_pedido: modoPedido,
       antecedencia_minima_horas: antecedencia,
       horario_abertura: abertura,
@@ -145,6 +150,34 @@ export function Configuracoes() {
       setErroLogo('Não foi possível enviar a imagem.');
     } finally {
       setEnviandoLogo(false);
+    }
+  }
+
+  async function selecionarBanner(e: ChangeEvent<HTMLInputElement>) {
+    const arquivo = e.target.files?.[0];
+    if (!arquivo) return;
+    setEnviandoBanner(true);
+    setErroBanner(null);
+    try {
+      const url = await enviarImagem(arquivo);
+      setBannerUrl(url);
+      await atualizarConfiguracoes({ ...montarPayload(), banner_url: url });
+      queryClient.invalidateQueries({ queryKey: ['loja'] });
+    } catch {
+      setErroBanner('Não foi possível enviar a imagem.');
+    } finally {
+      setEnviandoBanner(false);
+    }
+  }
+
+  async function removerBanner() {
+    setBannerUrl('');
+    setErroBanner(null);
+    try {
+      await atualizarConfiguracoes({ ...montarPayload(), banner_url: '' });
+      queryClient.invalidateQueries({ queryKey: ['loja'] });
+    } catch {
+      setErroBanner('Não foi possível remover o banner.');
     }
   }
 
@@ -231,6 +264,36 @@ export function Configuracoes() {
             </label>
           </div>
           {erroLogo && <p className="mt-2 text-sm text-acento">{erroLogo}</p>}
+        </div>
+
+        {/* Banner de oferta */}
+        <div>
+          <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-tinta-suave">
+            Banner de oferta (topo do cardápio)
+          </span>
+          <p className="mb-2 text-xs text-tinta-suave">
+            Foto larga pra destacar uma promoção ou produto no topo do seu cardápio público. Opcional
+            — sem banner, o cardápio fica igual está hoje.
+          </p>
+          <div className="flex h-24 w-full items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-tinta/25 bg-fundo">
+            {bannerUrl ? (
+              <img src={bannerUrl} alt="Banner" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-xs text-tinta/40">Nenhum banner ainda</span>
+            )}
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            <label className="cursor-pointer btn-neu-secundario btn-neu-sm hover:border-acento">
+              {enviandoBanner ? 'Enviando...' : bannerUrl ? 'Trocar banner' : 'Enviar banner'}
+              <input type="file" accept="image/*" onChange={selecionarBanner} disabled={enviandoBanner} className="hidden" />
+            </label>
+            {bannerUrl && (
+              <button type="button" onClick={removerBanner} className="text-xs text-tinta-suave hover:text-acento">
+                Remover
+              </button>
+            )}
+          </div>
+          {erroBanner && <p className="mt-2 text-sm text-acento">{erroBanner}</p>}
         </div>
 
         {/* WhatsApp */}

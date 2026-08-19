@@ -64,6 +64,7 @@ func (h *LojaHandler) Buscar(c *gin.Context) {
 type configuracoesRequest struct {
 	WhatsappNumero           string  `json:"whatsapp_numero" binding:"required"`
 	LogoURL                  string  `json:"logo_url"`
+	BannerURL                string  `json:"banner_url"`
 	ModoPedido               string  `json:"modo_pedido"`
 	AntecedenciaMinimaHoras  int     `json:"antecedencia_minima_horas"`
 	HorarioAbertura          string  `json:"horario_abertura"`
@@ -149,6 +150,7 @@ func (h *LojaHandler) AtualizarConfiguracoes(c *gin.Context) {
 	cfg := repository.ConfiguracoesLoja{
 		WhatsappNumero:           req.WhatsappNumero,
 		LogoURL:                  req.LogoURL,
+		BannerURL:                req.BannerURL,
 		ModoPedido:               modo,
 		AntecedenciaMinimaHoras:  req.AntecedenciaMinimaHoras,
 		HorarioAbertura:          req.HorarioAbertura,

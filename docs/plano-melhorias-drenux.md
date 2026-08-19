@@ -1132,7 +1132,7 @@ fica pendente de especificação própria antes de qualquer código, mesmo padr�
 PDF+IA da Fase 9.2 (não travar o resto do roadmap nisso).
 
 ### Fase 10 — Banner, etapas de pedido, sugestão/cupom visíveis, analytics de cliente, relatório via WhatsApp, impressora Bluetooth
-Status: `[~] 10.3 implementada e testada em 19/08/2026 — 10.1, 10.2, 10.4-10.7 seguem pendentes`
+Status: `[~] 10.1 e 10.3 implementadas e testadas em 19/08/2026 — 10.2, 10.4-10.7 seguem pendentes`
 
 Combinada numa conversa com o William em 19/08/2026 — sete pedidos batidos juntos, quebrados aqui em
 sub-fases pra seguir o mesmo padrão do resto do roadmap (uma por vez). Antes de escrever a spec,
@@ -1156,14 +1156,15 @@ mas com ressalva de compatibilidade importante, ver abaixo).
 
 ---
 
-**10.1 — Banner de oferta no topo do cardápio público**
+**10.1 — Banner de oferta no topo do cardápio público — implementada e testada em 19/08/2026**
 
 - `domain.Loja` ganha `BannerURL string` (`gorm:"size:500" json:"banner_url"`) — mesmo padrão exato
   de `LogoURL` (`backend/internal/domain/loja.go:33`), sem campo de link clicável (não foi pedido;
   se quiser depois, é aditivo).
 - Upload: mesmo fluxo do logo — direto do navegador pro Cloudinary via `enviarImagem`
   (`frontend/src/api/upload.ts`), sem passar pelo backend. Editável em `Configuracoes.tsx`, no mesmo
-  bloco visual de onde o logo já é trocado hoje.
+  bloco visual de onde o logo já é trocado hoje, com botão "Remover" (banner é mais provável de ser
+  ligado/desligado por promoção pontual do que o logo, que é fixo).
 - `ConfiguracoesInput`/`atualizarConfiguracoes` (`frontend/src/api/admin.ts`) ganha `banner_url:
   string` — mesma ressalva já documentada nesse arquivo pra `sugestao_inteligente_ativa`: como o
   `PUT /admin/loja` substitui a configuração inteira de uma vez, o campo precisa ir em todo save.
@@ -1171,6 +1172,16 @@ mas com ressalva de compatibilidade importante, ver abaixo).
   className="bg-acento ...">` existente (linhas ~162-169 e ~196-225, os dois blocos de cabeçalho —
   fechado/pausado e aberto) — não substitui logo nem nome da loja, só um elemento novo por cima.
   Opcional (`banner_url` vazio = não mostra nada, sem quebrar layout de quem não configurar).
+- Backend também precisou de `catalogo_handler.go` (`GET /lojas/:slug`, resposta pública montada
+  campo a campo, não serializa o domain struct direto) e `loja_repository.go`
+  (`ConfiguracoesLoja`/`AtualizarConfiguracoes`) — os dois não estavam no plano original mas são o
+  mesmo padrão de `logo_url` já espalhado nesses arquivos.
+
+Testado ao vivo: banner configurado via `PUT /admin/loja` aparece imediatamente no topo do cardápio
+público (`GET /lojas/:slug` confirmado retornando `banner_url` preenchido) e na prévia da tela de
+Configurações; botão "Remover" limpa o campo dos dois lados (confirmado banner sumindo da prévia e
+`banner_url` voltando a `""` na API). Validado com `go build ./...`/`go vet ./...`/`gofmt -l`
+(backend) e `npx tsc -b`/`npm run build` (frontend), todos limpos.
 
 **10.2 — Etapas do pedido: A preparar → Preparando → Saiu para entrega → Entregue**
 

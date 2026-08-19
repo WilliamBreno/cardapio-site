@@ -200,6 +200,7 @@ export interface Loja {
   slug: string;
   whatsapp_numero: string;
   logo_url: string;
+  banner_url: string;
   modo_pedido: 'imediato' | 'agendado';
   antecedencia_minima_horas: number;
   horario_abertura: string;
@@ -250,6 +251,7 @@ export interface CardapioPublico {
     nome: string;
     slug: string;
     logo_url: string;
+    banner_url: string;
     modo_pedido: 'imediato' | 'agendado';
     antecedencia_minima_horas: number;
     horario_abertura: string;

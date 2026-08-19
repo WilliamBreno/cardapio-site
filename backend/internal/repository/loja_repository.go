@@ -229,6 +229,7 @@ func (r *LojaRepository) LimparAssinatura(lojaID uint, plano string) error {
 type ConfiguracoesLoja struct {
 	WhatsappNumero           string
 	LogoURL                  string
+	BannerURL                string
 	ModoPedido               string
 	AntecedenciaMinimaHoras  int
 	HorarioAbertura          string
@@ -259,6 +260,7 @@ func (r *LojaRepository) AtualizarConfiguracoes(lojaID uint, cfg ConfiguracoesLo
 	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Updates(map[string]interface{}{
 		"whatsapp_numero":            cfg.WhatsappNumero,
 		"logo_url":                   cfg.LogoURL,
+		"banner_url":                 cfg.BannerURL,
 		"modo_pedido":                cfg.ModoPedido,
 		"antecedencia_minima_horas":  cfg.AntecedenciaMinimaHoras,
 		"horario_abertura":           cfg.HorarioAbertura,

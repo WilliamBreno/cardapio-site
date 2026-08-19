@@ -160,6 +160,9 @@ export function CardapioPublico() {
 
     return (
       <div className="min-h-screen bg-fundo" data-tema={data.loja.tema || 'kraft'}>
+        {data.loja.banner_url && (
+          <img src={data.loja.banner_url} alt="Oferta em destaque" className="h-32 w-full object-cover sm:h-48" />
+        )}
         <header className="bg-acento px-6 py-8 text-center">
           {data.loja.logo_url && (
             <img src={data.loja.logo_url} alt={data.loja.nome}
@@ -193,6 +196,9 @@ export function CardapioPublico() {
         </div>
       )}
 
+      {data.loja.banner_url && (
+        <img src={data.loja.banner_url} alt="Oferta em destaque" className="h-32 w-full object-cover sm:h-48" />
+      )}
       <header className="bg-acento px-6 py-8 text-center">
         {data.loja.logo_url && (
           <img src={data.loja.logo_url} alt={data.loja.nome}

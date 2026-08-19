@@ -118,6 +118,7 @@ export async function buscarLoja(): Promise<Loja> {
 export interface ConfiguracoesInput {
   whatsapp_numero: string;
   logo_url: string;
+  banner_url: string;
   modo_pedido: string;
   antecedencia_minima_horas: number;
   horario_abertura: string;

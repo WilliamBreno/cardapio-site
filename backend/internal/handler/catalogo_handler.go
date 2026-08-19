@@ -39,6 +39,7 @@ func (h *CatalogoHandler) BuscarCardapio(c *gin.Context) {
 			"nome":                       cardapio.Loja.Nome,
 			"slug":                       cardapio.Loja.Slug,
 			"logo_url":                   cardapio.Loja.LogoURL,
+			"banner_url":                 cardapio.Loja.BannerURL,
 			"modo_pedido":                cardapio.Loja.ModoPedido,
 			"antecedencia_minima_horas":  cardapio.Loja.AntecedenciaMinimaHoras,
 			"horario_abertura":           cardapio.Loja.HorarioAbertura,

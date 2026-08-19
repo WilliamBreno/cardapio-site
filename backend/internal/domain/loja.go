@@ -24,14 +24,18 @@ const LimiteToleranciaBloqueioPedidos = 3 * 24 * time.Hour
 
 // Loja representa o cardápio de um usuário.
 type Loja struct {
-	ID              uint    `gorm:"primaryKey" json:"id"`
-	UsuarioID       uint    `gorm:"not null;unique" json:"usuario_id"`
-	Usuario         Usuario `gorm:"foreignKey:UsuarioID" json:"-"`
-	Nome            string  `gorm:"size:100;not null" json:"nome"`
-	Slug            string  `gorm:"size:100;not null;unique" json:"slug"`
-	WhatsappNumero  string  `gorm:"size:20" json:"whatsapp_numero"`
-	LogoURL         string  `gorm:"size:500" json:"logo_url"`
-	StripeAccountID string  `gorm:"size:100" json:"-"`
+	ID             uint    `gorm:"primaryKey" json:"id"`
+	UsuarioID      uint    `gorm:"not null;unique" json:"usuario_id"`
+	Usuario        Usuario `gorm:"foreignKey:UsuarioID" json:"-"`
+	Nome           string  `gorm:"size:100;not null" json:"nome"`
+	Slug           string  `gorm:"size:100;not null;unique" json:"slug"`
+	WhatsappNumero string  `gorm:"size:20" json:"whatsapp_numero"`
+	LogoURL        string  `gorm:"size:500" json:"logo_url"`
+	// BannerURL é a foto de destaque no topo do cardápio público (Fase
+	// 10.1) — pra anunciar uma oferta/produto em destaque. Opcional,
+	// mesmo padrão de LogoURL (vazio = não mostra nada).
+	BannerURL       string `gorm:"size:500" json:"banner_url"`
+	StripeAccountID string `gorm:"size:100" json:"-"`
 
 	ModoPedido              ModoPedido `gorm:"size:20;default:'imediato'" json:"modo_pedido"`
 	AntecedenciaMinimaHoras int        `gorm:"default:24" json:"antecedencia_minima_horas"`
