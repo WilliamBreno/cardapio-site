@@ -6,9 +6,16 @@ interface Props {
 
 export function CarrinhoFlutuante({ onAbrir }: Props) {
   const itens = useCartStore((state) => state.itens);
+  const combos = useCartStore((state) => state.combos);
   const total = useCartStore((state) => state.total());
 
-  const quantidadeTotal = itens.reduce((soma, item) => soma + item.quantidade, 0);
+  // Precisa somar itens E combos — só contar `itens` fazia o botão ficar
+  // escondido (quantidadeTotal === 0) quando o carrinho tinha só um
+  // combo/kit dentro, mesmo com o combo já lá. Só aparecia depois de
+  // adicionar também um item avulso, quando então mostrava os dois juntos.
+  const quantidadeTotal =
+    itens.reduce((soma, item) => soma + item.quantidade, 0) +
+    combos.reduce((soma, item) => soma + item.quantidade, 0);
 
   if (quantidadeTotal === 0) return null;
 
