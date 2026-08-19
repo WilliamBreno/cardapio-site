@@ -57,7 +57,13 @@ func (s *EstoqueAvancadoService) ListaDeCompras(lojaID uint) ([]ItemListaCompras
 
 	itens := make([]ItemListaCompras, 0, len(insumos))
 	for _, insumo := range insumos {
-		var produtosAfetados []string
+		// make([]string, 0), não var — Scan() não toca no destino quando
+		// a query devolve 0 linhas (insumo sem nenhuma ficha técnica
+		// ligada), então um `var` ficaria nil e viraria `null` no JSON em
+		// vez de `[]`. O frontend chama `.length`/`.join` direto nesse
+		// campo sem checar null — um `null` aqui derrubava a tela
+		// inteira (sem ErrorBoundary no app), foi o bug relatado.
+		produtosAfetados := make([]string, 0)
 		s.db.Raw(`
 			SELECT DISTINCT p.nome FROM ficha_tecnica_itens fti
 			JOIN produtos p ON p.id = fti.produto_id
@@ -142,7 +148,18 @@ type RelatoriosAvancados struct {
 // RelatoriosAvancados monta os 4 relatórios da Fase 9.3 de uma vez só —
 // mesmo espírito de bundling de DashboardService.BuscarDados.
 func (s *EstoqueAvancadoService) RelatoriosAvancados(lojaID uint) (*RelatoriosAvancados, error) {
+	// ProdutosParados começa com make(..., 0) em vez do zero-value (nil)
+	// — Scan() não escreve nada no destino quando a query devolve 0
+	// linhas (loja sem produto disponível ainda), então um campo nil
+	// serializava como `null` no JSON. GiroEstoque/InsumosQueMaisSaem têm
+	// o mesmo cuidado na origem (giroEstoque() e na query abaixo), não
+	// aqui, porque os dois são atribuídos depois de calculados à parte.
+	// O frontend faz `.length`/`.join` direto nesses campos sem checar
+	// null, e sem ErrorBoundary no app isso derrubava a tela inteira pro
+	// branco — era o bug relatado, reproduzido contra uma loja Scale
+	// vazia.
 	resultado := &RelatoriosAvancados{
+		ProdutosParados:       make([]ItemProdutoParado, 0),
 		ValorParadoObservacao: "Considera só o estoque de insumos (custo conhecido). Produtos prontos sem ficha técnica não têm custo cadastrado no sistema, só preço de venda — não entram nessa soma.",
 	}
 
@@ -173,7 +190,7 @@ func (s *EstoqueAvancadoService) RelatoriosAvancados(lojaID uint) (*RelatoriosAv
 	`, lojaID).Scan(&valorInsumos)
 	resultado.ValorParadoEstoque = valorInsumos
 
-	var insumosMaisSaem []ItemInsumoMaisSai
+	insumosMaisSaem := make([]ItemInsumoMaisSai, 0)
 	s.db.Raw(`
 		SELECT i.id AS insumo_id, i.nome, i.unidade_uso, SUM(ABS(m.quantidade)) AS consumido_30d
 		FROM movimentacoes_insumo m
@@ -197,7 +214,7 @@ func (s *EstoqueAvancadoService) giroEstoque(lojaID uint) ([]ItemGiroEstoque, er
 		return nil, err
 	}
 
-	var resultado []ItemGiroEstoque
+	resultado := make([]ItemGiroEstoque, 0)
 	fusoBrasil, _ := time.LoadLocation("America/Sao_Paulo")
 	desde := time.Now().In(fusoBrasil).AddDate(0, 0, -30)
 

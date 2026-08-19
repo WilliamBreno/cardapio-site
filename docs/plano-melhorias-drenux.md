@@ -874,6 +874,23 @@ nesse escopo. Duas coisas ficam pendentes de propósito, cada uma esperando deci
 de qualquer código: a via "PDF via IA" da 9.2 (provedor/credenciais) e a 9.4 completa (multi-loja —
 achado que não existe nem como base hoje, precisa de spec própria, ver nota na 9.4)`
 
+**Bug real relatado pelo William em 19/08/2026, corrigido no mesmo dia — "ao clicar em Estoque a
+tela fica branca"**: reproduzido contra uma loja Scale sem nenhum dado ainda (produto/insumo novo,
+sem histórico de venda) — os relatórios avançados da Fase 9.3 usam `db.Raw(...).Scan(...)` pra
+popular `[]ItemProdutoParado`/`[]ItemGiroEstoque`/`[]ItemInsumoMaisSai`/`produtos_afetados`, e
+`Scan()` **não zera o destino quando a query devolve 0 linhas** (diferente do `Find()` do GORM, que
+já devolve `[]` corretamente — confirmado comparando os dois na prática). Uma `var x []T` nesse
+caminho fica `nil` e serializa como `null` no JSON em vez de `[]`. O frontend chama `.length`/
+`.join` direto nesses campos sem checar `null`, e esse app **não tem nenhum `ErrorBoundary` em
+lugar nenhum** — uma exceção não tratada durante o render derruba a árvore React inteira pra tela
+branca, sem nenhum aviso visível. Corrigido trocando todo `var x []T` por `make([]T, 0)` (ou
+pré-inicializando o campo antes do `Scan`) em `estoque_avancado_service.go` — arquivo único, os
+outros pontos da Fase 9 (ficha técnica, importação de NF-e) já usavam `Find()`/`make()` desde o
+início e foram conferidos como não afetados. Reproduzido e revalidado contra a mesma loja vazia
+antes e depois da correção (JSON `null`→`[]`, tela branca→conteúdo renderizando normal, com as
+mensagens de estado vazio de cada seção aparecendo certinho). Validado com `go build ./...`, `go
+vet ./...`, `gofmt -l`, todos limpos — fix só no backend, nenhuma mudança de frontend precisou.
+
 **Importante, ler antes de mexer em qualquer coisa nessa fase**: quando essa fase foi rascunhada
 (ago/2026), o Claude (chat) supôs que controle de estoque seria construído do zero. Auditoria
 confirmou que **isso já existe e roda em produção**, só nunca foi documentado em nenhum arquivo do
