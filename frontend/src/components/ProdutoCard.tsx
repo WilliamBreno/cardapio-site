@@ -139,7 +139,7 @@ export function ProdutoCard({ produto }: Props) {
 
             <button
               onClick={handleAdicionar}
-              className="rounded-full bg-acento px-4 py-1.5 text-sm font-semibold text-superficie transition active:scale-95 hover:bg-acento/90"
+              className="btn-neu-primario btn-neu-sm"
             >
               Adicionar
             </button>

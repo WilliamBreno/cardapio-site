@@ -110,7 +110,7 @@ function CriarAfiliadoForm({ onCriado }: { onCriado: () => void }) {
       <div className="space-y-2">
         <button
           onClick={() => { setAberto(true); setCriado(null); }}
-          className="w-full rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta hover:border-acento hover:text-acento"
+          className="w-full btn-neu-secundario hover:border-acento hover:text-acento"
         >
           + Criar afiliado
         </button>
@@ -174,14 +174,14 @@ function CriarAfiliadoForm({ onCriado }: { onCriado: () => void }) {
         <button
           type="button"
           onClick={() => setAberto(false)}
-          className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta"
+          className="btn-neu-secundario"
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={enviando}
-          className="flex-1 rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+          className="flex-1 btn-neu-primario"
         >
           {enviando ? 'Criando...' : 'Criar'}
         </button>
@@ -350,7 +350,7 @@ function AfiliadoCard({
               <button
                 onClick={marcarSelecionados}
                 disabled={selecionados.length === 0 || marcando}
-                className="w-full rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+                className="w-full btn-neu-primario"
               >
                 {marcando ? 'Marcando...' : selecionados.length > 0 ? `Marcar ${selecionados.length} como pago` : 'Marcar como pago'}
               </button>

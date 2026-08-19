@@ -618,7 +618,7 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
               <button
                 onClick={() => setEtapa('dados')}
                 disabled={(itens.length === 0 && combos.length === 0) || (valorMinimoPedido > 0 && total < valorMinimoPedido)}
-                className="w-full rounded-full bg-acento py-3 font-semibold text-superficie transition disabled:opacity-40"
+                className="btn-neu-primario w-full py-3"
               >
                 Continuar
               </button>
@@ -627,14 +627,14 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
             <div className="flex gap-3">
               <button
                 onClick={() => setEtapa('carrinho')}
-                className="rounded-full border border-tinta/20 px-4 py-3 font-semibold text-tinta"
+                className="btn-neu-secundario py-3"
               >
                 Voltar
               </button>
               <button
                 onClick={confirmarPedido}
                 disabled={enviando}
-                className="flex-1 rounded-full bg-acento py-3 font-semibold text-superficie transition disabled:opacity-60"
+                className="btn-neu-primario flex-1 py-3"
               >
                 {enviando ? 'Confirmando...' : 'Confirmar e pagar'}
               </button>

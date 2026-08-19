@@ -152,7 +152,7 @@ export function Categorias() {
         {!mostrarForm && (
           <button
             onClick={abrirNovo}
-            className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie"
+            className="btn-neu-primario"
           >
             + Nova categoria
           </button>
@@ -188,14 +188,14 @@ export function Categorias() {
             <button
               type="button"
               onClick={fecharForm}
-              className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta"
+              className="btn-neu-secundario"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={salvando}
-              className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+              className="btn-neu-primario"
             >
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>

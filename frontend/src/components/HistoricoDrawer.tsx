@@ -92,7 +92,7 @@ export function HistoricoDrawer({ aberto, onFechar, slug, produtos, onAbrirCarri
             <button
               onClick={buscar}
               disabled={buscando || !telefone.trim()}
-              className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-50"
+              className="btn-neu-primario disabled:opacity-50"
             >
               {buscando ? '...' : 'Buscar'}
             </button>

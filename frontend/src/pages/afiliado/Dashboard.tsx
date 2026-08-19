@@ -105,7 +105,7 @@ export function DashboardAfiliado() {
             <button
               onClick={conectarStripe}
               disabled={conectando}
-              className="mt-4 rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+              className="mt-4 btn-neu-primario"
             >
               {conectando ? 'Abrindo...' : 'Conectar conta de pagamento'}
             </button>

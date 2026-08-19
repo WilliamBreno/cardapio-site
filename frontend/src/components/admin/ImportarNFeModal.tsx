@@ -131,7 +131,7 @@ export function ImportarNFeModal({ onFechar }: { onFechar: () => void }) {
         {resultado ? (
           <div className="space-y-4">
             <p className="rounded-xl bg-douro/10 p-3 text-sm text-tinta">{resultado}</p>
-            <button onClick={onFechar} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie">Fechar</button>
+            <button onClick={onFechar} className="btn-neu-primario">Fechar</button>
           </div>
         ) : !preview ? (
           <div className="space-y-3">
@@ -225,8 +225,8 @@ export function ImportarNFeModal({ onFechar }: { onFechar: () => void }) {
             {erro && <p className="text-sm text-acento">{erro}</p>}
 
             <div className="flex gap-3">
-              <button type="button" onClick={onFechar} className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta">Cancelar</button>
-              <button onClick={confirmar} disabled={confirmando} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60">
+              <button type="button" onClick={onFechar} className="btn-neu-secundario">Cancelar</button>
+              <button onClick={confirmar} disabled={confirmando} className="btn-neu-primario">
                 {confirmando ? 'Confirmando...' : 'Confirmar importação'}
               </button>
             </div>

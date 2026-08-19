@@ -167,8 +167,8 @@ export function FichaTecnicaModal({ produto, onFechar }: { produto: Produto; onF
             {erro && <p className="mt-3 text-sm text-acento">{erro}</p>}
 
             <div className="mt-4 flex gap-3">
-              <button type="button" onClick={onFechar} className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta">Cancelar</button>
-              <button onClick={salvar} disabled={salvando} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60">
+              <button type="button" onClick={onFechar} className="btn-neu-secundario">Cancelar</button>
+              <button onClick={salvar} disabled={salvando} className="btn-neu-primario">
                 {salvando ? 'Salvando...' : 'Salvar ficha técnica'}
               </button>
             </div>

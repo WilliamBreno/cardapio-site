@@ -109,7 +109,7 @@ export function ProdutoFormFields({ form, onChange, categorias, subcategorias, g
           <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-tinta/25 bg-fundo">
             {form.foto_url ? <img src={logoMiniatura(form.foto_url)} alt="Foto" className="h-full w-full object-cover" /> : <span className="font-display text-xl text-tinta/30">{form.nome.charAt(0).toUpperCase() || '?'}</span>}
           </div>
-          <label className="cursor-pointer rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta hover:border-acento">
+          <label className="cursor-pointer btn-neu-secundario hover:border-acento">
             {enviandoFoto ? 'Enviando...' : form.foto_url ? 'Trocar foto' : 'Enviar foto'}
             <input type="file" accept="image/*" onChange={onSelecionarFoto} disabled={enviandoFoto} className="hidden" />
           </label>
@@ -117,7 +117,7 @@ export function ProdutoFormFields({ form, onChange, categorias, subcategorias, g
             <button
               type="button"
               onClick={() => onChange({ ...form, foto_url: '' })}
-              className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta-suave hover:border-acento hover:text-acento"
+              className="btn-neu-secundario-suave hover:border-acento hover:text-acento"
             >
               Remover foto
             </button>

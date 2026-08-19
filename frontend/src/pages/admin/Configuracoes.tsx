@@ -205,7 +205,7 @@ export function Configuracoes() {
         <button
           onClick={conectarMercadoPago}
           disabled={conectandoMercadoPago}
-          className="mt-4 rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+          className="mt-4 btn-neu-primario"
         >
           {conectandoMercadoPago ? 'Abrindo...' : mercadoPagoStatus?.mercadopago_conectado ? 'Revisar dados no Mercado Pago' : 'Conectar conta de pagamento'}
         </button>
@@ -225,7 +225,7 @@ export function Configuracoes() {
                 <span className="font-display text-xl text-tinta/30">?</span>
               )}
             </div>
-            <label className="cursor-pointer rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta hover:border-acento">
+            <label className="cursor-pointer btn-neu-secundario hover:border-acento">
               {enviandoLogo ? 'Enviando...' : logoUrl ? 'Trocar imagem' : 'Enviar logo'}
               <input type="file" accept="image/*" onChange={selecionarLogo} disabled={enviandoLogo} className="hidden" />
             </label>
@@ -486,7 +486,7 @@ export function Configuracoes() {
                 type="button"
                 onClick={assinarSugestao}
                 disabled={assinandoSugestao}
-                className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+                className="btn-neu-primario"
               >
                 {assinandoSugestao ? 'Abrindo pagamento...' : 'Assinar'}
               </button>
@@ -593,7 +593,7 @@ export function Configuracoes() {
         <button
           type="submit"
           disabled={mutSalvar.isPending}
-          className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+          className="btn-neu-primario"
         >
           {mutSalvar.isPending ? 'Salvando...' : 'Salvar'}
         </button>

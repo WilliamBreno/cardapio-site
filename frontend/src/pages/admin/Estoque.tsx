@@ -295,7 +295,7 @@ function ModalEstoque({ item, onFechar, onAtualizado }: { item: ItemEstoque; onF
           <button
             type="submit"
             disabled={enviando}
-            className="w-full rounded-full bg-acento py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+            className="btn-neu-primario w-full"
           >
             {enviando ? 'Salvando...' : 'Repor'}
           </button>

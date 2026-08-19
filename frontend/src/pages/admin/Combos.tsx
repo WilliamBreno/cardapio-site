@@ -136,7 +136,7 @@ export function Combos() {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl tracking-wide text-tinta">{rotulo}s</h1>
         {!mostrarForm && (
-          <button onClick={abrirNovo} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie">
+          <button onClick={abrirNovo} className="btn-neu-primario">
             + Novo {rotuloMin}
           </button>
         )}
@@ -180,7 +180,7 @@ export function Combos() {
                   className="h-12 w-12 shrink-0 rounded-lg object-cover"
                 />
               )}
-              <label className="cursor-pointer rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta hover:border-acento">
+              <label className="cursor-pointer btn-neu-secundario hover:border-acento">
                 {enviandoFoto ? 'Enviando...' : form.foto_url ? 'Trocar imagem' : 'Enviar imagem'}
                 <input type="file" accept="image/*" onChange={selecionarFoto} disabled={enviandoFoto} className="hidden" />
               </label>
@@ -247,8 +247,8 @@ export function Combos() {
           {erro && <p className="text-sm text-acento">{erro}</p>}
 
           <div className="flex gap-3">
-            <button type="button" onClick={fecharForm} className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta">Cancelar</button>
-            <button type="submit" disabled={salvando} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60">
+            <button type="button" onClick={fecharForm} className="btn-neu-secundario">Cancelar</button>
+            <button type="submit" disabled={salvando} className="btn-neu-primario">
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
           </div>

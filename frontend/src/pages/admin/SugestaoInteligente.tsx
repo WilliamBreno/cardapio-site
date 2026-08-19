@@ -163,7 +163,7 @@ export function SugestaoInteligente() {
                   </p>
                   <Link
                     to="/admin/configuracoes"
-                    className="inline-block rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie"
+                    className="inline-block btn-neu-primario"
                   >
                     Ver como contratar
                   </Link>
@@ -229,7 +229,7 @@ export function SugestaoInteligente() {
                     <button
                       type="submit"
                       disabled={mutCriar.isPending || !produtoSugeridoId}
-                      className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60"
+                      className="btn-neu-primario"
                     >
                       {mutCriar.isPending ? 'Salvando...' : 'Adicionar sugestão'}
                     </button>

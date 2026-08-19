@@ -62,7 +62,7 @@ export function QRCodeCardapio({ slug, nomeLoja, segmentoLoja }: Props) {
           {gerado && (
             <button
               onClick={baixar}
-              className="w-full rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie transition hover:bg-acento/90"
+              className="w-full btn-neu-primario transition hover:bg-acento/90"
             >
               Baixar imagem (PNG)
             </button>

@@ -86,7 +86,7 @@ export function Cupons() {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl tracking-wide text-tinta">Cupons</h1>
         {!mostrarForm && (
-          <button onClick={abrirNovo} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie">
+          <button onClick={abrirNovo} className="btn-neu-primario">
             + Novo cupom
           </button>
         )}
@@ -185,8 +185,8 @@ export function Cupons() {
           {erro && <p className="text-sm text-acento">{erro}</p>}
 
           <div className="flex gap-3">
-            <button type="button" onClick={fecharForm} className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta">Cancelar</button>
-            <button type="submit" disabled={salvando} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60">
+            <button type="button" onClick={fecharForm} className="btn-neu-secundario">Cancelar</button>
+            <button type="submit" disabled={salvando} className="btn-neu-primario">
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
           </div>

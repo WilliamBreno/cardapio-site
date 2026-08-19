@@ -481,13 +481,13 @@ export function Produtos() {
           <div className="flex items-center gap-2">
             {ehMercadoria && (
               <div className="flex items-center gap-1.5">
-                <button onClick={() => setMostrarCadastroEmMassa(true)} className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta hover:border-acento hover:text-acento">
+                <button onClick={() => setMostrarCadastroEmMassa(true)} className="btn-neu-secundario hover:border-acento hover:text-acento">
                   Cadastro em massa
                 </button>
                 <InfoTooltip texto='Cadastra vários produtos em sequência sem fechar a tela: você preenche um, salva, adiciona fotos e variações se quiser, e já parte pro próximo — sem abrir o formulário de novo a cada item. Bom pra catálogos grandes.' />
               </div>
             )}
-            <button onClick={abrirNovo} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie">
+            <button onClick={abrirNovo} className="btn-neu-primario">
               + Novo produto
             </button>
           </div>
@@ -513,8 +513,8 @@ export function Produtos() {
 
           {erro && <p className="text-sm text-acento">{erro}</p>}
           <div className="flex gap-3">
-            <button type="button" onClick={fecharForm} className="rounded-full border border-tinta/20 px-4 py-2 text-sm font-semibold text-tinta">Cancelar</button>
-            <button type="submit" disabled={salvando} className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-superficie disabled:opacity-60">{salvando ? 'Salvando...' : 'Salvar'}</button>
+            <button type="button" onClick={fecharForm} className="btn-neu-secundario">Cancelar</button>
+            <button type="submit" disabled={salvando} className="btn-neu-primario">{salvando ? 'Salvando...' : 'Salvar'}</button>
           </div>
         </form>
       )}
