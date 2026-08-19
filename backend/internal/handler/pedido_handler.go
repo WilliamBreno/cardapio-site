@@ -151,15 +151,21 @@ func (h *PedidoHandler) Listar(c *gin.Context) {
 	c.JSON(http.StatusOK, pedidos)
 }
 
+// statusEntregaRequest aceita as 4 etapas do fluxo de preparo/entrega
+// (Fase 10.2): a_preparar → preparando → saiu_para_entrega → entregue.
+// Mesmo endpoint de sempre, só o oneof ficou mais largo — antes só
+// aceitava as duas últimas etapas.
 type statusEntregaRequest struct {
-	StatusEntrega string `json:"status_entrega" binding:"required,oneof=saiu_para_entrega entregue"`
+	StatusEntrega string `json:"status_entrega" binding:"required,oneof=a_preparar preparando saiu_para_entrega entregue"`
 }
 
 // AtualizarStatusEntrega atende PUT /admin/pedidos/:id/status-entrega.
-// Marca o pedido como "saiu para entrega" ou "entregue". Confirma que o
-// pedido pertence à loja do token antes de deixar alterar. Quando o
-// status vira "saiu_para_entrega", dispara o aviso de WhatsApp com o
-// link de rastreamento em segundo plano, sem atrasar a resposta.
+// Marca a etapa de preparo/entrega do pedido. Confirma que o pedido
+// pertence à loja do token antes de deixar alterar. Quando a etapa vira
+// "saiu_para_entrega", dispara o aviso de WhatsApp com o link de
+// rastreamento em segundo plano, sem atrasar a resposta — mesmo
+// comportamento de antes, só que agora essa é uma de 4 etapas possíveis
+// em vez de uma de duas.
 func (h *PedidoHandler) AtualizarStatusEntrega(c *gin.Context) {
 	lojaID := c.GetUint("loja_id")
 

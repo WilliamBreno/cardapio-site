@@ -63,6 +63,19 @@ func (s *PosPagamentoService) ProcessarPedidoPago(pedidoID uint) {
 		return
 	}
 
+	// Fase 10.2: todo pedido que vira pago entra automaticamente na
+	// primeira etapa do fluxo de preparo — só se ainda não tiver etapa
+	// nenhuma, pra esse pós-pagamento continuar seguro mesmo se rodar
+	// mais de uma vez pro mesmo pedido (mesmo espírito idempotente do
+	// resto desta função).
+	if pedido.StatusEntrega == "" {
+		if err := s.pedidoRepo.AtualizarStatusEntrega(pedido.ID, "a_preparar"); err != nil {
+			log.Printf("aviso: não foi possível marcar pedido %d como 'a_preparar': %v", pedido.ID, err)
+		} else {
+			pedido.StatusEntrega = "a_preparar"
+		}
+	}
+
 	loja, err := s.lojaRepo.BuscarPorID(pedido.LojaID)
 	if err != nil {
 		log.Printf("não foi possível carregar loja do pedido %d pós-pagamento: %v", pedidoID, err)

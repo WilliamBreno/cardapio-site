@@ -13,7 +13,11 @@ interface RastrearResponse {
 // Chamadas administrativas (exigem token — o interceptor do client.ts já
 // injeta o Authorization automaticamente quando há um usuário logado).
 
-export async function atualizarStatusEntrega(pedidoId: number, statusEntrega: 'saiu_para_entrega' | 'entregue'): Promise<void> {
+// EtapaPedido: as 4 etapas do fluxo de preparo/entrega (Fase 10.2) — antes
+// só existiam as duas últimas (saiu_para_entrega/entregue).
+export type EtapaPedido = 'a_preparar' | 'preparando' | 'saiu_para_entrega' | 'entregue';
+
+export async function atualizarStatusEntrega(pedidoId: number, statusEntrega: EtapaPedido): Promise<void> {
   await api.put(`/admin/pedidos/${pedidoId}/status-entrega`, { status_entrega: statusEntrega });
 }
 

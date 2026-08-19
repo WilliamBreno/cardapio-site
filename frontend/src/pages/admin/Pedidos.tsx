@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listarPedidos, buscarLoja } from '../../api/admin';
+import { atualizarStatusEntrega, type EtapaPedido } from '../../api/rastreamento';
 import type { Pedido, StatusPedido, TipoProduto } from '../../api/types';
 import { rotuloCombo } from '../../lib/utils';
 
@@ -11,20 +12,55 @@ const statusInfo: Record<StatusPedido, { label: string; classe: string }> = {
   cancelado: { label: 'Cancelado', classe: 'bg-acento/10 text-acento' },
 };
 
-const statusEntregaInfo: Record<string, { label: string; classe: string }> = {
-  saiu_para_entrega: { label: '🛵 Saiu para entrega', classe: 'bg-douro/20 text-douro' },
-  entregue: { label: '✅ Entregue', classe: 'bg-emerald-100 text-emerald-700' },
-};
+// ETAPAS (Fase 10.2): as 4 etapas do fluxo de preparo/entrega, em ordem —
+// "Avançar" sempre pula pra próxima da lista. rotuloEntrega é o texto pra
+// pedido modo_entrega === 'entrega'; rotuloRetirada é o mesmo passo, mas
+// pra quem só retira no balcão (não faz sentido "saiu pra entrega" nesse
+// caso — decisão confirmada com o William).
+const ETAPAS: { valor: EtapaPedido; rotuloEntrega: string; rotuloRetirada: string; classe: string }[] = [
+  { valor: 'a_preparar', rotuloEntrega: '🧾 A preparar', rotuloRetirada: '🧾 A preparar', classe: 'bg-tinta/10 text-tinta-suave' },
+  { valor: 'preparando', rotuloEntrega: '👨‍🍳 Preparando', rotuloRetirada: '👨‍🍳 Preparando', classe: 'bg-amber-100 text-amber-800' },
+  { valor: 'saiu_para_entrega', rotuloEntrega: '🛵 Saiu para entrega', rotuloRetirada: '🏪 Pronto pra retirada', classe: 'bg-douro/20 text-douro' },
+  { valor: 'entregue', rotuloEntrega: '✅ Entregue', rotuloRetirada: '✅ Entregue', classe: 'bg-emerald-100 text-emerald-700' },
+];
+
+// etapaAtual trata '' (pedido pago antes da Fase 10.2, sem etapa gravada)
+// como "a_preparar" — a primeira etapa — em vez de deixar o pedido sem
+// nenhuma etapa visível.
+function etapaAtual(pedido: Pedido): EtapaPedido {
+  return (pedido.status_entrega || 'a_preparar') as EtapaPedido;
+}
+
+function infoEtapa(etapa: EtapaPedido) {
+  return ETAPAS.find((e) => e.valor === etapa) ?? ETAPAS[0];
+}
+
+function rotuloEtapa(etapa: EtapaPedido, modoEntrega: string) {
+  const info = infoEtapa(etapa);
+  return modoEntrega === 'entrega' ? info.rotuloEntrega : info.rotuloRetirada;
+}
+
+// proximaEtapa devolve a etapa seguinte, ou null se já é a última — usado
+// tanto pro botão "Avançar" (lista e quadro) quanto pra decidir se ele
+// aparece.
+function proximaEtapa(etapa: EtapaPedido): EtapaPedido | null {
+  const i = ETAPAS.findIndex((e) => e.valor === etapa);
+  return i === -1 || i === ETAPAS.length - 1 ? null : ETAPAS[i + 1].valor;
+}
 
 const PESO_PENDENTE_CLASSE = 'bg-amber-100 text-amber-800';
 
-type FiltroPedido = 'todos' | StatusPedido | 'peso_pendente';
+type FiltroPedido = 'todos' | StatusPedido | 'peso_pendente' | EtapaPedido;
 
 const filtrosBase: { valor: FiltroPedido; label: string }[] = [
   { valor: 'todos', label: 'Todos' },
   { valor: 'pago', label: 'Pagos' },
   { valor: 'aguardando_pagamento', label: 'Aguardando' },
   { valor: 'cancelado', label: 'Cancelados' },
+  { valor: 'a_preparar', label: '🧾 A preparar' },
+  { valor: 'preparando', label: '👨‍🍳 Preparando' },
+  { valor: 'saiu_para_entrega', label: '🛵 Saiu p/ entrega' },
+  { valor: 'entregue', label: '✅ Entregue' },
 ];
 
 function formatarData(iso: string): string {
@@ -37,7 +73,11 @@ function formatarData(iso: string): string {
   });
 }
 
+const ETAPA_VALORES = new Set<string>(ETAPAS.map((e) => e.valor));
+
 export function Pedidos() {
+  const queryClient = useQueryClient();
+
   // Atualiza sozinho a cada 30s — um pedido novo pode chegar a qualquer
   // momento enquanto o dono está com essa tela aberta.
   const { data: pedidos, isLoading } = useQuery({
@@ -48,6 +88,18 @@ export function Pedidos() {
   const { data: loja } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
 
   const [filtro, setFiltro] = useState<FiltroPedido>('todos');
+  const [visualizacao, setVisualizacao] = useState<'lista' | 'quadro'>('lista');
+
+  // avancarEtapa é compartilhado pela lista e pelo quadro — os dois
+  // chamam o mesmo endpoint, só muda onde o botão aparece.
+  const mutAvancar = useMutation({
+    mutationFn: ({ pedidoId, etapa }: { pedidoId: number; etapa: EtapaPedido }) => atualizarStatusEntrega(pedidoId, etapa),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pedidos'] }),
+  });
+  function avancarEtapa(pedido: Pedido) {
+    const proxima = proximaEtapa(etapaAtual(pedido));
+    if (proxima) mutAvancar.mutate({ pedidoId: pedido.id, etapa: proxima });
+  }
 
   const pesoPendenteCount = pedidos?.filter((p) => p.peso_pendente).length ?? 0;
 
@@ -61,52 +113,137 @@ export function Pedidos() {
     pedidos?.filter((pedido) => {
       if (filtro === 'todos') return true;
       if (filtro === 'peso_pendente') return pedido.peso_pendente;
+      // Etapas de preparo/entrega só existem em pedido pago — os filtros
+      // de etapa não devolvem nada de aguardando_pagamento/cancelado.
+      if (ETAPA_VALORES.has(filtro)) return pedido.status === 'pago' && etapaAtual(pedido) === filtro;
       return pedido.status === filtro;
     }) ?? [];
 
+  // Quadro (Kanban) só faz sentido pra pedido pago — não tem etapa de
+  // preparo antes de pagar. Ignora o filtro de status/peso quando o
+  // quadro está ativo (ele já filtra por etapa através das colunas).
+  const pedidosPagos = pedidos?.filter((p) => p.status === 'pago') ?? [];
+
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-2xl tracking-wide text-tinta">Pedidos</h1>
-
-      <div className="flex gap-2 overflow-x-auto">
-        {filtros.map((item) => (
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="font-display text-2xl tracking-wide text-tinta">Pedidos</h1>
+        <div className="flex shrink-0 gap-1 rounded-full bg-superficie p-1 shadow-sm">
           <button
-            key={item.valor}
-            onClick={() => setFiltro(item.valor)}
-            className={`shrink-0 rounded-full border-2 px-4 py-1.5 text-sm font-medium transition ${
-              filtro === item.valor
-                ? 'border-acento bg-acento text-superficie'
-                : item.valor === 'peso_pendente'
-                ? 'border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-400'
-                : 'border-tinta/15 bg-superficie text-tinta-suave hover:border-tinta/30'
-            }`}
+            onClick={() => setVisualizacao('lista')}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${visualizacao === 'lista' ? 'bg-acento text-superficie' : 'text-tinta-suave'}`}
           >
-            {item.label}
+            Lista
           </button>
-        ))}
+          <button
+            onClick={() => setVisualizacao('quadro')}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${visualizacao === 'quadro' ? 'bg-acento text-superficie' : 'text-tinta-suave'}`}
+          >
+            Quadro
+          </button>
+        </div>
       </div>
 
-      {isLoading ? (
-        <p className="text-tinta-suave">Carregando pedidos...</p>
-      ) : pedidosFiltrados.length === 0 ? (
-        <p className="text-tinta-suave">Nenhum pedido por aqui ainda.</p>
+      {visualizacao === 'lista' ? (
+        <>
+          <div className="flex gap-2 overflow-x-auto">
+            {filtros.map((item) => (
+              <button
+                key={item.valor}
+                onClick={() => setFiltro(item.valor)}
+                className={`shrink-0 rounded-full border-2 px-4 py-1.5 text-sm font-medium transition ${
+                  filtro === item.valor
+                    ? 'border-acento bg-acento text-superficie'
+                    : item.valor === 'peso_pendente'
+                    ? 'border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-400'
+                    : 'border-tinta/15 bg-superficie text-tinta-suave hover:border-tinta/30'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {isLoading ? (
+            <p className="text-tinta-suave">Carregando pedidos...</p>
+          ) : pedidosFiltrados.length === 0 ? (
+            <p className="text-tinta-suave">Nenhum pedido por aqui ainda.</p>
+          ) : (
+            <ul className="space-y-3">
+              {pedidosFiltrados.map((pedido) => (
+                <PedidoCard key={pedido.id} pedido={pedido} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} />
+              ))}
+            </ul>
+          )}
+        </>
       ) : (
-        <ul className="space-y-3">
-          {pedidosFiltrados.map((pedido) => (
-            <PedidoCard key={pedido.id} pedido={pedido} segmentoLoja={loja?.segmento_principal} />
-          ))}
-        </ul>
+        <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} onAvancar={avancarEtapa} />
       )}
     </div>
   );
 }
 
-function PedidoCard({ pedido, segmentoLoja }: { pedido: Pedido; segmentoLoja?: TipoProduto }) {
-  const status = statusInfo[pedido.status];
-  const statusEntrega = pedido.status_entrega ? statusEntregaInfo[pedido.status_entrega] : null;
+// QuadroPedidos é a visão "dinâmica e interativa" (Fase 10.2) — uma
+// coluna por etapa, cada card com um botão único de avançar. Sem
+// drag-and-drop de propósito (mais frágil de acertar bem e não foi
+// pedido explicitamente) — "um clique" já é bem atendido pelo botão.
+function QuadroPedidos({ pedidos, isLoading, onAvancar }: { pedidos: Pedido[]; isLoading: boolean; onAvancar: (pedido: Pedido) => void }) {
+  if (isLoading) return <p className="text-tinta-suave">Carregando pedidos...</p>;
+  if (pedidos.length === 0) return <p className="text-tinta-suave">Nenhum pedido pago ainda.</p>;
 
-  // Só faz sentido gerenciar entrega em pedidos pagos, com modo "entrega",
-  // e que ainda não foram marcados como entregues.
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-2">
+      {ETAPAS.map((etapa) => {
+        const pedidosDaEtapa = pedidos.filter((p) => etapaAtual(p) === etapa.valor);
+        return (
+          <div key={etapa.valor} className="w-72 shrink-0 space-y-3">
+            <div className={`rounded-full px-3 py-1.5 text-center text-xs font-semibold ${etapa.classe}`}>
+              {etapa.rotuloEntrega === etapa.rotuloRetirada ? etapa.rotuloEntrega : `${etapa.rotuloEntrega} / ${etapa.rotuloRetirada}`}
+              {' · '}{pedidosDaEtapa.length}
+            </div>
+            <div className="space-y-2">
+              {pedidosDaEtapa.map((pedido) => {
+                const proxima = proximaEtapa(etapaAtual(pedido));
+                return (
+                  <div key={pedido.id} className="rounded-xl bg-superficie p-3 shadow-sm">
+                    <p className="text-sm font-medium text-tinta">
+                      {pedido.cliente_nome} <span className="text-tinta-suave">· #{pedido.id}</span>
+                    </p>
+                    <p className="text-xs text-tinta-suave">
+                      {pedido.modo_entrega === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'} · R$ {pedido.total.toFixed(2).replace('.', ',')}
+                    </p>
+                    {proxima && (
+                      <button onClick={() => onAvancar(pedido)} className="btn-neu-primario btn-neu-sm mt-2 w-full">
+                        Avançar → {rotuloEtapa(proxima, pedido.modo_entrega)}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {pedidosDaEtapa.length === 0 && (
+                <p className="rounded-xl border-2 border-dashed border-tinta/10 p-3 text-center text-xs text-tinta-suave/60">
+                  Nenhum pedido aqui
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PedidoCard({ pedido, segmentoLoja, onAvancar }: { pedido: Pedido; segmentoLoja?: TipoProduto; onAvancar: (pedido: Pedido) => void }) {
+  const status = statusInfo[pedido.status];
+  // Etapa de preparo/entrega (Fase 10.2) só existe em pedido pago.
+  const etapa = pedido.status === 'pago' ? infoEtapa(etapaAtual(pedido)) : null;
+  const proxima = pedido.status === 'pago' ? proximaEtapa(etapaAtual(pedido)) : null;
+
+  // Só faz sentido gerenciar entrega (link pra tela de GPS/rastreamento)
+  // em pedidos pagos, com modo "entrega", e que ainda não foram marcados
+  // como entregues — o botão "Avançar" genérico abaixo é o caminho pra
+  // todo mundo, esse link é um atalho a mais só pra quem tem entrega de
+  // verdade (compartilha localização).
   const podeGerenciarEntrega =
     pedido.status === 'pago' &&
     pedido.modo_entrega === 'entrega' &&
@@ -125,9 +262,9 @@ function PedidoCard({ pedido, segmentoLoja }: { pedido: Pedido; segmentoLoja?: T
           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${status.classe}`}>
             {status.label}
           </span>
-          {statusEntrega && (
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusEntrega.classe}`}>
-              {statusEntrega.label}
+          {etapa && (
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${etapa.classe}`}>
+              {rotuloEtapa(etapa.valor, pedido.modo_entrega)}
             </span>
           )}
           {pedido.peso_pendente && (
@@ -186,10 +323,16 @@ function PedidoCard({ pedido, segmentoLoja }: { pedido: Pedido; segmentoLoja?: T
         </span>
       </div>
 
+      {proxima && (
+        <button onClick={() => onAvancar(pedido)} className="btn-neu-primario mt-3 w-full">
+          Avançar → {rotuloEtapa(proxima, pedido.modo_entrega)}
+        </button>
+      )}
+
       {podeGerenciarEntrega && (
         <Link
           to={`/admin/pedidos/${pedido.id}/localizacao`}
-          className="btn-neu-primario mt-3 block text-center"
+          className="btn-neu-secundario mt-2 block text-center"
         >
           {pedido.status_entrega === 'saiu_para_entrega' ? '📍 Gerenciar entrega' : '🛵 Iniciar entrega'}
         </Link>

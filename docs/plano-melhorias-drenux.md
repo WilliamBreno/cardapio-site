@@ -1132,7 +1132,7 @@ fica pendente de especificação própria antes de qualquer código, mesmo padr�
 PDF+IA da Fase 9.2 (não travar o resto do roadmap nisso).
 
 ### Fase 10 — Banner, etapas de pedido, sugestão/cupom visíveis, analytics de cliente, relatório via WhatsApp, impressora Bluetooth
-Status: `[~] 10.1, 10.3 e 10.4 implementadas e testadas em 19/08/2026 — 10.2, 10.5-10.7 seguem
+Status: `[~] 10.1, 10.2, 10.3 e 10.4 implementadas e testadas em 19/08/2026 — 10.5-10.7 seguem
 pendentes`
 
 Combinada numa conversa com o William em 19/08/2026 — sete pedidos batidos juntos, quebrados aqui em
@@ -1184,7 +1184,8 @@ Configurações; botão "Remover" limpa o campo dos dois lados (confirmado banne
 `banner_url` voltando a `""` na API). Validado com `go build ./...`/`go vet ./...`/`gofmt -l`
 (backend) e `npx tsc -b`/`npm run build` (frontend), todos limpos.
 
-**10.2 — Etapas do pedido: A preparar → Preparando → Saiu para entrega → Entregue**
+**10.2 — Etapas do pedido: A preparar → Preparando → Saiu para entrega → Entregue — implementada e
+testada em 19/08/2026**
 
 Maior sub-fase da leva, mexe em modelo de dado existente. Achado importante: hoje só existem duas
 etapas de verdade, e fragmentadas em dois lugares — `Pedido.Status` (`aguardando_pagamento`/`pago`/
@@ -1221,6 +1222,40 @@ nenhum — precisa criar.
      ou pular etapa fica disponível como menu secundário no card, não como ação primária.
   3. O aviso de WhatsApp de "saiu pra entrega" que já existe (`pedido_handler.go`, dispara ao setar
      esse status) não muda de comportamento — só passa a ser uma etapa no meio de 4, não a única.
+
+Implementado como especificado, com o William confirmando de antemão a rotulagem por
+`modo_entrega` da 3ª etapa ("Pronto pra retirada" pra quem não é `entrega`) antes de começar:
+
+- Backend: `StatusEntrega` ampliado pro `oneof` de 4 valores (`pedido_handler.go`).
+  `PosPagamentoService.ProcessarPedidoPago` marca `status_entrega = 'a_preparar'` assim que o
+  pedido vira pago — só se ainda estiver vazio, pra ficar seguro mesmo se esse método rodar mais
+  de uma vez pro mesmo pedido (mesmo espírito idempotente do resto da função). Ponto único
+  (`PosPagamentoService`) compartilhado pelos dois processadores de pagamento (Mercado Pago e o
+  código legado da Stripe), sem duplicar a lógica em cada um.
+- Frontend `Pedidos.tsx`: os 4 novos filtros (pill) convivem com os de pagamento na mesma barra;
+  alternância "Lista / Quadro" no topo; Quadro com 4 colunas (só pedido `pago`), cada card com
+  botão único "Avançar → [próxima etapa]", rótulo já ajustado por `modo_entrega`. O mesmo botão
+  "Avançar" também aparece na visão em Lista (não só no Quadro) — decisão consciente: o pedido
+  original já falava em "podendo ser manual... ou automaticamente com um clique" nos dois
+  contextos, não só no Quadro, então repetir o botão nos dois lugares atende isso de forma mais
+  direta do que deixar o avanço rápido só dentro do Quadro.
+- **Ressalva de escopo, decidida conscientemente**: o "menu secundário pra mover pra trás/pular
+  etapa" mencionado na spec original **não foi implementado** — só o avanço de uma etapa por vez
+  (pra frente) existe hoje. Não foi pedido de novo durante a implementação e o botão único já
+  resolve o caso de uso principal (avançar o pedido); reverter uma etapa por engano hoje exigiria
+  mexer direto na API. Se o William precisar disso na prática, é uma adição pequena depois.
+- O link "Iniciar entrega"/"Gerenciar entrega" (rota `/admin/pedidos/:id/localizacao`, GPS ao
+  vivo) continua existindo do jeito que já era — virou um atalho secundário abaixo do novo botão
+  "Avançar" (que é a ação primária agora), só aparece pra pedido `modo_entrega = 'entrega'`.
+
+Testado ao vivo com um pedido de retirada e um de entrega processados pelo caminho real
+(`PosPagamentoService.ProcessarPedidoPago`, não simulação isolada): confirmado que os dois nascem
+com `status_entrega = 'a_preparar'`; avançando o pedido de entrega através das 4 etapas até
+"Entregue", o botão "Avançar" desaparece corretamente na etapa final (sem `proximaEtapa`);
+avançando o pedido de retirada, o rótulo mostrado foi "Pronto pra retirada" (não "Saiu para
+entrega"), confirmando a lógica por `modo_entrega`. Quadro conferido visualmente com as colunas e
+contadores certos. Validado com `go build ./...`/`go vet ./...`/`gofmt -l` (backend) e
+`npx tsc -b`/`npm run build` (frontend), todos limpos.
 
 **10.3 — Sugestão e cupom visíveis em Pedidos — implementada e testada em 19/08/2026**
 
