@@ -1131,6 +1131,194 @@ a própria?), e revisar todo handler do sistema, que hoje assume `loja_id` únic
 fica pendente de especificação própria antes de qualquer código, mesmo padrão já usado com a via
 PDF+IA da Fase 9.2 (não travar o resto do roadmap nisso).
 
+### Fase 10 — Banner, etapas de pedido, sugestão/cupom visíveis, analytics de cliente, relatório via WhatsApp, impressora Bluetooth
+Status: `[ ] pendente`
+
+Combinada numa conversa com o William em 19/08/2026 — sete pedidos batidos juntos, quebrados aqui em
+sub-fases pra seguir o mesmo padrão do resto do roadmap (uma por vez). Antes de escrever a spec,
+levantei o estado real do código pra não presumir nada — os achados de cada sub-fase estão registrados
+abaixo, incluindo dois que mudam o tamanho do trabalho esperado (cupom **já existe** em Pedidos, forma
+de pagamento **não existe em lugar nenhum** hoje).
+
+**Decisões já fechadas com o William antes de escrever esta spec** (não reabrir sem ele pedir):
+- Impressora fiscal via Bluetooth = impressora térmica de recibo/comanda (ESC/POS), não equipamento
+  fiscal homologado nem NF-e/NFC-e — dá pra fazer direto do navegador via Web Bluetooth API.
+- Etapas do pedido: **A preparar → Preparando → Saiu para entrega → Entregue**, mesmo fluxo pros dois
+  segmentos (alimentício e mercadoria) — sem nomes diferentes por segmento.
+- Top cliente no Dashboard: mostrar os dois rankings (por quantidade de pedidos E por valor total
+  gasto), não só um.
+
+**Ordem de implementação sugerida** (cada uma vira uma sessão própria, "pode atualizar" avança pra
+próxima): 10.3 (menor, achado que cupom já existe) → 10.1 (banner, isolada) → 10.4 (top cliente) →
+10.2 (etapas — a maior) → 10.6 (histórico + forma de pagamento — depende de dado novo) → 10.5
+(relatório WhatsApp — mais fácil depois de 10.4/10.6 já existirem) → 10.7 (Bluetooth, independente,
+mas com ressalva de compatibilidade importante, ver abaixo).
+
+---
+
+**10.1 — Banner de oferta no topo do cardápio público**
+
+- `domain.Loja` ganha `BannerURL string` (`gorm:"size:500" json:"banner_url"`) — mesmo padrão exato
+  de `LogoURL` (`backend/internal/domain/loja.go:33`), sem campo de link clicável (não foi pedido;
+  se quiser depois, é aditivo).
+- Upload: mesmo fluxo do logo — direto do navegador pro Cloudinary via `enviarImagem`
+  (`frontend/src/api/upload.ts`), sem passar pelo backend. Editável em `Configuracoes.tsx`, no mesmo
+  bloco visual de onde o logo já é trocado hoje.
+- `ConfiguracoesInput`/`atualizarConfiguracoes` (`frontend/src/api/admin.ts`) ganha `banner_url:
+  string` — mesma ressalva já documentada nesse arquivo pra `sugestao_inteligente_ativa`: como o
+  `PUT /admin/loja` substitui a configuração inteira de uma vez, o campo precisa ir em todo save.
+- `CardapioPublico.tsx`: banner renderiza como faixa full-width **acima** do `<header
+  className="bg-acento ...">` existente (linhas ~162-169 e ~196-225, os dois blocos de cabeçalho —
+  fechado/pausado e aberto) — não substitui logo nem nome da loja, só um elemento novo por cima.
+  Opcional (`banner_url` vazio = não mostra nada, sem quebrar layout de quem não configurar).
+
+**10.2 — Etapas do pedido: A preparar → Preparando → Saiu para entrega → Entregue**
+
+Maior sub-fase da leva, mexe em modelo de dado existente. Achado importante: hoje só existem duas
+etapas de verdade, e fragmentadas em dois lugares — `Pedido.Status` (`aguardando_pagamento`/`pago`/
+`cancelado`, pagamento) e `Pedido.StatusEntrega` (`backend/internal/domain/pedido.go:77`, string livre
+que só aceita `saiu_para_entrega`/`entregue` hoje, via `oneof` em
+`backend/internal/handler/pedido_handler.go:155`). Não existe "a preparar"/"preparando" em lugar
+nenhum — precisa criar.
+
+- **Decisão de design a confirmar com o William antes de implementar** (não presumir): ampliar
+  `StatusEntrega` pra aceitar as 4 etapas (`a_preparar`, `preparando`, `saiu_para_entrega`,
+  `entregue`) em vez de criar um campo novo — é o mesmo dado conceitual (progresso do pedido depois
+  de pago), só que hoje representa só a cauda do fluxo. Pedido novo que vira `pago` já nasce com
+  `status_entrega = 'a_preparar'` (hoje nasce `''`) — mexe em `PosPagamentoService`, no ponto onde o
+  pagamento é confirmado.
+  - **Ressalva sobre pedido de retirada**: "Saiu para entrega" não faz sentido semântico pra um
+    pedido `modo_entrega = 'retirada'` (não tem entrega nenhuma acontecendo). Proposta: manter as
+    mesmas 4 etapas no banco pra não duplicar o pipeline, mas o rótulo mostrado na 3ª etapa muda
+    conforme `modo_entrega` — "Saiu para entrega" pra `entrega`, "Pronto pra retirada" pra
+    `retirada`/`guardar`. Confirmar com o William antes de fixar esse texto.
+- `AtualizarStatusEntrega` (`pedido_handler.go:163`) e o `oneof` do request (linha 155) ampliam pra
+  aceitar as 4 etapas — mesmo endpoint, sem quebrar o que já existe (o PUT continua
+  `/admin/pedidos/:id/status-entrega`).
+- **Interface — dois lugares, não um só** (o pedido do William combina "filtro" com "visão dinâmica
+  e interativa"):
+  1. **Filtros simples**: `filtrosBase` em `Pedidos.tsx` (linhas 23-28) ganha as 4 etapas novas como
+     pills, ao lado dos filtros de pagamento que já existem (`pago`/`aguardando`/`cancelado`) — são
+     eixos diferentes (pagamento vs. preparo), mas convivem na mesma barra de filtro, igual o
+     `peso_pendente` condicional já convive hoje.
+  2. **Quadro (Kanban)**: uma alternância "Lista / Quadro" no topo da página. No modo Quadro, só
+     pedidos com `status = 'pago'` aparecem (não faz sentido preparar um pedido não pago), em 4
+     colunas (uma por etapa). Cada card tem um botão único "Avançar → [próxima etapa]" — o "um
+     clique" pedido — que chama o mesmo `AtualizarStatusEntrega`. Sem drag-and-drop (mais frágil de
+     implementar bem e não foi pedido explicitamente — "clique" já atende "fácil"); mover pra trás
+     ou pular etapa fica disponível como menu secundário no card, não como ação primária.
+  3. O aviso de WhatsApp de "saiu pra entrega" que já existe (`pedido_handler.go`, dispara ao setar
+     esse status) não muda de comportamento — só passa a ser uma etapa no meio de 4, não a única.
+
+**10.3 — Sugestão e cupom visíveis em Pedidos — cupom já existe, só falta sugestão**
+
+Achado antes de implementar: **o cupom já aparece hoje**, `Pedidos.tsx` linhas 175-179 já mostram
+"Cupom {código} · -R$ {desconto}" quando `pedido.cupom_codigo` está preenchido — nada a fazer aqui,
+não redescrever como pendente.
+
+O que falta é só a sugestão, e o dado já existe de ponta a ponta no backend — é puramente uma lacuna
+de exibição:
+- `ItemPedido.SugestaoProdutoID` (`backend/internal/domain/item_pedido.go:42`) já é gravado no
+  pedido e já vem no JSON de `GET /admin/pedidos` (o handler serializa o domain struct direto, sem
+  DTO intermediário que esteja cortando o campo).
+- O único buraco é no frontend: a interface `ItemPedido` em `frontend/src/api/types.ts` (linhas
+  288-300) não tem `sugestao_produto_id` — só existe um campo homônimo numa interface diferente,
+  usada só no payload de criação do pedido (`frontend/src/api/pedidos.ts:8`), não na leitura.
+  Adicionar `sugestao_produto_id: number | null` na interface de leitura resolve.
+- `Pedidos.tsx`, no `.map` dos itens (linhas 142-149): item com `sugestao_produto_id` preenchido
+  ganha um selo pequeno, tipo "💡 Sugestão" — mesmo espírito visual do selo "Combo" já usado em
+  outras telas (Fase 6).
+
+**10.4 — Top cliente no Dashboard (por quantidade e por valor)**
+
+Não existe hoje — `DashboardService.BuscarDados` (`backend/internal/service/dashboard_service.go`)
+não tem nada de ranking de cliente, só `TopProdutos` (produto, não cliente). Não existe entidade
+`Cliente` no sistema — identidade de cliente é só `ClienteNome`/`ClienteTelefone` soltos em cada
+`Pedido` (confirmado, sem tabela própria) — o agrupamento tem que ser por `cliente_telefone` (mais
+estável que nome, que pode variar grafia entre pedidos da mesma pessoa).
+
+- `DashboardData` ganha `TopClientesPorPedidos []ClienteRanking` e `TopClientesPorValor
+  []ClienteRanking`, com `ClienteRanking{ClienteNome, ClienteTelefone, TotalPedidos, ValorTotal}` —
+  top 5 cada, só pedidos `status = 'pago'`, agrupado por `cliente_telefone` (nome exibido = o mais
+  recente usado por esse telefone, evita mostrar grafias antigas/erradas).
+- Frontend: duas listas pequenas em `Inicio.tsx`, ao lado do "Mais vendidos" que já existe.
+
+**10.5 — Relatório do Dashboard via WhatsApp (link `wa.me`), com filtro dia/semana/mês**
+
+Não existe hoje — `Inicio.tsx` não tem nenhum seletor de período (as três janelas do dashboard —
+7 dias, 4 semanas, 30 dias — são fixas, sem parâmetro nenhum em `buscarDashboard()`). Precisa de
+capacidade nova, não só reaproveitar o que já existe:
+
+- Endpoint novo, ex. `GET /admin/dashboard/periodo?tipo=dia|semana|mes&data=AAAA-MM-DD` — devolve um
+  resumo pro período exato escolhido (total, nº de pedidos, ticket médio, top 3 produtos), diferente
+  das janelas fixas de `BuscarDados`.
+  Reaproveita a lógica de agregação da Fase 7.2 (`inicioMesCalendario`/GMV mensal) como referência de
+  como já calculamos início de período no fuso `America/Sao_Paulo`, mas esse endpoint é de leitura
+  só, sem relação com comissão.
+- Frontend: seletor "Dia / Semana / Mês" em `Inicio.tsx` + um date picker pro período específico.
+  Botão "Enviar relatório via WhatsApp" monta o texto (mesmo estilo dos templates de
+  `notification/templates.go`, mas montado no frontend já que é edição do próprio dono, não uma
+  notificação automática do sistema) e abre `https://wa.me/?text=<mensagem codificada>` numa aba
+  nova — **sem número de destino fixo** (URL sem o `/55...`, só `wa.me/?text=`), o WhatsApp abre o
+  seletor de contato e o dono escolhe pra quem manda (ele mesmo, sócio, contador etc.) — não existe
+  hoje nenhum uso de link `wa.me` no projeto (confirmado, grep vazio no repo inteiro); toda mensagem
+  atual sai por `NotificationSender.EnviarTextoAdmin` (WhatsApp da própria plataforma, não aplicável
+  aqui — isso é o DONO mandando pra alguém, não o sistema mandando pro dono). Fica só o
+  encode/abertura de URL no navegador, sem chamada de backend pra enviar nada — "até implementarmos
+  a API oficial da Meta", como o William já colocou.
+
+**10.6 — Histórico de pedidos por cliente + forma de pagamento mais usada + tipo de entrega mais usada**
+
+Duas partes de tamanho bem diferente:
+
+- **Tipo de entrega mais usada**: dado já existe (`Pedido.ModoEntrega`, `retirada`/`entrega`/
+  `guardar`) — só falta a agregação. `GROUP BY modo_entrega` sobre pedidos pagos, expõe em
+  `DashboardData` ou no mesmo endpoint de período da 10.5.
+- **Forma de pagamento mais usada**: **não existe em lugar nenhum do sistema hoje** — não é uma
+  lacuna de exibição como a sugestão (10.3), é dado que nunca foi capturado. Confirmado:
+  `MercadoPagoService.ProcessarNotificacaoPagamento`
+  (`backend/internal/service/mercadopago_service.go:667-671`) busca o pagamento na API do Mercado
+  Pago e decodifica só `status`/`external_reference`/`collector_id` numa struct anônima — o Mercado
+  Pago manda `payment_type_id` (`pix`/`credit_card`/`debit_card`/`ticket` etc.) na mesma resposta,
+  mas esse campo é descartado no `json.Decode` por não estar na struct, nunca chega a existir numa
+  variável Go. Pra ter esse relatório de verdade:
+  1. `Pedido` ganha `FormaPagamento string` (`gorm:"size:30"`).
+  2. A struct anônima em `ProcessarNotificacaoPagamento` ganha `PaymentTypeID string
+     json:"payment_type_id"`, gravado em `Pedido.FormaPagamento` junto com `AtualizarStatus`.
+  3. **Só pedidos pagos a partir da implementação** terão esse dado — pedidos antigos ficam com
+     `FormaPagamento` vazio pra sempre (não dá pra reconstruir retroativamente sem re-consultar cada
+     pagamento na API do Mercado Pago, que também pode já ter expirado/mudado de estado do lado
+     deles). Relatório de "forma de pagamento mais usada" só fica confiável depois de um tempo
+     rodando — vale avisar o William disso quando for implementar.
+- **Histórico de pedidos por cliente**: ao clicar num cliente da lista de top clientes (10.4), abre
+  um painel/modal com os pedidos daquele `cliente_telefone` — endpoint novo, ex. `GET
+  /admin/clientes/:telefone/pedidos`, reaproveitando `PedidoRepository` com um filtro novo por
+  telefone.
+
+**10.7 — Impressora térmica via Bluetooth (ESC/POS)**
+
+Confirmado com o William: impressora comum de recibo/comanda, não equipamento fiscal — viável direto
+do navegador via **Web Bluetooth API**, sem servidor/serviço extra.
+
+- **Limitação importante, avisar antes de implementar**: Web Bluetooth só funciona em Chrome/Edge
+  (desktop ou Android) — **não existe em nenhum navegador no iOS/iPadOS** (restrição da própria
+  Apple, não é algo que dê pra contornar). Se o dono usa iPhone/iPad pra gerenciar a loja, esse botão
+  simplesmente não vai funcionar pra ele, sem alternativa — confirmar com o William se isso é
+  aceitável antes de investir tempo nisso, ou se a base de lojistas majoritariamente usa
+  Android/desktop.
+- Fluxo: botão "Imprimir comanda" no card do pedido (lista e Kanban, ver 10.2). Primeiro uso chama
+  `navigator.bluetooth.requestDevice(...)` (filtro por serviço BLE de impressora térmica comum, ex.
+  `000018f0-0000-1000-8000-00805f9b34fb`) pra parear: o navegador mostra o seletor nativo de
+  dispositivo. Depois de pareado, guarda a referência (não dá pra persistir o `BluetoothDevice` em
+  localStorage entre sessões — a Web Bluetooth API exige gesto do usuário pra reconectar cada vez
+  que a página recarrega; então cada sessão de admin pede pareamento de novo, ou reconecta se o
+  navegador ainda lembrar a permissão).
+- Monta os bytes ESC/POS (biblioteca leve tipo `esc-pos-encoder` ou equivalente, gerando texto
+  formatado + corte de papel) com itens/quantidade/total do pedido, escreve na característica GATT
+  de escrita da impressora. 100% client-side, nenhuma rota nova no backend.
+
+---
+
 ## Backlog mais antigo, fora de escopo por enquanto (não iniciar sem o William pedir)
 
 Esses itens já existiam antes do roadmap atual e não fazem parte da sequência das 4 fases — só
