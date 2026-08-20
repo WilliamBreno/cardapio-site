@@ -466,7 +466,7 @@ git commit -m "feat: componente C (label flutuante), aplicado no nome do produto
 **Interfaces:**
 - Produces: `InputSearch` (`value: string`, `onValueChange: (v: string) => void`, `placeholder?: string`).
 
-- [ ] **Passo 1: Criar `input-search.tsx`**
+- [x] **Passo 1: Criar `input-search.tsx`**
 
 ```tsx
 import { Input as InputPrimitive } from "@base-ui/react/input"
@@ -509,7 +509,7 @@ function InputSearch({ value, onValueChange, placeholder = "Buscar...", classNam
 export { InputSearch }
 ```
 
-- [ ] **Passo 2: Aplicar em `Produtos.tsx`**
+- [x] **Passo 2: Aplicar em `Produtos.tsx`**
 
 Adicionar estado novo, logo junto dos outros `useState` já existentes no topo de `Produtos()`:
 ```tsx
@@ -539,13 +539,13 @@ Trocar as duas ocorrências de `produtos` pela variável filtrada na renderizaç
 ```
 Adicionar `import { InputSearch } from '../../components/ui/input-search';`.
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: abrir Produtos, digitar parte do nome de um produto existente — a lista deve filtrar em tempo real, agrupada por categoria como já era; o "x" só aparece com texto digitado e limpa a busca ao clicar.
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/input-search.tsx frontend/src/pages/admin/Produtos.tsx
