@@ -53,15 +53,18 @@ const PESO_PENDENTE_CLASSE = 'bg-amber-100 text-amber-800';
 
 type FiltroPedido = 'todos' | StatusPedido | 'peso_pendente' | EtapaPedido;
 
+// "Pagos" saiu da lista (Fase 10.2 feedback do William, 20/08/2026) —
+// redundante com os filtros de etapa (a_preparar/preparando/etc já
+// implicam pedido pago, não faz sentido ter os dois). "Cancelados" foi
+// pro fim, dando ênfase aos pedidos novos/em andamento primeiro.
 const filtrosBase: { valor: FiltroPedido; label: string }[] = [
   { valor: 'todos', label: 'Todos' },
-  { valor: 'pago', label: 'Pagos' },
   { valor: 'aguardando_pagamento', label: 'Aguardando' },
-  { valor: 'cancelado', label: 'Cancelados' },
   { valor: 'a_preparar', label: '🧾 A preparar' },
   { valor: 'preparando', label: '👨‍🍳 Preparando' },
   { valor: 'saiu_para_entrega', label: '🛵 Saiu p/ entrega' },
   { valor: 'entregue', label: '✅ Entregue' },
+  { valor: 'cancelado', label: 'Cancelados' },
 ];
 
 function formatarData(iso: string): string {
