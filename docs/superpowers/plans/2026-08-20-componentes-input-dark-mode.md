@@ -267,7 +267,7 @@ git commit -m "feat: componente A (preço com prefixo R\$), aplicado em produto/
 - Consumes: nada de tasks anteriores.
 - Produces: `Stepper` (`value: number`, `onValueChange: (v: number) => void`, `min?: number`).
 
-- [ ] **Passo 1: Criar `stepper.tsx`**
+- [x] **Passo 1: Criar `stepper.tsx`**
 
 ```tsx
 import { NumberField } from "@base-ui/react/number-field"
@@ -320,7 +320,7 @@ function Stepper({ value, onValueChange, min = 0, className }: StepperProps) {
 export { Stepper }
 ```
 
-- [ ] **Passo 2: Aplicar nos dois lugares de `CarrinhoDrawer.tsx`**
+- [x] **Passo 2: Aplicar nos dois lugares de `CarrinhoDrawer.tsx`**
 
 Trocar o bloco do item de produto (linhas 359-377):
 ```tsx
@@ -364,13 +364,13 @@ Adicionar `import { Stepper } from './ui/stepper';` no topo (ajustar o caminho r
 
 **Nota de comportamento**: com `min={1}`, o stepper não deixa mais decrementar até 0 (antes disso era tecnicamente possível, calculando `item.quantidade - 1` sem limite inferior). O botão "Remover" ao lado de cada item já existe e continua sendo o caminho pra tirar o item do carrinho — não é uma funcionalidade perdida, só deixou de ser possível zerar via o stepper.
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: abrir o carrinho público de uma loja de teste com itens e combos, conferir que +/- funcionam, e que decrementar de 1 não desce pra 0 (botão "−" fica desabilitado/sem efeito nesse ponto).
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/stepper.tsx frontend/src/components/CarrinhoDrawer.tsx
