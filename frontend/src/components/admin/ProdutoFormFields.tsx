@@ -6,6 +6,7 @@ import { logoMiniatura } from '../../api/upload';
 import { rotuloCatalogo } from '../../lib/utils';
 import { InputPrice } from '../ui/input-price';
 import { InputFloating } from '../ui/input-floating';
+import { Switch } from '../ui/switch';
 
 interface Props {
   form: ProdutoInput;
@@ -125,10 +126,10 @@ export function ProdutoFormFields({ form, onChange, categorias, subcategorias, g
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-tinta">
-        <input type="checkbox" checked={form.disponivel} onChange={(e) => onChange({ ...form, disponivel: e.target.checked })} className="h-4 w-4 accent-acento" />
-        Disponível no {rotuloCatalogo(segmentoLoja)}
-      </label>
+      <div className="flex items-center gap-2">
+        <Switch checked={form.disponivel} onCheckedChange={(disponivel) => onChange({ ...form, disponivel })} />
+        <span className="text-sm text-tinta">Disponível no {rotuloCatalogo(segmentoLoja)}</span>
+      </div>
 
       {/* Estoque */}
       <div className="space-y-3 rounded-xl border border-tinta/10 bg-fundo p-4">
