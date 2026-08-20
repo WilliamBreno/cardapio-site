@@ -5,6 +5,7 @@ import {
 } from '../../api/admin';
 import type { Cupom } from '../../api/types';
 import { Campo } from '../../components/Campo';
+import { InputPrice } from '../../components/ui/input-price';
 
 const formVazio: CupomInput = {
   codigo: '',
@@ -160,15 +161,12 @@ export function Cupons() {
             </Campo>
           </div>
 
-          <Campo label="Pedido mínimo pra usar (R$)">
-            <input
-              type="number"
+          <Campo label="Pedido mínimo pra usar">
+            <InputPrice
               step="0.50"
-              min="0"
               value={form.valor_minimo_pedido || ''}
               onChange={(e) => setForm({ ...form, valor_minimo_pedido: parseFloat(e.target.value) || 0 })}
               placeholder="Sem mínimo"
-              className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento"
             />
           </Campo>
 

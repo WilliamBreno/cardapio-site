@@ -4,6 +4,7 @@ import type { ProdutoInput } from '../../api/admin';
 import { Campo } from '../Campo';
 import { logoMiniatura } from '../../api/upload';
 import { rotuloCatalogo } from '../../lib/utils';
+import { InputPrice } from '../ui/input-price';
 
 interface Props {
   form: ProdutoInput;
@@ -40,8 +41,8 @@ export function ProdutoFormFields({ form, onChange, categorias, subcategorias, g
         <textarea value={form.descricao} onChange={(e) => onChange({ ...form, descricao: e.target.value })} rows={2} className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento" />
       </Campo>
       <div className="flex gap-3">
-        <Campo label="Preço (R$)" className="flex-1">
-          <input type="number" step="0.01" min="0.01" required value={form.preco || ''} onChange={(e) => onChange({ ...form, preco: parseFloat(e.target.value) || 0 })} className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento" />
+        <Campo label="Preço" className="flex-1">
+          <InputPrice min="0.01" required value={form.preco || ''} onChange={(e) => onChange({ ...form, preco: parseFloat(e.target.value) || 0 })} />
         </Campo>
         <Campo label="Categoria" className="flex-1">
           <select required value={form.categoria_id || ''} onChange={(e) => onChange({ ...form, categoria_id: Number(e.target.value), subcategoria_id: null, grupo_cor_id: null })} className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento">

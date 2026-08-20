@@ -7,6 +7,7 @@ import { enviarImagem, logoMiniatura } from '../../api/upload';
 import type { Combo } from '../../api/types';
 import { Campo } from '../../components/Campo';
 import { rotuloCombo, rotuloCatalogo } from '../../lib/utils';
+import { InputPrice } from '../../components/ui/input-price';
 
 // Arredonda pra centavos — evita que o valor guardado saia com sobras de
 // ponto flutuante (ex: 29.999999999997 em vez de 30) e garante que o que
@@ -187,16 +188,8 @@ export function Combos() {
             </div>
           </Campo>
 
-          <Campo label={`Preço final do ${rotuloMin} (R$)`}>
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              required
-              value={form.preco || ''}
-              onChange={(e) => setForm({ ...form, preco: arredondarCentavos(parseFloat(e.target.value) || 0) })}
-              className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento"
-            />
+          <Campo label={`Preço final do ${rotuloMin}`}>
+            <InputPrice min="0.01" required value={form.preco || ''} onChange={(e) => setForm({ ...form, preco: arredondarCentavos(parseFloat(e.target.value) || 0) })} />
           </Campo>
 
           <div className="space-y-2">
