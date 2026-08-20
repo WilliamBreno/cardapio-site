@@ -7,6 +7,7 @@ import { rotuloCatalogo } from '../../lib/utils';
 import { InputPrice } from '../ui/input-price';
 import { InputFloating } from '../ui/input-floating';
 import { Switch } from '../ui/switch';
+import { Textarea } from '../ui/textarea';
 
 interface Props {
   form: ProdutoInput;
@@ -38,7 +39,7 @@ export function ProdutoFormFields({ form, onChange, categorias, subcategorias, g
     <>
       <InputFloating id="produto-nome" label="Nome do produto" required value={form.nome} onValueChange={(nome) => onChange({ ...form, nome })} />
       <Campo label="Descrição">
-        <textarea value={form.descricao} onChange={(e) => onChange({ ...form, descricao: e.target.value })} rows={2} className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento" />
+        <Textarea maxLength={160} value={form.descricao} onChange={(e) => onChange({ ...form, descricao: e.target.value })} />
       </Campo>
       <div className="flex gap-3">
         <Campo label="Preço" className="flex-1">
