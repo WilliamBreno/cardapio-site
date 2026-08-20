@@ -187,6 +187,16 @@ export interface DashboardData {
   top_produtos: { nome: string; quantidade: number }[];
   top_clientes_por_pedidos: ClienteRanking[];
   top_clientes_por_valor: ClienteRanking[];
+  tipos_entrega: Contagem[];
+  formas_pagamento: Contagem[];
+}
+
+// Contagem (Fase 10.6) — chave crua (ex: "entrega", "pix"), tradução
+// pro rótulo amigável fica no frontend (mesmo padrão já usado em
+// Pedidos.tsx pra modo_entrega).
+export interface Contagem {
+  chave: string;
+  total: number;
 }
 
 // ClienteRanking (Fase 10.4) — não existe entidade Cliente no sistema,
@@ -374,6 +384,10 @@ export interface Pedido {
   endereco_entrega: string;
   cupom_codigo: string;
   desconto: number;
+  // forma_pagamento (Fase 10.6): "pix"/"credit_card"/"debit_card"/
+  // "ticket" etc., devolvido pelo Mercado Pago — vazio em pedido pago
+  // antes dessa fase (não dá pra reconstruir retroativamente).
+  forma_pagamento: string;
   peso_pendente: boolean;
   itens: ItemPedido[];
   combos?: PedidoCombo[];

@@ -668,6 +668,10 @@ func (s *MercadoPagoService) ProcessarNotificacaoPagamento(ctx context.Context, 
 		Status            string `json:"status"`
 		ExternalReference string `json:"external_reference"`
 		CollectorID       int64  `json:"collector_id"`
+		// PaymentTypeID (Fase 10.6) — "pix"/"credit_card"/"debit_card"/
+		// "ticket" etc. Antes dessa fase, esse campo vinha na mesma
+		// resposta mas era descartado por não estar nessa struct.
+		PaymentTypeID string `json:"payment_type_id"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&pagamento); err != nil {
 		return fmt.Errorf("lendo dados do pagamento %s: %w", paymentID, err)
@@ -727,6 +731,15 @@ func (s *MercadoPagoService) ProcessarNotificacaoPagamento(ctx context.Context, 
 		return fmt.Errorf("atualizando status do pedido %d: %w", pedidoID, err)
 	}
 	log.Printf("pedido %d marcado como pago via Mercado Pago (payment_id=%s)", pedidoID, paymentID)
+
+	// Fase 10.6: grava a forma de pagamento pro relatório "forma de
+	// pagamento mais usada" — falha aqui não deve reverter o pagamento
+	// já confirmado, só perde esse dado específico pra esse pedido.
+	if pagamento.PaymentTypeID != "" {
+		if err := s.pedidoRepo.AtualizarFormaPagamento(uint(pedidoID), pagamento.PaymentTypeID); err != nil {
+			log.Printf("aviso: não foi possível gravar forma de pagamento do pedido %d: %v", pedidoID, err)
+		}
+	}
 
 	// O split do Mercado Pago hoje é só 1:1 (Loja + Drenux) — não dá pra
 	// repassar a comissão do afiliado na mesma transação como a Stripe

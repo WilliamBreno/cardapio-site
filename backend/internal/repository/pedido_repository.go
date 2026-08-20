@@ -119,6 +119,13 @@ func (r *PedidoRepository) AtualizarStatus(pedidoID uint, status domain.StatusPe
 	return r.db.Model(&domain.Pedido{}).Where("id = ?", pedidoID).Update("status", status).Error
 }
 
+// AtualizarFormaPagamento grava o payment_type_id devolvido pelo Mercado
+// Pago (Fase 10.6) — vazio não sobrescreve nada (chamado só quando o
+// webhook realmente devolveu essa informação).
+func (r *PedidoRepository) AtualizarFormaPagamento(pedidoID uint, forma string) error {
+	return r.db.Model(&domain.Pedido{}).Where("id = ?", pedidoID).Update("forma_pagamento", forma).Error
+}
+
 func (r *PedidoRepository) AtualizarStripeSessionID(pedidoID uint, sessionID string) error {
 	return r.db.Model(&domain.Pedido{}).Where("id = ?", pedidoID).Update("stripe_session_id", sessionID).Error
 }

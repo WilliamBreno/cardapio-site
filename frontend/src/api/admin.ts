@@ -103,6 +103,13 @@ export async function listarPedidos(): Promise<Pedido[]> {
   return data;
 }
 
+// Histórico de pedidos de um cliente específico (Fase 10.6) — usado no
+// Dashboard, ao clicar num cliente da lista de top clientes.
+export async function buscarHistoricoCliente(telefone: string): Promise<Pedido[]> {
+  const { data } = await api.get<Pedido[]>(`/admin/clientes/${telefone}/pedidos`);
+  return data;
+}
+
 // Solicitações de entrega de itens guardados
 export async function listarSolicitacoes(): Promise<SolicitacaoEntrega[]> {
   const { data } = await api.get<SolicitacaoEntrega[]>('/admin/solicitacoes');

@@ -381,6 +381,7 @@ func main() {
 	admin.GET("/pedidos", pedidoHandler.Listar)
 	admin.PUT("/pedidos/:id/status-entrega", pedidoHandler.AtualizarStatusEntrega)
 	admin.POST("/pedidos/:id/localizacao", pedidoHandler.AtualizarLocalizacao)
+	admin.GET("/clientes/:telefone/pedidos", pedidoHandler.HistoricoCliente)
 
 	admin.GET("/solicitacoes", solicitacaoHandler.Listar)
 	admin.PUT("/solicitacoes/:id/status-entrega", solicitacaoHandler.AtualizarStatusEntrega)

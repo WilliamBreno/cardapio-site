@@ -52,6 +52,13 @@ type Pedido struct {
 	CupomCodigo string  `gorm:"size:30" json:"cupom_codigo"`
 	Desconto    float64 `gorm:"default:0" json:"desconto"`
 
+	// FormaPagamento (Fase 10.6) é o payment_type_id devolvido pelo
+	// Mercado Pago (ex: "pix", "credit_card", "debit_card", "ticket") —
+	// capturado só a partir dessa fase, então pedido pago antes fica com
+	// esse campo vazio pra sempre (não dá pra reconstruir
+	// retroativamente sem reconsultar a API do Mercado Pago).
+	FormaPagamento string `gorm:"size:30" json:"forma_pagamento"`
+
 	StripeSessionID string `gorm:"size:255" json:"-"`
 
 	// MercadoPagoPreferenceID identifica a "preference" criada no checkout

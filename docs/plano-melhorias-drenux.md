@@ -1132,8 +1132,8 @@ fica pendente de especificação própria antes de qualquer código, mesmo padr�
 PDF+IA da Fase 9.2 (não travar o resto do roadmap nisso).
 
 ### Fase 10 — Banner, etapas de pedido, sugestão/cupom visíveis, analytics de cliente, relatório via WhatsApp, impressora Bluetooth
-Status: `[~] 10.1, 10.2, 10.3 e 10.4 implementadas e testadas em 19/08/2026 — 10.5-10.7 seguem
-pendentes`
+Status: `[~] 10.1, 10.2, 10.3, 10.4 e 10.6 implementadas e testadas (19–20/08/2026) — 10.5 e 10.7
+seguem pendentes`
 
 Combinada numa conversa com o William em 19/08/2026 — sete pedidos batidos juntos, quebrados aqui em
 sub-fases pra seguir o mesmo padrão do resto do roadmap (uma por vez). Antes de escrever a spec,
@@ -1334,7 +1334,8 @@ capacidade nova, não só reaproveitar o que já existe:
   encode/abertura de URL no navegador, sem chamada de backend pra enviar nada — "até implementarmos
   a API oficial da Meta", como o William já colocou.
 
-**10.6 — Histórico de pedidos por cliente + forma de pagamento mais usada + tipo de entrega mais usada**
+**10.6 — Histórico de pedidos por cliente + forma de pagamento mais usada + tipo de entrega mais
+usada — implementada e testada em 20/08/2026**
 
 Duas partes de tamanho bem diferente:
 
@@ -1361,6 +1362,48 @@ Duas partes de tamanho bem diferente:
   um painel/modal com os pedidos daquele `cliente_telefone` — endpoint novo, ex. `GET
   /admin/clientes/:telefone/pedidos`, reaproveitando `PedidoRepository` com um filtro novo por
   telefone.
+
+Implementado exatamente como especificado acima, com um achado extra: `PedidoRepository.
+ListarPorTelefone` (`loja_id`+`cliente_telefone`+`status='pago'`, com `Preload` de itens e combos)
+**já existia**, construído pro fluxo público "Meus pedidos" (telefone como senha). Reaproveitado
+direto pro endpoint novo do admin, sem duplicar a consulta — só um limite maior (50, contra o do
+fluxo público) porque aqui é o dono vendo o histórico completo, não o cliente numa tela compacta.
+
+- Backend: `Pedido.FormaPagamento string` (novo campo, `gorm:"size:30"`). A struct anônima de
+  `MercadoPagoService.ProcessarNotificacaoPagamento` ganhou `PaymentTypeID string
+  json:"payment_type_id"` — campo que a API do Mercado Pago já mandava na mesma resposta mas era
+  descartado por não estar na struct; agora é gravado via `PedidoRepository.
+  AtualizarFormaPagamento` logo após confirmar o pagamento (falha aqui só loga aviso, não reverte
+  o pagamento já confirmado). `DashboardService.BuscarDados` ganhou um tipo genérico `Contagem
+  {Chave, Total}` reaproveitado pros dois agrupamentos novos (`TiposEntrega` via `GROUP BY
+  modo_entrega`, `FormasPagamento` via `GROUP BY forma_pagamento` excluindo vazio) — chave crua
+  (ex: `"entrega"`, `"pix"`), tradução pro rótulo amigável fica no frontend, mesmo padrão já usado
+  em `Pedidos.tsx` pra `modo_entrega`. `PedidoHandler.HistoricoCliente` novo, rota `GET
+  /admin/clientes/:telefone/pedidos`.
+- Frontend: `HistoricoClienteModal.tsx` (novo componente) — os dois cards de top clientes em
+  `Inicio.tsx` (Fase 10.4) viraram clicáveis, abrindo o modal com o histórico do cliente clicado.
+  Duas seções novas no Dashboard ("Tipo de entrega mais usado" / "Forma de pagamento mais usada"),
+  com mapas de tradução (`ROTULO_TIPO_ENTREGA`/`ROTULO_FORMA_PAGAMENTO`) e um estado vazio
+  explícito pra forma de pagamento avisando que só pedidos pagos a partir de agora entram na
+  conta (mesma ressalva já registrada no texto original desta sub-fase). Seguindo a convenção já
+  estabelecida em `Inicio.tsx` pros outros agregados do dashboard, os arrays novos usam `?? []` no
+  consumo em vez de reintroduzir proteção `make([]T, 0)` no backend — `dashboard_service.go` usa
+  `Scan()` sobre slice não inicializado (mesma classe de bug já corrigida na Fase 9.3), mas como
+  esse arquivo específico já tinha o padrão de guarda no frontend estabelecido, mantive a
+  consistência interna do arquivo em vez de misturar as duas defesas.
+
+Testado ao vivo (loja de teste temporária, `loja-teste-106`, promovida direto no banco, removida
+depois — mesmo padrão das fases anteriores): 4 pedidos pagos criados via `PosPagamentoService.
+ProcessarPedidoPago` real (não simulação isolada) pra dois clientes propositalmente divergentes —
+Ana Cliente (3 pedidos: R$30/R$45/R$20, todos Pix, todos `entrega`) e Bruno Cliente (1 pedido:
+R$60, `credit_card`, `retirada`). Confirmado por `curl` direto em `GET /admin/dashboard` e depois
+visualmente por screenshot: "Tipo de entrega mais usado" mostrou Entrega (3) e Retirada (1) com os
+emojis certos; "Forma de pagamento mais usada" mostrou Pix (3) e Cartão de crédito (1). Clicar em
+"Ana Cliente" abriu o `HistoricoClienteModal` mostrando os 3 pedidos dela (#39/#40/#41, datas e
+valores batendo exatamente com R$95,00 total já mostrado em "Maiores clientes") — confirmado por
+`curl` em `GET /admin/clientes/11955555555/pedidos` (devolveu só os 3 pedidos da Ana, não o da
+Bruno) e por screenshot do modal aberto. Validado com `go build ./...`/`go vet ./...`/`gofmt -l`
+(backend) e `npx tsc -b`/`npm run build` (frontend), todos limpos.
 
 **10.7 — Impressora térmica via Bluetooth (ESC/POS)**
 

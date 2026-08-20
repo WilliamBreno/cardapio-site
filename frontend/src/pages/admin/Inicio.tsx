@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { buscarDashboard, buscarLoja, listarProdutos, statusMercadoPago } from '../../api/admin';
 import { PLANOS, planoMaisBarato, custoPlano, NOME_PLANO } from '../../lib/planos';
+import { HistoricoClienteModal } from '../../components/admin/HistoricoClienteModal';
 import {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -10,6 +12,29 @@ import {
 
 function moeda(v: number) {
   return `R$ ${v.toFixed(2).replace('.', ',')}`;
+}
+
+// Tradução de chave crua (Fase 10.6) pra rótulo amigável — mesmo espírito
+// de Pedidos.tsx. Chave desconhecida cai no fallback (capitaliza a
+// própria chave), pra não sumir do gráfico se o Mercado Pago mandar um
+// payment_type_id que a gente ainda não mapeou.
+const ROTULO_TIPO_ENTREGA: Record<string, string> = {
+  retirada: '🏪 Retirada',
+  entrega: '🛵 Entrega',
+  guardar: '📦 Guardar e entregar depois',
+};
+
+const ROTULO_FORMA_PAGAMENTO: Record<string, string> = {
+  pix: 'Pix',
+  credit_card: 'Cartão de crédito',
+  debit_card: 'Cartão de débito',
+  ticket: 'Boleto',
+  account_money: 'Saldo Mercado Pago',
+  bank_transfer: 'Transferência bancária',
+};
+
+function rotuloChave(chave: string, mapa: Record<string, string>) {
+  return mapa[chave] ?? chave.charAt(0).toUpperCase() + chave.slice(1);
 }
 
 // LIMITE_PEDIDOS_START espelha domain.LimitePedidosStart no backend (Fase
@@ -54,6 +79,8 @@ export function Inicio() {
   const { data: produtos } = useQuery({ queryKey: ['produtos'], queryFn: listarProdutos });
   const { data: mercadoPagoStatus } = useQuery({ queryKey: ['mercadopago-status'], queryFn: statusMercadoPago });
 
+  const [clienteSelecionado, setClienteSelecionado] = useState<{ nome: string; telefone: string } | null>(null);
+
   if (isLoading) return <p className="text-tinta-suave">Carregando...</p>;
   if (!data) return null;
 
@@ -62,6 +89,8 @@ export function Inicio() {
   const topProdutos = data.top_produtos ?? [];
   const topClientesPorPedidos = data.top_clientes_por_pedidos ?? [];
   const topClientesPorValor = data.top_clientes_por_valor ?? [];
+  const tiposEntrega = data.tipos_entrega ?? [];
+  const formasPagamento = data.formas_pagamento ?? [];
   const totalSemana = data.total_semana ?? 0;
   const totalMes = data.total_mes ?? 0;
   const pedidosSemana = data.pedidos_semana ?? 0;
@@ -247,16 +276,21 @@ export function Inicio() {
               <h2 className="mb-3 font-display text-base tracking-wide text-tinta">Clientes mais fiéis</h2>
               <ul className="space-y-2">
                 {topClientesPorPedidos.map((cliente, i) => (
-                  <li key={cliente.cliente_telefone} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex items-center gap-2 text-tinta">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-douro/15 text-xs font-semibold text-douro">
-                        {i + 1}
+                  <li key={cliente.cliente_telefone}>
+                    <button
+                      onClick={() => setClienteSelecionado({ nome: cliente.cliente_nome, telefone: cliente.cliente_telefone })}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg py-0.5 text-left text-sm hover:bg-fundo"
+                    >
+                      <span className="flex items-center gap-2 text-tinta">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-douro/15 text-xs font-semibold text-douro">
+                          {i + 1}
+                        </span>
+                        {cliente.cliente_nome}
                       </span>
-                      {cliente.cliente_nome}
-                    </span>
-                    <span className="shrink-0 text-tinta-suave">
-                      {cliente.total_pedidos} pedido{cliente.total_pedidos !== 1 ? 's' : ''}
-                    </span>
+                      <span className="shrink-0 text-tinta-suave">
+                        {cliente.total_pedidos} pedido{cliente.total_pedidos !== 1 ? 's' : ''}
+                      </span>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -268,20 +302,78 @@ export function Inicio() {
               <h2 className="mb-3 font-display text-base tracking-wide text-tinta">Maiores clientes</h2>
               <ul className="space-y-2">
                 {topClientesPorValor.map((cliente, i) => (
-                  <li key={cliente.cliente_telefone} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex items-center gap-2 text-tinta">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-douro/15 text-xs font-semibold text-douro">
-                        {i + 1}
+                  <li key={cliente.cliente_telefone}>
+                    <button
+                      onClick={() => setClienteSelecionado({ nome: cliente.cliente_nome, telefone: cliente.cliente_telefone })}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg py-0.5 text-left text-sm hover:bg-fundo"
+                    >
+                      <span className="flex items-center gap-2 text-tinta">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-douro/15 text-xs font-semibold text-douro">
+                          {i + 1}
+                        </span>
+                        {cliente.cliente_nome}
                       </span>
-                      {cliente.cliente_nome}
-                    </span>
-                    <span className="shrink-0 font-carimbo text-tinta-suave">{moeda(cliente.valor_total)}</span>
+                      <span className="shrink-0 font-carimbo text-tinta-suave">{moeda(cliente.valor_total)}</span>
+                    </button>
                   </li>
                 ))}
               </ul>
             </div>
           )}
         </div>
+      )}
+
+      {/* Tipo de entrega e forma de pagamento mais usados (Fase 10.6) —
+          sem janela de tempo, histórico inteiro da loja. */}
+      {(tiposEntrega.length > 0 || formasPagamento.length > 0) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {tiposEntrega.length > 0 && (
+            <div className="rounded-2xl bg-superficie p-5 shadow-sm">
+              <h2 className="mb-3 font-display text-base tracking-wide text-tinta">Tipo de entrega mais usado</h2>
+              <ul className="space-y-2">
+                {tiposEntrega.map((item) => (
+                  <li key={item.chave} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-tinta">{rotuloChave(item.chave, ROTULO_TIPO_ENTREGA)}</span>
+                    <span className="shrink-0 text-tinta-suave">
+                      {item.total} pedido{item.total !== 1 ? 's' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {formasPagamento.length > 0 ? (
+            <div className="rounded-2xl bg-superficie p-5 shadow-sm">
+              <h2 className="mb-3 font-display text-base tracking-wide text-tinta">Forma de pagamento mais usada</h2>
+              <ul className="space-y-2">
+                {formasPagamento.map((item) => (
+                  <li key={item.chave} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-tinta">{rotuloChave(item.chave, ROTULO_FORMA_PAGAMENTO)}</span>
+                    <span className="shrink-0 text-tinta-suave">
+                      {item.total} pedido{item.total !== 1 ? 's' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-superficie p-5 shadow-sm">
+              <h2 className="mb-3 font-display text-base tracking-wide text-tinta">Forma de pagamento mais usada</h2>
+              <p className="text-xs text-tinta-suave">
+                Ainda sem dado suficiente — só pedidos pagos a partir de agora entram nessa conta.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {clienteSelecionado && (
+        <HistoricoClienteModal
+          nome={clienteSelecionado.nome}
+          telefone={clienteSelecionado.telefone}
+          onFechar={() => setClienteSelecionado(null)}
+        />
       )}
     </div>
   );

@@ -33,6 +33,17 @@ type ClienteRanking struct {
 	ValorTotal      float64 `json:"valor_total"`
 }
 
+// Contagem é uma linha genérica de "quantas vezes cada valor apareceu"
+// (Fase 10.6) — usada tanto pra tipo de entrega quanto forma de
+// pagamento. Chave fica com o valor cru (ex: "entrega", "pix") — o
+// frontend já traduz esses valores pra rótulo amigável em outras telas
+// (ver Pedidos.tsx), então repete o mesmo padrão aqui em vez de duplicar
+// a tradução no Go.
+type Contagem struct {
+	Chave string `json:"chave"`
+	Total int    `json:"total"`
+}
+
 type DashboardData struct {
 	TotalSemana           float64          `json:"total_semana"`
 	TotalMes              float64          `json:"total_mes"`
@@ -42,6 +53,8 @@ type DashboardData struct {
 	TopProdutos           []TopProduto     `json:"top_produtos"`
 	TopClientesPorPedidos []ClienteRanking `json:"top_clientes_por_pedidos"`
 	TopClientesPorValor   []ClienteRanking `json:"top_clientes_por_valor"`
+	TiposEntrega          []Contagem       `json:"tipos_entrega"`
+	FormasPagamento       []Contagem       `json:"formas_pagamento"`
 }
 
 type DashboardService struct {
@@ -171,6 +184,32 @@ func (s *DashboardService) BuscarDados(lojaID uint) (*DashboardData, error) {
 		LIMIT 5
 	`, lojaID, lojaID).Scan(&topClientesPorValor)
 	data.TopClientesPorValor = topClientesPorValor
+
+	// Tipo de entrega mais usado (Fase 10.6) — sem janela de tempo, mesmo
+	// espírito do ranking de clientes acima.
+	var tiposEntrega []Contagem
+	s.db.Raw(`
+		SELECT modo_entrega AS chave, COUNT(*) AS total
+		FROM pedidos
+		WHERE loja_id = ? AND status = 'pago'
+		GROUP BY modo_entrega
+		ORDER BY total DESC
+	`, lojaID).Scan(&tiposEntrega)
+	data.TiposEntrega = tiposEntrega
+
+	// Forma de pagamento mais usada (Fase 10.6) — só conta pedido que já
+	// tem esse dado capturado (forma_pagamento != ''). Pedido pago antes
+	// dessa fase fica de fora da conta, não entra como uma categoria
+	// "vazia" enganosa.
+	var formasPagamento []Contagem
+	s.db.Raw(`
+		SELECT forma_pagamento AS chave, COUNT(*) AS total
+		FROM pedidos
+		WHERE loja_id = ? AND status = 'pago' AND forma_pagamento != ''
+		GROUP BY forma_pagamento
+		ORDER BY total DESC
+	`, lojaID).Scan(&formasPagamento)
+	data.FormasPagamento = formasPagamento
 
 	return data, nil
 }

@@ -151,6 +151,24 @@ func (h *PedidoHandler) Listar(c *gin.Context) {
 	c.JSON(http.StatusOK, pedidos)
 }
 
+// HistoricoCliente atende GET /admin/clientes/:telefone/pedidos (Fase
+// 10.6) — histórico de pedidos pagos de um cliente específico dessa
+// loja. Reaproveita PedidoRepository.ListarPorTelefone (mesma consulta
+// já usada pelo "Meus pedidos" público, catalogo_handler.go), só com um
+// limite maior — aqui é o dono vendo o histórico completo, não o
+// cliente numa tela compacta.
+func (h *PedidoHandler) HistoricoCliente(c *gin.Context) {
+	lojaID := c.GetUint("loja_id")
+	telefone := c.Param("telefone")
+
+	pedidos, err := h.pedidoRepo.ListarPorTelefone(lojaID, telefone, 50)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, pedidos)
+}
+
 // statusEntregaRequest aceita as 4 etapas do fluxo de preparo/entrega
 // (Fase 10.2): a_preparar → preparando → saiu_para_entrega → entregue.
 // Mesmo endpoint de sempre, só o oneof ficou mais largo — antes só
