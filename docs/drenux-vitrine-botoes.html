@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drenux — Vitrine de botões</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5EEDC; --panel:#FBF6E9; --ink:#2B1B12; --muted:#8A7861; --line:#E4D8BE;
+    --terra:#D9663A; --terra-deep:#C1552E; --terra-light:#F2B896;
+    --display:'Anton', sans-serif; --body:'Inter', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--body); padding:48px 24px 100px 24px;}
+  .wrap{max-width:920px; margin:0 auto;}
+  h1{font-family:var(--display); font-size:34px; margin:0 0 6px 0;}
+  .sub{color:var(--muted); font-size:15px; margin-bottom:48px; max-width:560px;}
+  .block{margin-bottom:56px;}
+  .block-title{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--terra-deep); font-weight:700; margin-bottom:6px;}
+  .block-desc{font-size:14px; color:var(--muted); margin-bottom:22px; max-width:560px;}
+  .stage{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:40px; display:flex; gap:20px; flex-wrap:wrap; align-items:center;}
+
+  /* 1. Sweep / brilho passando */
+  .btn-sweep{
+    position:relative; overflow:hidden; font-family:var(--body); font-weight:700; font-size:15px;
+    padding:14px 28px; border-radius:10px; border:none; background:var(--terra); color:#fff; cursor:pointer;
+  }
+  .btn-sweep::after{
+    content:''; position:absolute; top:0; left:-75%; width:50%; height:100%;
+    background:linear-gradient(120deg, transparent, rgba(255,255,255,.45), transparent);
+    transform:skewX(-20deg);
+  }
+  .btn-sweep:hover::after{ left:125%; transition:left .65s ease; }
+  .btn-sweep::after{ left:-75%; transition:none; }
+
+  /* 2. Pressão tátil (3D) */
+  .btn-press{
+    font-family:var(--body); font-weight:700; font-size:15px; padding:14px 28px; border-radius:10px;
+    border:none; background:var(--terra); color:#fff; cursor:pointer;
+    box-shadow:0 5px 0 var(--terra-deep); transition:transform .1s ease, box-shadow .1s ease;
+  }
+  .btn-press:active{ transform:translateY(5px); box-shadow:0 0 0 var(--terra-deep); }
+
+  /* 3. Borda com brilho animado */
+  .btn-glow{
+    position:relative; font-family:var(--body); font-weight:700; font-size:15px; padding:13px 27px;
+    border-radius:10px; background:var(--cream-soft,#FBF3E4); color:var(--terra-deep); cursor:pointer;
+    border:1.5px solid var(--line); z-index:0; overflow:hidden;
+  }
+  .btn-glow::before{
+    content:''; position:absolute; inset:-2px; border-radius:11px; z-index:-1;
+    background:conic-gradient(from 0deg, var(--terra), var(--terra-light), var(--terra));
+    opacity:0; transition:opacity .3s;
+    animation:spin 3s linear infinite; animation-play-state:paused;
+  }
+  .btn-glow:hover::before{ opacity:1; animation-play-state:running; }
+  .btn-glow::after{ content:''; position:absolute; inset:1.5px; border-radius:9px; background:var(--panel); z-index:-1; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* 4. Preenchimento da esquerda pra direita */
+  .btn-fill{
+    position:relative; overflow:hidden; font-family:var(--body); font-weight:700; font-size:15px;
+    padding:14px 28px; border-radius:10px; border:1.5px solid var(--terra); background:transparent;
+    color:var(--terra-deep); cursor:pointer; z-index:0; transition:color .3s ease .05s;
+  }
+  .btn-fill::before{
+    content:''; position:absolute; inset:0; background:var(--terra); transform:scaleX(0);
+    transform-origin:left; transition:transform .35s cubic-bezier(.65,0,.35,1); z-index:-1;
+  }
+  .btn-fill:hover{ color:#fff; }
+  .btn-fill:hover::before{ transform:scaleX(1); }
+
+  /* 5. Ícone com bounce */
+  .btn-icon{
+    display:inline-flex; align-items:center; gap:9px; font-family:var(--body); font-weight:700; font-size:15px;
+    padding:14px 26px; border-radius:10px; border:none; background:var(--terra); color:#fff; cursor:pointer;
+  }
+  .btn-icon .arrow{ display:inline-block; transition:transform .25s cubic-bezier(.34,1.56,.64,1); }
+  .btn-icon:hover .arrow{ transform:translateX(5px); }
+
+  /* variante ghost pra cada, mostrando estado secundário */
+  /* 6. Ripple (ondulação no clique) */
+  .btn-ripple{
+    position:relative; overflow:hidden; font-family:var(--body); font-weight:700; font-size:15px;
+    padding:14px 28px; border-radius:10px; border:none; background:var(--terra-deep); color:#fff; cursor:pointer;
+  }
+  .ripple-circle{ position:absolute; border-radius:50%; background:rgba(255,255,255,.55); transform:scale(0); animation:rippleAnim .6s linear; pointer-events:none; }
+  @keyframes rippleAnim{ to{ transform:scale(2.6); opacity:0; } }
+
+  /* 7. Elástico (bounce ao soltar) */
+  .btn-elastic{
+    font-family:var(--body); font-weight:700; font-size:15px; padding:14px 28px; border-radius:10px;
+    border:none; background:var(--terra); color:#fff; cursor:pointer;
+  }
+  .btn-elastic.bounce{ animation:elasticPop .45s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes elasticPop{ 0%{transform:scale(1);} 35%{transform:scale(.88);} 70%{transform:scale(1.06);} 100%{transform:scale(1);} }
+
+  /* 8. Neumórfico (relevo suave) */
+  .btn-neu{
+    font-family:var(--body); font-weight:700; font-size:15px; padding:14px 28px; border-radius:12px;
+    border:none; background:var(--bg); color:var(--terra-deep); cursor:pointer;
+    box-shadow:-6px -6px 12px rgba(255,255,255,.75), 6px 6px 14px rgba(43,27,18,.16);
+    transition:box-shadow .12s ease, transform .12s ease;
+  }
+  .btn-neu:active{
+    box-shadow:inset -4px -4px 10px rgba(255,255,255,.65), inset 4px 4px 10px rgba(43,27,18,.18);
+    transform:translateY(1px);
+  }
+
+  /* 9. Holofote seguindo o cursor */
+  .btn-spot{
+    position:relative; overflow:hidden; font-family:var(--body); font-weight:700; font-size:15px;
+    padding:14px 28px; border-radius:10px; border:none; background:var(--terra); color:#fff; cursor:pointer;
+    --mx:50%; --my:50%;
+  }
+  .btn-spot::before{
+    content:''; position:absolute; inset:0; opacity:0; transition:opacity .25s;
+    background:radial-gradient(circle 90px at var(--mx) var(--my), rgba(255,255,255,.45), transparent 70%);
+  }
+  .btn-spot:hover::before{ opacity:1; }
+
+  /* 10. Morph de ícone (confirmação) */
+  .btn-morph{
+    display:inline-flex; align-items:center; gap:8px; font-family:var(--body); font-weight:700; font-size:15px;
+    padding:14px 26px; border-radius:10px; border:none; background:var(--terra); color:#fff; cursor:pointer;
+    transition:background .2s;
+  }
+  .btn-morph.done{ background:#2E8B57; }
+  .btn-morph .ic{ display:inline-block; transition:transform .25s cubic-bezier(.34,1.56,.64,1); }
+  .btn-morph.done .ic{ transform:scale(1.15); }
+
+  /* 11. Sublinhado que desenha (ghost/link) */
+  .btn-underline{
+    position:relative; font-family:var(--body); font-weight:700; font-size:15px; padding:12px 4px;
+    border:none; background:none; color:var(--terra-deep); cursor:pointer;
+  }
+  .btn-underline::after{
+    content:''; position:absolute; left:0; bottom:6px; width:100%; height:2px; background:var(--terra);
+    transform:scaleX(0); transform-origin:left; transition:transform .3s cubic-bezier(.65,0,.35,1);
+  }
+  .btn-underline:hover::after{ transform:scaleX(1); }
+
+  /* 12. Pilha deslocada */
+  .btn-stack-wrap{ position:relative; display:inline-block; }
+  .btn-stack-wrap::before{
+    content:''; position:absolute; inset:0; background:var(--terra-deep); border-radius:10px;
+    transform:translate(6px,6px); transition:transform .18s ease; z-index:0;
+  }
+  .btn-stack{
+    position:relative; z-index:1; font-family:var(--body); font-weight:700; font-size:15px; padding:14px 28px;
+    border-radius:10px; border:none; background:var(--terra); color:#fff; cursor:pointer;
+    transition:transform .18s ease;
+  }
+  .btn-stack-wrap:hover .btn-stack{ transform:translate(6px,6px); }
+  .btn-stack-wrap:hover::before{ transform:translate(0,0); }
+
+  /* 13. Loading state */
+  .btn-load{
+    position:relative; font-family:var(--body); font-weight:700; font-size:15px; padding:14px 30px;
+    border-radius:10px; border:none; background:var(--terra); color:#fff; cursor:pointer; min-width:190px;
+  }
+  .btn-load .spin{ display:none; width:16px; height:16px; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spinAnim .7s linear infinite; margin:0 auto; }
+  .btn-load.loading .lbl{ display:none; }
+  .btn-load.loading .spin{ display:block; }
+  @keyframes spinAnim{ to{ transform:rotate(360deg); } }
+
+  /* 14. Vidro fosco */
+  .glass-bg{ background:linear-gradient(135deg, var(--terra), var(--terra-deep)); border-radius:16px; padding:40px; }
+  .btn-glass{
+    font-family:var(--body); font-weight:700; font-size:15px; padding:14px 28px; border-radius:10px;
+    border:1px solid rgba(255,255,255,.4); background:rgba(255,255,255,.16); backdrop-filter:blur(8px);
+    color:#fff; cursor:pointer; transition:background .2s;
+  }
+  .btn-glass:hover{ background:rgba(255,255,255,.28); }
+
+  /* 15. Split button */
+  .btn-split{ display:inline-flex; border-radius:10px; overflow:hidden; }
+  .btn-split .main{ font-family:var(--body); font-weight:700; font-size:15px; padding:14px 22px; border:none; background:var(--terra); color:#fff; cursor:pointer; }
+  .btn-split .caret{ font-family:var(--body); font-weight:700; padding:14px 14px; border:none; border-left:1px solid rgba(255,255,255,.3); background:var(--terra-deep); color:#fff; cursor:pointer; }
+
+  /* ---------- INPUTS ---------- */
+  .input-grid{ display:grid; grid-template-columns:1fr 1fr; gap:28px; }
+  @media (max-width:700px){ .input-grid{ grid-template-columns:1fr; } }
+  .field-label{ font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:8px; display:block; }
+
+  /* A. Preço com prefixo R$ */
+  .in-price{ position:relative; }
+  .in-price input{ width:100%; padding:13px 14px 13px 42px; border-radius:10px; border:1.5px solid var(--line); background:#fff; font-family:var(--mono); font-size:16px; color:var(--ink); outline:none; transition:border-color .15s, box-shadow .15s; }
+  .in-price input:focus{ border-color:var(--terra); box-shadow:0 0 0 3px rgba(217,102,58,.15); }
+  .in-price .prefix{ position:absolute; left:14px; top:50%; transform:translateY(-50%); font-family:var(--mono); font-size:15px; color:var(--muted); font-weight:700; }
+
+  /* B. Stepper quantidade */
+  .in-stepper{ display:inline-flex; align-items:center; border:1.5px solid var(--line); border-radius:10px; overflow:hidden; background:#fff; }
+  .in-stepper button{ width:40px; height:44px; border:none; background:var(--cream-soft,#FBF3E4); color:var(--terra-deep); font-size:18px; font-weight:700; cursor:pointer; transition:background .15s; }
+  .in-stepper button:hover{ background:var(--terra); color:#fff; }
+  .in-stepper input{ width:48px; text-align:center; border:none; outline:none; font-family:var(--mono); font-size:16px; font-weight:700; color:var(--ink); }
+
+  /* C. Label flutuante */
+  .in-float{ position:relative; }
+  .in-float input{ width:100%; padding:18px 14px 8px 14px; border-radius:10px; border:1.5px solid var(--line); background:#fff; font-size:15px; color:var(--ink); outline:none; transition:border-color .15s; }
+  .in-float input:focus{ border-color:var(--terra); }
+  .in-float label{ position:absolute; left:14px; top:16px; font-size:15px; color:var(--muted); pointer-events:none; transition:all .15s ease; background:#fff; padding:0 2px; }
+  .in-float input:focus + label, .in-float input:not(:placeholder-shown) + label{ top:-8px; font-size:11px; color:var(--terra-deep); font-weight:600; }
+
+  /* D. Busca com limpar */
+  .in-search{ position:relative; }
+  .in-search input{ width:100%; padding:12px 40px 12px 38px; border-radius:999px; border:1.5px solid var(--line); background:#fff; font-size:14.5px; color:var(--ink); outline:none; transition:border-color .15s; }
+  .in-search input:focus{ border-color:var(--terra); }
+  .in-search .ic-search{ position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:15px; }
+  .in-search .ic-clear{ position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:13px; cursor:pointer; background:var(--line); width:20px; height:20px; border-radius:50%; display:none; align-items:center; justify-content:center; }
+  .in-search input:not(:placeholder-shown) ~ .ic-clear{ display:flex; }
+
+  /* E. Toggle switch */
+  .in-toggle{ display:flex; align-items:center; gap:12px; }
+  .switch{ position:relative; width:46px; height:26px; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .switch .track{ position:absolute; inset:0; background:var(--line); border-radius:99px; cursor:pointer; transition:background .2s; }
+  .switch .track::before{ content:''; position:absolute; width:20px; height:20px; left:3px; top:3px; background:#fff; border-radius:50%; transition:transform .2s; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+  .switch input:checked + .track{ background:var(--terra); }
+  .switch input:checked + .track::before{ transform:translateX(20px); }
+
+  /* F. Segmentado */
+  .in-segment{ display:inline-flex; background:var(--cream-soft,#FBF3E4); border:1.5px solid var(--line); border-radius:10px; padding:3px; gap:3px; }
+  .in-segment button{ border:none; background:none; padding:9px 18px; border-radius:8px; font-family:var(--body); font-weight:600; font-size:13.5px; color:var(--muted); cursor:pointer; transition:all .18s; }
+  .in-segment button.on{ background:var(--terra); color:#fff; }
+
+  /* G. Validação inline */
+  .in-valid{ position:relative; }
+  .in-valid input{ width:100%; padding:13px 40px 13px 14px; border-radius:10px; border:1.5px solid var(--line); background:#fff; font-size:15px; color:var(--ink); outline:none; }
+  .in-valid.ok input{ border-color:#2E8B57; background:#F3FAF6; }
+  .in-valid.err input{ border-color:#D9534F; background:#FDF3F2; animation:shake .35s; }
+  .in-valid .st{ position:absolute; right:13px; top:50%; transform:translateY(-50%); font-size:15px; }
+  .in-valid.ok .st{ color:#2E8B57; } .in-valid.err .st{ color:#D9534F; }
+  @keyframes shake{ 0%,100%{transform:translateX(0);} 25%{transform:translateX(-4px);} 75%{transform:translateX(4px);} }
+  .helper{ font-size:12px; margin-top:6px; }
+  .in-valid.ok ~ .helper{ color:#2E8B57; } .in-valid.err ~ .helper{ color:#D9534F; }
+
+  /* H. Textarea contador */
+  .in-textarea{ position:relative; }
+  .in-textarea textarea{ width:100%; min-height:90px; padding:13px 14px; border-radius:10px; border:1.5px solid var(--line); background:#fff; font-family:var(--body); font-size:14.5px; color:var(--ink); outline:none; resize:vertical; transition:border-color .15s; }
+  .in-textarea textarea:focus{ border-color:var(--terra); }
+  .in-textarea .count{ position:absolute; right:12px; bottom:10px; font-family:var(--mono); font-size:11px; color:var(--muted); background:#fff; padding:1px 4px; }
+
+  /* 16. FAB (ícone flutuante) */
+  .btn-fab{
+    width:52px; height:52px; border-radius:50%; border:none; background:var(--terra); color:#fff;
+    font-size:22px; cursor:pointer; box-shadow:0 10px 24px -8px rgba(217,102,58,.6);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .btn-fab:hover{ transform:scale(1.08) rotate(90deg); box-shadow:0 14px 28px -8px rgba(217,102,58,.7); }
+
+  /* 17. Toggle persistente (favoritar) */
+  .btn-fav{ width:46px; height:46px; border-radius:10px; border:1.5px solid var(--line); background:#fff; font-size:19px; cursor:pointer; transition:all .2s; color:var(--muted); }
+  .btn-fav.active{ background:#FCE9E4; border-color:#D9534F; color:#D9534F; transform:scale(1.05); }
+
+  /* 18. Segure pra confirmar */
+  .btn-hold{ position:relative; overflow:hidden; font-family:var(--body); font-weight:700; font-size:15px; padding:14px 28px; border-radius:10px; border:1.5px solid #D9534F; background:#fff; color:#D9534F; cursor:pointer; }
+  .btn-hold::before{ content:''; position:absolute; inset:0; background:#D9534F; width:0%; transition:width 1.1s linear; z-index:0; }
+  .btn-hold.holding::before{ width:100%; }
+  .btn-hold span{ position:relative; z-index:1; }
+  .btn-hold.holding span, .btn-hold.done span{ color:#fff; }
+  .btn-hold.done::before{ width:100%; transition:none; }
+
+  /* 19. Magnético */
+  .magnet-field{ padding:30px; }
+  .btn-magnet{ font-family:var(--body); font-weight:700; font-size:15px; padding:14px 28px; border-radius:10px; border:none; background:var(--terra); color:#fff; cursor:pointer; transition:transform .12s ease-out; }
+
+  /* 20. Confete */
+  .btn-confetti{ position:relative; font-family:var(--body); font-weight:700; font-size:15px; padding:14px 28px; border-radius:10px; border:none; background:#2E8B57; color:#fff; cursor:pointer; overflow:visible; }
+  .confetti-bit{ position:absolute; width:6px; height:6px; top:50%; left:50%; pointer-events:none; animation:confettiFly .7s ease-out forwards; }
+
+  /* I. Upload foto (dropzone) */
+  .in-drop{ border:2px dashed var(--line); border-radius:12px; padding:28px; text-align:center; background:var(--cream-soft,#FBF3E4); cursor:pointer; transition:border-color .2s, background .2s; }
+  .in-drop.over{ border-color:var(--terra); background:#FCEEE5; }
+  .in-drop .ic{ font-size:26px; margin-bottom:6px; }
+  .in-drop .t{ font-size:13.5px; color:var(--muted); }
+
+  /* J. Data */
+  .in-date input{ width:100%; padding:12px 14px; border-radius:10px; border:1.5px solid var(--line); background:#fff; font-family:var(--mono); font-size:14.5px; color:var(--ink); outline:none; }
+  .in-date input:focus{ border-color:var(--terra); }
+
+  /* K. Tema de cor compacto */
+  .in-theme{ display:flex; gap:8px; flex-wrap:wrap; }
+  .theme-dot{ width:30px; height:30px; border-radius:50%; cursor:pointer; border:2.5px solid transparent; transition:transform .15s; }
+  .theme-dot:hover{ transform:scale(1.12); }
+  .theme-dot.sel{ border-color:var(--ink); }
+
+  /* L. CEP autocomplete */
+  .in-cep input{ width:100%; padding:12px 14px; border-radius:10px; border:1.5px solid var(--line); background:#fff; font-family:var(--mono); font-size:14.5px; outline:none; }
+  .in-cep input:focus{ border-color:var(--terra); }
+  .in-cep .fill{ font-size:12.5px; color:#2E8B57; margin-top:6px; display:none; }
+  .in-cep .fill.show{ display:block; }
+
+  /* M. Tags múltiplas */
+  .in-tags{ display:flex; flex-wrap:wrap; gap:6px; padding:10px; border:1.5px solid var(--line); border-radius:10px; background:#fff; align-items:center; }
+  .tag-pill{ display:flex; align-items:center; gap:5px; background:var(--terra); color:#fff; font-size:12.5px; font-weight:600; padding:5px 8px 5px 10px; border-radius:99px; }
+  .tag-pill .x{ cursor:pointer; opacity:.8; } .tag-pill .x:hover{ opacity:1; }
+  .in-tags input{ border:none; outline:none; font-size:13.5px; flex-grow:1; min-width:90px; padding:5px; }
+
+  /* N. Código OTP */
+  .in-otp{ display:flex; gap:8px; }
+  .in-otp input{ width:42px; height:48px; text-align:center; font-family:var(--mono); font-size:19px; font-weight:700; border:1.5px solid var(--line); border-radius:10px; outline:none; }
+  .in-otp input:focus{ border-color:var(--terra); box-shadow:0 0 0 3px rgba(217,102,58,.15); }
+  @keyframes confettiFly{
+    to{ transform:translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity:0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Vitrine de botões</h1>
+  <div class="sub">Cinco direções, todas na paleta real (creme + terracota). Passa o mouse e clica pra sentir cada uma — nenhuma imagem, é CSS ao vivo.</div>
+
+  <div class="block">
+    <div class="block-title">1 — Sweep (brilho passando)</div>
+    <div class="block-desc">Um brilho atravessa o botão da esquerda pra direita ao passar o mouse. Discreto, funciona bem em CTA principal sem gritar.</div>
+    <div class="stage">
+      <button class="btn-sweep">Criar meu cardápio grátis</button>
+      <button class="btn-sweep">Assinar Pro</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">2 — Pressão tátil (3D)</div>
+    <div class="block-desc">O botão "afunda" de verdade ao clicar (sombra some, some o relevo) — dá sensação física de botão de verdade, não só cor mudando.</div>
+    <div class="stage">
+      <button class="btn-press">Adicionar ao carrinho</button>
+      <button class="btn-press">Continuar</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">3 — Borda com brilho animado</div>
+    <div class="block-desc">No hover, uma borda gira em degradê ao redor do botão — bom pra ação de destaque sem ser o botão sólido principal (ex: "Simular meu faturamento").</div>
+    <div class="stage">
+      <button class="btn-glow">Simular meu faturamento</button>
+      <button class="btn-glow">Ver como funciona</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">4 — Preenchimento da esquerda pra direita</div>
+    <div class="block-desc">Contorno vazado que se preenche de cor ao passar o mouse, como se a cor "andasse" pelo botão. Bom pra ação secundária que precisa ganhar peso no hover.</div>
+    <div class="stage">
+      <button class="btn-fill">Ver planos</button>
+      <button class="btn-fill">Comparar recursos</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">5 — Ícone com bounce</div>
+    <div class="block-desc">A seta/ícone do botão salta pra frente no hover — pequeno, mas dá sensação de "clique aqui, eu reajo a você". Bom em botões com seta de continuar.</div>
+    <div class="stage">
+      <button class="btn-icon">Continuar <span class="arrow">→</span></button>
+      <button class="btn-icon">Criar minha loja <span class="arrow">→</span></button>
+    </div>
+  </div>
+  <div class="block">
+    <div class="block-title">6 — Ripple (ondulação no clique)</div>
+    <div class="block-desc">Clássico "efeito material": um círculo se expande a partir do ponto exato do clique. Dá confirmação visual imediata de que o clique registrou — bom em ação de finalizar pedido.</div>
+    <div class="stage">
+      <button class="btn-ripple" onclick="doRipple(event, this)">Finalizar pedido</button>
+      <button class="btn-ripple" onclick="doRipple(event, this)">Confirmar pagamento</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">7 — Elástico (bounce ao clicar)</div>
+    <div class="block-desc">O botão "molenga" — encolhe, passa um pouco do tamanho normal, e assenta. Mais brincalhão que o de pressão 3D, funciona bem em ação repetida (tipo +1 quantidade).</div>
+    <div class="stage">
+      <button class="btn-elastic" onclick="doElastic(this)">+ Adicionar mais um</button>
+      <button class="btn-elastic" onclick="doElastic(this)">Curtir</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">8 — Neumórfico (relevo suave)</div>
+    <div class="block-desc">Sem cor sólida — o botão "sai" da própria superfície do fundo por sombra dupla (clara + escura), e "afunda de verdade" (sombra vira interna) ao clicar. Visual mais discreto, bom pra ação secundária/ícone.</div>
+    <div class="stage">
+      <button class="btn-neu">Filtrar</button>
+      <button class="btn-neu">Editar</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">9 — Holofote seguindo o cursor</div>
+    <div class="block-desc">Um brilho circular acompanha exatamente onde o mouse está dentro do botão — precisa de JS (mousemove), é o mais "chamativo" dos 12. Bom pra 1 CTA de destaque só, não pra todos os botões da tela.</div>
+    <div class="stage">
+      <button class="btn-spot" onmousemove="doSpot(event, this)">Começar agora</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">10 — Morph de ícone (confirmação real)</div>
+    <div class="block-desc">Não é só decoração — o botão muda de verdade (texto + cor) por 1,6s confirmando que a ação aconteceu, depois volta ao normal. Substitui a necessidade de um toast/alerta separado.</div>
+    <div class="stage">
+      <button class="btn-morph" onclick="doMorph(this)"><span class="ic">🛒</span><span class="txt">Adicionar ao carrinho</span></button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">11 — Sublinhado que desenha</div>
+    <div class="block-desc">Sem fundo nenhum — um traço desenha embaixo do texto ao passar o mouse. Pra ação terciária/link, tipo "ver mais" dentro de um card.</div>
+    <div class="stage">
+      <button class="btn-underline">Ver detalhes do plano</button>
+      <button class="btn-underline">Esqueci minha senha</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">12 — Pilha deslocada</div>
+    <div class="block-desc">Uma cópia mais escura do botão fica atrás, deslocada — no hover, a pilha "colapsa" (a de trás anda, a da frente afunda). Efeito de profundidade sem precisar de sombra difusa.</div>
+    <div class="stage">
+      <span class="btn-stack-wrap"><button class="btn-stack">Assinar Scale</button></span>
+      <span class="btn-stack-wrap"><button class="btn-stack">Ativar Basic</button></span>
+    </div>
+  </div>
+  <div class="block">
+    <div class="block-title">13 — Estado de carregamento</div>
+    <div class="block-desc">Clica e o botão vira um spinner por 2s — resolve um problema de verdade: hoje, o quê acontece visualmente entre o clique em "Confirmar pagamento" e a resposta do Mercado Pago? Sem isso, parece que travou.</div>
+    <div class="stage">
+      <button class="btn-load" onclick="doLoad(this)"><span class="lbl">Confirmar pagamento</span><span class="spin"></span></button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">14 — Vidro fosco (glass)</div>
+    <div class="block-desc">Fundo semi-transparente com desfoque — só funciona bem sobre imagem/gradiente, não sobre fundo liso. Bom pro hero da página de apresentação, não pro painel admin.</div>
+    <div class="stage glass-bg">
+      <button class="btn-glass">Ver como funciona</button>
+      <button class="btn-glass">Criar minha loja</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">15 — Botão dividido (ação + menu)</div>
+    <div class="block-desc">Ação principal de um lado, seta que abre opções do outro — útil pra "Assinar" (ação direta) com atalho pra trocar de plano sem sair da tela, ou "Exportar" com formato.</div>
+    <div class="stage">
+      <div class="btn-split"><button class="main">Assinar Pro</button><button class="caret">⌄</button></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="wrap" style="margin-top:24px;">
+  <h1 style="margin-top:16px;">Vitrine de inputs</h1>
+  <div class="sub">8 exemplos com casos de uso reais da Drenux — preço, quantidade, busca, validação — não campo genérico.</div>
+
+  <div class="input-grid">
+    <div class="block">
+      <span class="field-label">A — Preço com prefixo (cadastro de produto)</span>
+      <div class="in-price"><span class="prefix">R$</span><input type="text" placeholder="0,00" value="26,00"></div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">B — Stepper de quantidade (carrinho / ficha técnica)</span>
+      <div class="in-stepper"><button onclick="stepQty(-1)">−</button><input type="text" id="qtyVal" value="1" readonly><button onclick="stepQty(1)">+</button></div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">C — Label flutuante (nome do produto)</span>
+      <div class="in-float"><input type="text" placeholder=" " id="floatIn"><label for="floatIn">Nome do produto</label></div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">D — Busca com limpar (lista de produtos)</span>
+      <div class="in-search"><span class="ic-search">🔍</span><input type="text" placeholder="Buscar produto..."><span class="ic-clear" onclick="this.previousElementSibling.value=''; this.style.display='none';">✕</span></div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">E — Toggle (controla estoque?)</span>
+      <div class="in-toggle"><label class="switch"><input type="checkbox"><span class="track"></span></label><span style="font-size:14px;">Controla estoque</span></div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">F — Segmentado (modo de entrega)</span>
+      <div class="in-segment">
+        <button class="on" onclick="segPick(this)">Entrega</button>
+        <button onclick="segPick(this)">Retirada</button>
+        <button onclick="segPick(this)">Mesa</button>
+      </div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">G — Validação inline (telefone/CEP)</span>
+      <div class="in-valid ok"><input type="text" value="(79) 99988-1729"><span class="st">✓</span></div>
+      <div class="helper">Número confirmado via WhatsApp</div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">H — Textarea com contador (descrição do produto)</span>
+      <div class="in-textarea"><textarea maxlength="120" oninput="document.getElementById('taCount').textContent = 120 - this.value.length" placeholder="Pão brioche, hambúrguer bovino 150g...">Pão brioche, hambúrguer bovino 150g grelhado na chapa</textarea><span class="count"><span id="taCount">67</span> restantes</span></div>
+    </div>
+    <div class="block">
+      <span class="field-label">N — Código de verificação (confirmar telefone)</span>
+      <div class="in-otp">
+        <input type="text" maxlength="1" onkeyup="otpNext(this)">
+        <input type="text" maxlength="1" onkeyup="otpNext(this)">
+        <input type="text" maxlength="1" onkeyup="otpNext(this)">
+        <input type="text" maxlength="1" onkeyup="otpNext(this)">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" style="margin-top:24px;">
+  <h1 style="margin-top:16px;">Mais botões (16–20)</h1>
+  <div class="sub">Interações diferentes das primeiras 15 — ícone flutuante, confirmação por segurar, e feedback de sucesso.</div>
+
+  <div class="block">
+    <div class="block-title">16 — Ação flutuante (FAB)</div>
+    <div class="block-desc">Botão circular só de ícone, o que já aparece hoje como "+ Novo produto" / "+ Novo combo" poderia virar isso no mobile, onde espaço é curto.</div>
+    <div class="stage"><button class="btn-fab">+</button></div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">17 — Estado persistente (favoritar)</div>
+    <div class="block-desc">Diferente de hover — o estado fica marcado depois do clique, não só durante. Bom pra "favoritar produto" ou "fixar no topo".</div>
+    <div class="stage">
+      <button class="btn-fav" onclick="this.classList.toggle('active')">♥</button>
+      <button class="btn-fav active" onclick="this.classList.toggle('active')">♥</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">18 — Segure pra confirmar</div>
+    <div class="block-desc">Em vez de popup "tem certeza?", o próprio botão pede pra segurar ~1,1s — preenche enquanto você mantém pressionado, cancela se soltar antes. Ótimo pra "Excluir produto", evita exclusão sem querer sem precisar de um segundo clique num modal.</div>
+    <div class="stage">
+      <button class="btn-hold"
+        onmousedown="startHold(this)" onmouseup="cancelHold(this)" onmouseleave="cancelHold(this)"
+        ontouchstart="startHold(this)" ontouchend="cancelHold(this)">
+        <span id="holdLabel">Segure pra excluir</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">19 — Magnético (persegue o cursor)</div>
+    <div class="block-desc">O botão se inclina levemente na direção do mouse conforme você se aproxima, antes mesmo de passar por cima — mexe o mouse dentro da área cinza.</div>
+    <div class="stage magnet-field" onmousemove="doMagnet(event, this)" onmouseleave="resetMagnet(this)">
+      <button class="btn-magnet">Vem cá</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">20 — Confete ao concluir</div>
+    <div class="block-desc">Pequena explosão de partículas coloridas no clique — reservar pra momento de conquista de verdade (primeiro pedido do dia, meta batida), não usar em toda ação ou perde o efeito.</div>
+    <div class="stage">
+      <button class="btn-confetti" onclick="doConfetti(event, this)">Pedido enviado! 🎉</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" style="margin-top:24px;">
+  <h1 style="margin-top:16px;">Mais inputs (I–N)</h1>
+  <div class="sub">Cobrindo upload de foto, data, tema, endereço, tags e código — os que faltavam dos fluxos reais.</div>
+  <div class="input-grid">
+
+    <div class="block">
+      <span class="field-label">I — Upload de foto (cadastro de produto)</span>
+      <div class="in-drop" id="dropZone" onclick="document.getElementById('fakeFile').click()"
+        ondragover="event.preventDefault(); this.classList.add('over')"
+        ondragleave="this.classList.remove('over')"
+        ondrop="event.preventDefault(); this.classList.remove('over'); this.querySelector('.t').textContent='buguer-bacon.jpg selecionado';">
+        <div class="ic">📷</div>
+        <div class="t">Arraste a foto ou clique pra escolher</div>
+        <input type="file" id="fakeFile" style="display:none;">
+      </div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">J — Data (validade do cupom)</span>
+      <div class="in-date"><input type="date" value="2026-08-31"></div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">K — Tema de cor (compacto)</span>
+      <div class="in-theme">
+        <div class="theme-dot sel" style="background:#D9663A" onclick="pickTheme(this)"></div>
+        <div class="theme-dot" style="background:#1C7FC4" onclick="pickTheme(this)"></div>
+        <div class="theme-dot" style="background:#2D6A4F" onclick="pickTheme(this)"></div>
+        <div class="theme-dot" style="background:#7C3AED" onclick="pickTheme(this)"></div>
+        <div class="theme-dot" style="background:#C9184A" onclick="pickTheme(this)"></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">L — CEP com preenchimento automático</span>
+      <div class="in-cep">
+        <input type="text" placeholder="49025-330" onblur="showCepFill(this)">
+        <div class="fill" id="cepFill">✓ Av. Jorge Amado, Jardins, Aracaju - SE</div>
+      </div>
+    </div>
+
+    <div class="block">
+      <span class="field-label">M — Tags múltiplas (categorias do produto)</span>
+      <div class="in-tags" id="tagsBox">
+        <span class="tag-pill">Lanches <span class="x" onclick="this.parentElement.remove()">✕</span></span>
+        <span class="tag-pill">Mais vendidos <span class="x" onclick="this.parentElement.remove()">✕</span></span>
+        <input type="text" placeholder="+ categoria" onkeydown="addTag(event, this)">
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function doRipple(e, btn){
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height) * 2;
+  const circle = document.createElement('span');
+  circle.className = 'ripple-circle';
+  circle.style.width = circle.style.height = size + 'px';
+  circle.style.left = (e.clientX - rect.left - size/2) + 'px';
+  circle.style.top = (e.clientY - rect.top - size/2) + 'px';
+  btn.appendChild(circle);
+  setTimeout(()=>circle.remove(), 600);
+}
+function doElastic(btn){
+  btn.classList.remove('bounce');
+  void btn.offsetWidth;
+  btn.classList.add('bounce');
+}
+function doSpot(e, btn){
+  const rect = btn.getBoundingClientRect();
+  btn.style.setProperty('--mx', (e.clientX - rect.left) + 'px');
+  btn.style.setProperty('--my', (e.clientY - rect.top) + 'px');
+}
+function doMorph(btn){
+  const txt = btn.querySelector('.txt');
+  const ic = btn.querySelector('.ic');
+  const original = {t: txt.textContent, i: ic.textContent};
+  btn.classList.add('done');
+  txt.textContent = 'Adicionado!';
+  ic.textContent = '✓';
+  setTimeout(()=>{
+    btn.classList.remove('done');
+    txt.textContent = original.t;
+    ic.textContent = original.i;
+  }, 1600);
+}
+function doLoad(btn){
+  btn.classList.add('loading');
+  setTimeout(()=>btn.classList.remove('loading'), 2000);
+}
+let qty = 1;
+function stepQty(d){
+  qty = Math.max(1, qty + d);
+  document.getElementById('qtyVal').value = qty;
+}
+function segPick(btn){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+function otpNext(input){
+  if(input.value.length === 1){
+    const next = input.nextElementSibling;
+    if(next) next.focus();
+  }
+}
+let holdTimer;
+function startHold(btn){
+  btn.classList.remove('done');
+  btn.classList.add('holding');
+  document.getElementById('holdLabel').textContent = 'Segurando...';
+  holdTimer = setTimeout(()=>{
+    btn.classList.remove('holding');
+    btn.classList.add('done');
+    document.getElementById('holdLabel').textContent = 'Excluído ✓';
+  }, 1100);
+}
+function cancelHold(btn){
+  clearTimeout(holdTimer);
+  if(!btn.classList.contains('done')){
+    btn.classList.remove('holding');
+    document.getElementById('holdLabel').textContent = 'Segure pra excluir';
+  }
+}
+function doMagnet(e, field){
+  const btn = field.querySelector('.btn-magnet');
+  const rect = field.getBoundingClientRect();
+  const cx = rect.width/2, cy = rect.height/2;
+  const dx = (e.clientX - rect.left - cx) * 0.25;
+  const dy = (e.clientY - rect.top - cy) * 0.25;
+  btn.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+function resetMagnet(field){
+  field.querySelector('.btn-magnet').style.transform = 'translate(0,0)';
+}
+function doConfetti(e, btn){
+  const colors = ['#D9663A','#2E8B57','#E8A33D','#7C3AED','#C9184A'];
+  for(let i=0;i<16;i++){
+    const bit = document.createElement('span');
+    bit.className = 'confetti-bit';
+    bit.style.background = colors[i % colors.length];
+    const angle = Math.random()*Math.PI*2;
+    const dist = 40 + Math.random()*50;
+    bit.style.setProperty('--dx', Math.cos(angle)*dist + 'px');
+    bit.style.setProperty('--dy', Math.sin(angle)*dist + 'px');
+    bit.style.setProperty('--rot', (Math.random()*360)+'deg');
+    btn.appendChild(bit);
+    setTimeout(()=>bit.remove(), 700);
+  }
+}
+function pickTheme(el){
+  document.querySelectorAll('.theme-dot').forEach(d=>d.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function showCepFill(input){
+  if(input.value.length >= 8){
+    document.getElementById('cepFill').classList.add('show');
+  }
+}
+function addTag(e, input){
+  if(e.key === 'Enter' && input.value.trim()){
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill';
+    pill.innerHTML = input.value.trim() + ' <span class="x" onclick="this.parentElement.remove()">✕</span>';
+    input.parentElement.insertBefore(pill, input);
+    input.value = '';
+  }
+}
+</script>
+</body>
+</html>
