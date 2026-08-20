@@ -819,7 +819,7 @@ git commit -m "feat: componentes G/L (validação inline), aplicados em telefone
 **Interfaces:**
 - Produces: `Textarea` (`value: string`, `maxLength: number`, + demais props de `<textarea>`).
 
-- [ ] **Passo 1: Criar `textarea.tsx`**
+- [x] **Passo 1: Criar `textarea.tsx`**
 
 ```tsx
 import type { ComponentProps } from "react"
@@ -855,7 +855,7 @@ function Textarea({ className, maxLength, value, ...props }: TextareaProps) {
 export { Textarea }
 ```
 
-- [ ] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
+- [x] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
 
 Trocar (linhas 39-41):
 ```tsx
@@ -871,13 +871,13 @@ por:
 ```
 Adicionar o import. Limite de 160 caracteres escolhido como tamanho razoável pra descrição de item de cardápio/catálogo — se algum produto existente já tiver descrição mais longa que isso, o `maxLength` do HTML não apaga texto já salvo, só impede digitar além do limite dali em diante.
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: abrir edição de produto, digitar na descrição — contador de caracteres restantes deve descer em tempo real.
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/textarea.tsx frontend/src/components/admin/ProdutoFormFields.tsx
