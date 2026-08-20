@@ -162,7 +162,7 @@ git commit -m "feat: base Field/Input (Base UI) pra biblioteca de componentes de
 - Consumes: `inputVariants` de `./input` (Task 1).
 - Produces: `InputPrice` (aceita as mesmas props de um `<input>` nativo, mais `type`/`step`/`min` já com default).
 
-- [ ] **Passo 1: Criar `input-price.tsx`**
+- [x] **Passo 1: Criar `input-price.tsx`**
 
 ```tsx
 import { Input as InputPrimitive } from "@base-ui/react/input"
@@ -192,7 +192,7 @@ function InputPrice({ className, ...props }: ComponentProps<typeof InputPrimitiv
 export { InputPrice }
 ```
 
-- [ ] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
+- [x] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
 
 Trocar (linhas 43-45):
 ```tsx
@@ -208,11 +208,11 @@ por:
 ```
 Adicionar `import { InputPrice } from '../ui/input-price';` no topo do arquivo (junto dos outros imports relativos já existentes).
 
-- [ ] **Passo 3: Aplicar em `Combos.tsx`**
+- [x] **Passo 3: Aplicar em `Combos.tsx`**
 
 Achar o campo `<Campo label={`Preço final do ${rotuloMin} (R$)`}>` (por volta da linha 190-199) e trocar o `<input>` interno pelo mesmo padrão do Passo 2 — `<InputPrice min="0.01" required value={form.preco || ''} onChange={(e) => setForm({ ...form, preco: arredondarCentavos(parseFloat(e.target.value) || 0) })} />`, ajustando o label pra `Preço final do ${rotuloMin}` (sem o "(R$)" redundante). Adicionar o import de `InputPrice`.
 
-- [ ] **Passo 4: Aplicar em `Cupons.tsx`**
+- [x] **Passo 4: Aplicar em `Cupons.tsx`**
 
 Trocar (linhas 163-173):
 ```tsx
@@ -241,13 +241,13 @@ por:
 ```
 Adicionar o import.
 
-- [ ] **Passo 5: Validar**
+- [x] **Passo 5: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual no navegador: abrir Produtos (novo produto), Combos (novo combo) e Cupons (novo cupom) — os três campos de preço devem mostrar "R$" fixo dentro do campo, à esquerda, com o número em `font-carimbo`.
 
-- [ ] **Passo 6: Commit**
+- [x] **Passo 6: Commit**
 
 ```bash
 git add frontend/src/components/ui/input-price.tsx frontend/src/components/admin/ProdutoFormFields.tsx frontend/src/pages/admin/Combos.tsx frontend/src/pages/admin/Cupons.tsx
