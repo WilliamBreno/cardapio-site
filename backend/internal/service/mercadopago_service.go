@@ -164,7 +164,56 @@ func (s *MercadoPagoService) ProcessarCallback(ctx context.Context, code, state 
 		return 0, fmt.Errorf("salvando conexão com o Mercado Pago: %w", err)
 	}
 
+	// Detecta se é uma conta de teste (ver domain.Loja.MercadoPagoContaTeste)
+	// só uma vez, na conexão — falha aqui não derruba a conexão em si, só
+	// deixa a loja assumida como "produção" (comportamento já existente
+	// antes dessa detecção existir), registrada em log pra investigar
+	// depois se acontecer.
+	contaTeste, err := s.ehContaDeTeste(ctx, tok.AccessToken)
+	if err != nil {
+		log.Printf("aviso: não foi possível checar se a conta Mercado Pago da loja %d é de teste: %v", claims.LojaID, err)
+	} else if err := s.lojaRepo.AtualizarMercadoPagoContaTeste(claims.LojaID, contaTeste); err != nil {
+		log.Printf("aviso: não foi possível salvar mercado_pago_conta_teste da loja %d: %v", claims.LojaID, err)
+	}
+
 	return claims.LojaID, nil
+}
+
+// ehContaDeTeste chama GET /users/me com o access_token recém-obtido e
+// confere o campo `tags` — é a única forma confiável de saber se é uma
+// Test User (ver comentário em domain.Loja.MercadoPagoContaTeste; o
+// prefixo do access_token NÃO diferencia isso, confirmado testando contra
+// a sandbox real em 20/08/2026).
+func (s *MercadoPagoService) ehContaDeTeste(ctx context.Context, accessToken string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.mercadopago.com/users/me", nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("chamando /users/me do Mercado Pago: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return false, fmt.Errorf("Mercado Pago recusou /users/me (status %d)", resp.StatusCode)
+	}
+
+	var usuario struct {
+		Tags []string `json:"tags"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&usuario); err != nil {
+		return false, fmt.Errorf("lendo resposta de /users/me: %w", err)
+	}
+
+	for _, tag := range usuario.Tags {
+		if tag == "test_user" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // RenovarToken troca o refresh_token de uma loja específica por um par
@@ -418,20 +467,21 @@ func (s *MercadoPagoService) CriarCheckout(ctx context.Context, pedidoID uint) (
 		return "", err
 	}
 
-	// O Access Token devolvido pelo OAuth já indica o ambiente pelo prefixo
-	// ("TEST-..." pra Seller Test User, "APP_USR-..." pra conta de
-	// produção) — se a loja estiver conectada com uma conta de teste,
-	// precisamos do sandbox_init_point, não do init_point de produção. Os
-	// dois ambientes não se misturam: vendedor de produção com link de
-	// sandbox falha, e vendedor de teste com link de produção é bloqueado
-	// pelo próprio Mercado Pago ("uma das partes é de teste"). Não dá pra
-	// remover essa checagem achando redundante — os dois campos vêm
-	// preenchidos na mesma resposta e o Mercado Pago não escolhe por nós.
+	// Se a loja estiver conectada com uma Test User, precisamos do
+	// sandbox_init_point, não do init_point de produção — os dois
+	// ambientes não se misturam: vendedor de produção com link de sandbox
+	// falha, e vendedor de teste com link de produção é bloqueado pelo
+	// próprio Mercado Pago. Usa domain.Loja.MercadoPagoContaTeste
+	// (detectado uma vez na conexão, ver ehContaDeTeste) — NÃO o prefixo
+	// do access_token: testando contra a sandbox real em 20/08/2026,
+	// confirmei que uma Test User conectada via OAuth também recebe um
+	// access_token "APP_USR-...", igual produção, então o prefixo "TEST-"
+	// não diferencia mais os dois ambientes nesse fluxo.
 	campoLink := "init_point"
 	ambiente := "produção"
-	if strings.HasPrefix(loja.MercadoPagoAccessToken, "TEST-") {
+	if loja.MercadoPagoContaTeste {
 		campoLink = "sandbox_init_point"
-		ambiente = "sandbox"
+		ambiente = "sandbox (Test User)"
 	}
 	log.Printf("pedido %d: preferência Mercado Pago criada (ambiente=%s, marketplace_fee=%.2f)", pedido.ID, ambiente, marketplaceFee)
 

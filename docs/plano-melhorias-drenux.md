@@ -313,11 +313,51 @@ descartada na porta. Validado com `go build`/`go vet`/`gofmt`, ainda precisa de 
 de ponta a ponta pra fechar a Fase 5 de vez.
 
 **Ressalvas importantes antes de ir pra produção:**
-1. **Nada disso foi testado contra a API real do Mercado Pago** — não há credenciais de sandbox
-   nesse ambiente. Antes de confiar: criar a aplicação "drenux-marketplace" no Mercado Pago
-   Developers, pegar `MERCADOPAGO_CLIENT_ID`/`MERCADOPAGO_CLIENT_SECRET`/`MERCADOPAGO_WEBHOOK_SECRET`
-   de teste, testar o fluxo de onboarding OAuth ponta a ponta, criar um pagamento de teste e conferir
-   se o webhook chega e é validado corretamente.
+1. **Testado contra a API real do Mercado Pago (sandbox) em 20/08/2026, parcialmente** — o William
+   forneceu credenciais de teste (`MERCADOPAGO_CLIENT_ID`/`SECRET`/`WEBHOOK_SECRET` da aplicação
+   "drenux-marketplace" já existente, mais um Test User gerado pelo próprio painel do Mercado Pago).
+   Testado com um túnel público temporário (`cloudflared`) expondo o backend local, já que o
+   onboarding OAuth e o webhook precisam de uma URL alcançável de fora.
+   - **Onboarding OAuth confirmado funcionando de ponta a ponta**: `IniciarOnboarding` gerou a URL
+     correta, o Test User autorizou (precisou de um cadastro prévio do redirect_uri do túnel nas
+     "Configurações da aplicação" do Mercado Pago — sem isso, o MP recusa com o erro genérico
+     "não foi possível conectar o aplicativo à sua conta"), `ProcessarCallback` trocou o code pelo
+     access_token e salvou a conexão. `GET /admin/mercadopago/status` confirmou
+     `mercadopago_conectado: true`.
+   - **Bug real encontrado e corrigido**: `CriarCheckout` decidia entre `sandbox_init_point` e
+     `init_point` checando se `loja.MercadoPagoAccessToken` começava com `"TEST-"` — essa suposição
+     (documentada desde a implementação original da Fase 5) provou ser **falsa** pro fluxo OAuth de
+     verdade. O access_token do Test User conectado via OAuth veio no formato `APP_USR-...`, igual
+     ao de uma conta de produção — testado e confirmado direto contra a API (`GET /users/me`
+     devolveu `"tags": ["user_product_seller", "test_user", "normal"]`, o único campo que realmente
+     diferencia). Sem a correção, `CriarCheckout` teria gerado o link de checkout de **produção**
+     pra uma conta de teste — que o próprio Mercado Pago bloqueia (recusa por "uma das partes é de
+     teste"), quebrando silenciosamente o checkout de qualquer loja que conectasse uma conta de
+     teste real (cenário plausível: lojista testando a integração antes de ir ao ar).
+     **Correção**: `domain.Loja` ganhou `MercadoPagoContaTeste bool`, detectado uma única vez no
+     momento da conexão (`MercadoPagoService.ehContaDeTeste`, chamado de dentro de
+     `ProcessarCallback`, checando `tags` via `GET /users/me`) e persistido — `CriarCheckout` passou
+     a ler esse campo em vez de inferir pelo prefixo do token. Revalidado: depois da correção, o
+     mesmo pedido de teste (loja de teste temporária, removida depois) gerou corretamente
+     `https://sandbox.mercadopago.com.br/checkout/v1/redirect?...` (antes da correção, tinha gerado
+     `https://www.mercadopago.com.br/checkout/v1/redirect?...`, o link de produção).
+   - **Checkout sandbox confirmado carregando de ponta a ponta**: a tela de pagamento real do
+     Mercado Pago (com a marca d'água "Sandbox") abriu corretamente, mostrando o valor certo do
+     pedido de teste, aceitando os dados do cartão de teste oficial (`5480 8328 0103 3311`, titular
+     `APRO`, validade `11/30`, CVV `123`) na tela de revisão do pagamento.
+   - **Não confirmado — botão "Pagar" ficou desabilitado na tela final de revisão**, tanto num teste
+     manual do William quanto em tentativas anteriores via automação (Playwright) — o formulário de
+     cartão usa 3 iframes de tokenização PCI (`secure-fields.mercadopago.com`) mais reCAPTCHA
+     Enterprise invisível, o que tornou a automação frágil o bastante pra não insistir (risco de
+     acionar proteção antifraude da conta com tentativas repetidas). Causa não identificada — pode
+     ser peculiaridade da conta de teste, alguma etapa de verificação adicional exigida pelo
+     ambiente sandbox, ou simplesmente algo que só reproduz nesse Test User específico (o William
+     confirmou que em produção o botão funciona normalmente). **Consequência**: não foi possível
+     completar um pagamento de teste de ponta a ponta, então a pergunta mais importante que
+     motivou essa rodada de testes — **se `x-signature` realmente vem preenchido em notificações
+     `merchant_order` reais** (ver item 2 abaixo) — **continua sem confirmação**. Retomar esse teste
+     quando o William tiver tempo pra investigar por que o botão trava nesse Test User específico,
+     ou tentar com uma conta de teste nova.
 2. A validação de assinatura do webhook (`ValidarAssinaturaWebhook` em `mercadopago_service.go`)
    segue o algoritmo documentado publicamente pelo Mercado Pago (`x-signature` com manifest
    `id:...;request-id:...;ts:...;`), mas isso é exatamente o tipo de detalhe que costuma ter

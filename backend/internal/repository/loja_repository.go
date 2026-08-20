@@ -61,6 +61,14 @@ func (r *LojaRepository) AtualizarMercadoPago(lojaID uint, accessToken, refreshT
 	}).Error
 }
 
+// AtualizarMercadoPagoContaTeste grava se a conexão da loja com o Mercado
+// Pago é uma Test User (ver domain.Loja.MercadoPagoContaTeste) — chamado só
+// no momento da conexão inicial (ProcessarCallback), não em toda renovação
+// de token.
+func (r *LojaRepository) AtualizarMercadoPagoContaTeste(lojaID uint, contaTeste bool) error {
+	return r.db.Model(&domain.Loja{}).Where("id = ?", lojaID).Update("mercado_pago_conta_teste", contaTeste).Error
+}
+
 // AtualizarAvisoPagamentoNaoConfigurado registra quando o dono foi
 // avisado por último de que a loja ainda não tem Mercado Pago conectado
 // (ver MercadoPagoService.CriarCheckout).

@@ -86,6 +86,17 @@ type Loja struct {
 	MercadoPagoRefreshToken  string     `gorm:"size:255" json:"-"`
 	MercadoPagoUserID        string     `gorm:"size:50;index" json:"-"`
 	MercadoPagoTokenExpiraEm *time.Time `json:"-"`
+	// MercadoPagoContaTeste (achado testando contra a sandbox real em
+	// 20/08/2026) diz se a conta conectada é uma "Test User" do Mercado
+	// Pago — usado por CriarCheckout pra escolher entre sandbox_init_point
+	// e init_point. A suposição original do código (prefixo "TEST-" no
+	// access_token) provou ser falsa: uma conta de Test User real, obtida
+	// via OAuth de verdade, devolveu um access_token "APP_USR-..." igual
+	// ao de produção — só o campo `tags` da resposta de GET /users/me
+	// (contém "test_user") diferencia de forma confiável. Detectado uma
+	// vez, no momento da conexão (ProcessarCallback), não recalculado a
+	// cada checkout.
+	MercadoPagoContaTeste bool `gorm:"default:false" json:"-"`
 
 	// AvisoPagamentoNaoConfiguradoEm registra a última vez que o dono foi
 	// avisado por WhatsApp de que um cliente tentou pagar mas a loja ainda
