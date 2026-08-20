@@ -11,6 +11,7 @@ import { buscarConfiguracaoPlataforma, assinarSugestaoInteligente, cancelarAssin
 import { TEMAS } from '../../themes';
 import { Campo } from '../../components/Campo';
 import { Input } from '../../components/ui/input';
+import { ThemePicker } from '../../components/ui/theme-picker';
 import { QRCodeCardapio } from '../../components/QRCodeCardapio';
 import { EnderecoCampos, enderecoVazio, enderecoParaTexto, enderecoParaCampos, enderecoPreenchido, type EnderecoValor } from '../../components/EnderecoCampos';
 import { rotuloCatalogo } from '../../lib/utils';
@@ -622,33 +623,7 @@ export function Configuracoes() {
           <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">
             Tema do {rotuloCatalogo(loja?.segmento_principal)}
           </p>
-          <div className="grid grid-cols-4 gap-2">
-            {TEMAS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTema(t.id)}
-                className={`rounded-xl border-2 p-2 text-left transition ${
-                  tema === t.id ? 'border-acento' : 'border-tinta/10 hover:border-tinta/25'
-                }`}
-              >
-                <div
-                  className="mb-1.5 h-6 w-full rounded-lg"
-                  style={{ background: t.acento }}
-                />
-                <div
-                  className="mb-1 h-1.5 w-full rounded"
-                  style={{ background: t.fundo }}
-                />
-                <p className="truncate text-xs font-medium text-tinta">{t.nome}</p>
-              </button>
-            ))}
-          </div>
-          {tema && (
-            <p className="text-xs text-tinta-suave">
-              {TEMAS.find((t) => t.id === tema)?.descricao}
-            </p>
-          )}
+          <ThemePicker temas={TEMAS} valor={tema} onValorChange={setTema} />
         </div>
 
         {erro && <p className="text-sm text-acento">{erro}</p>}
