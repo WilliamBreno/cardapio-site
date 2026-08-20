@@ -633,7 +633,7 @@ git commit -m "feat: componente E (toggle switch), aplicado em Disponível do pr
 **Interfaces:**
 - Produces: `Segmented<T>` (`opcoes: {valor: T, label: string}[]`, `valor: T`, `onValorChange: (v: T) => void`).
 
-- [ ] **Passo 1: Criar `segmented.tsx`**
+- [x] **Passo 1: Criar `segmented.tsx`**
 
 ```tsx
 import { Toggle } from "@base-ui/react/toggle"
@@ -680,7 +680,7 @@ function Segmented<T extends string>({ opcoes, valor, onValorChange, className }
 export { Segmented }
 ```
 
-- [ ] **Passo 2: Aplicar em `CarrinhoDrawer.tsx`**
+- [x] **Passo 2: Aplicar em `CarrinhoDrawer.tsx`**
 
 Trocar (linhas 461-474):
 ```tsx
@@ -707,13 +707,13 @@ por:
 ```
 Adicionar o import. `opcoesModoEntrega` já é tipado como `{ valor: 'retirada' | 'entrega' | 'guardar'; label: string }[]`, compatível com `SegmentedOption<'retirada' | 'entrega' | 'guardar'>` sem mudança de tipo.
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: abrir o carrinho público na etapa de dados — o segmentado Entrega/Retirada (e Guardar quando aplicável) deve alternar com pill preenchida no selecionado.
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/segmented.tsx frontend/src/components/CarrinhoDrawer.tsx
