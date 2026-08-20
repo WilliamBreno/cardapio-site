@@ -9,6 +9,7 @@ import { InputFloating } from '../ui/input-floating';
 import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
 import { Dropzone } from '../ui/dropzone';
+import { TagPill } from '../ui/tag-pill';
 
 interface Props {
   form: ProdutoInput;
@@ -77,6 +78,26 @@ export function ProdutoFormFields({ form, onChange, categorias, subcategorias, g
                 {gruposCorDaSubcategoria.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}
               </select>
             </Campo>
+          )}
+        </div>
+      )}
+
+      {(form.categoria_id > 0 || form.subcategoria_id !== null || form.grupo_cor_id !== null) && (
+        <div className="flex flex-wrap gap-2">
+          {form.categoria_id > 0 && (
+            <TagPill onRemove={() => onChange({ ...form, categoria_id: 0, subcategoria_id: null, grupo_cor_id: null })}>
+              {categorias?.find((c) => c.id === form.categoria_id)?.nome ?? 'Categoria'}
+            </TagPill>
+          )}
+          {form.subcategoria_id !== null && (
+            <TagPill onRemove={() => onChange({ ...form, subcategoria_id: null, grupo_cor_id: null })}>
+              {subcategorias?.find((s) => s.id === form.subcategoria_id)?.nome ?? 'Subcategoria'}
+            </TagPill>
+          )}
+          {form.grupo_cor_id !== null && (
+            <TagPill onRemove={() => onChange({ ...form, grupo_cor_id: null })}>
+              {gruposCor?.find((g) => g.id === form.grupo_cor_id)?.nome ?? 'Grupo'}
+            </TagPill>
           )}
         </div>
       )}
