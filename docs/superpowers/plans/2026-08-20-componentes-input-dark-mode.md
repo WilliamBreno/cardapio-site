@@ -1126,7 +1126,7 @@ git commit -m "feat: componente J (campo de data com showPicker no clique), apli
 - Consumes: `Tema` de `frontend/src/themes.ts` (`{id, nome, descricao, acento, fundo, superficie}`).
 - Produces: `ThemePicker` (`temas: Tema[]`, `valor: string`, `onValorChange: (id: string) => void`).
 
-- [ ] **Passo 1: Criar `theme-picker.tsx`**
+- [x] **Passo 1: Criar `theme-picker.tsx`**
 
 ```tsx
 import type { Tema } from "@/themes"
@@ -1168,7 +1168,7 @@ function ThemePicker({ temas, valor, onValorChange, className }: ThemePickerProp
 export { ThemePicker }
 ```
 
-- [ ] **Passo 2: Aplicar em `Configuracoes.tsx`**
+- [x] **Passo 2: Aplicar em `Configuracoes.tsx`**
 
 Trocar o bloco (linhas 619-646):
 ```tsx
@@ -1213,13 +1213,13 @@ por:
 ```
 Adicionar o import.
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: abrir Configurações — o seletor de tema deve mostrar as 16 bolinhas de cor lado a lado (bem mais compacto que o grid de 4 colunas anterior), com a descrição do tema selecionado embaixo.
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/theme-picker.tsx frontend/src/pages/admin/Configuracoes.tsx
