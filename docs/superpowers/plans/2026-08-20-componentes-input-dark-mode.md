@@ -1039,7 +1039,7 @@ git commit -m "feat: componente I (dropzone), aplicado na foto do produto"
 **Interfaces:**
 - Produces: `InputDate` (props de `<input type="date">`).
 
-- [ ] **Passo 1: Criar `input-date.tsx`**
+- [x] **Passo 1: Criar `input-date.tsx`**
 
 ```tsx
 import { useRef, type ComponentProps } from "react"
@@ -1080,7 +1080,7 @@ function InputDate({ className, ...props }: ComponentProps<"input">) {
 export { InputDate }
 ```
 
-- [ ] **Passo 2: Aplicar em `Cupons.tsx`**
+- [x] **Passo 2: Aplicar em `Cupons.tsx`**
 
 Trocar (linhas 143-150):
 ```tsx
@@ -1101,13 +1101,13 @@ por:
 ```
 Adicionar o import.
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: abrir "Novo cupom", clicar em qualquer parte do campo de validade (não só no ícone) — o seletor de data do navegador deve abrir.
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/input-date.tsx frontend/src/pages/admin/Cupons.tsx
