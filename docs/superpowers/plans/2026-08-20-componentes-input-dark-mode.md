@@ -563,7 +563,7 @@ git commit -m "feat: componente D (busca com limpar), campo novo de busca em Pro
 **Interfaces:**
 - Produces: `Switch` (`checked`, `onCheckedChange`, mesma API do Base UI `Switch.Root`).
 
-- [ ] **Passo 1: Criar `switch.tsx`**
+- [x] **Passo 1: Criar `switch.tsx`**
 
 ```tsx
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
@@ -591,7 +591,7 @@ function Switch({ className, ...props }: SwitchPrimitive.Root.Props) {
 export { Switch }
 ```
 
-- [ ] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
+- [x] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
 
 Trocar (linhas 128-131):
 ```tsx
@@ -609,13 +609,13 @@ por:
 ```
 Adicionar o import.
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: abrir edição de um produto, alternar "Disponível" — o switch desliza e muda de cor (cinza↔terracota).
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/switch.tsx frontend/src/components/admin/ProdutoFormFields.tsx
