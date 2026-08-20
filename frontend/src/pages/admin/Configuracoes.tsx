@@ -10,6 +10,7 @@ import { enviarImagem, logoMiniatura } from '../../api/upload';
 import { buscarConfiguracaoPlataforma, assinarSugestaoInteligente, cancelarAssinaturaSugestaoInteligente } from '../../api/sugestoes';
 import { TEMAS } from '../../themes';
 import { Campo } from '../../components/Campo';
+import { Input } from '../../components/ui/input';
 import { QRCodeCardapio } from '../../components/QRCodeCardapio';
 import { EnderecoCampos, enderecoVazio, enderecoParaTexto, enderecoParaCampos, enderecoPreenchido, type EnderecoValor } from '../../components/EnderecoCampos';
 import { rotuloCatalogo } from '../../lib/utils';
@@ -298,12 +299,12 @@ export function Configuracoes() {
 
         {/* WhatsApp */}
         <Campo label="WhatsApp pra receber avisos de pedido">
-          <input
+          <Input
             required
+            status={whatsapp.length === 0 ? 'default' : /^\d{12,13}$/.test(whatsapp) ? 'success' : 'error'}
             value={whatsapp}
             onChange={(e) => setWhatsapp(e.target.value)}
             placeholder="5579999999999"
-            className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento"
           />
           <span className="mt-1 block text-xs text-tinta-suave">DDI + DDD + número (ex: 5579999999999).</span>
         </Campo>

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { buscarCep } from '../api/cep';
 import { Campo } from './Campo';
+import { Input } from './ui/input';
 
 export interface EnderecoValor {
   cep: string;
@@ -104,13 +105,13 @@ export function EnderecoCampos({ valor, onChange }: Props) {
   return (
     <div className="space-y-3">
       <Campo label="CEP (opcional — se souber, preenche o resto sozinho)">
-        <input
+        <Input
+          status={erroCep ? 'error' : valor.cep.replace(/\D/g, '').length === 8 && valor.rua.trim() !== '' ? 'success' : 'default'}
           value={valor.cep}
           onChange={(e) => handleCepChange(e.target.value)}
           placeholder="49000-000"
           maxLength={9}
           inputMode="numeric"
-          className={campoClasse}
         />
         {buscandoCep && <span className="mt-1 block text-xs text-tinta-suave">Buscando endereço pelo CEP...</span>}
         {erroCep && <span className="mt-1 block text-xs text-acento">{erroCep}</span>}
