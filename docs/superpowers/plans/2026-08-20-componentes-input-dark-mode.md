@@ -1237,7 +1237,7 @@ git commit -m "feat: componente K (seletor de tema compacto), substitui o grid e
 **Interfaces:**
 - Produces: `TagPill` (`children: ReactNode`, `onRemove: () => void`).
 
-- [ ] **Passo 1: Criar `tag-pill.tsx`**
+- [x] **Passo 1: Criar `tag-pill.tsx`**
 
 ```tsx
 import type { ReactNode } from "react"
@@ -1276,7 +1276,7 @@ function TagPill({ children, onRemove, className }: TagPillProps) {
 export { TagPill }
 ```
 
-- [ ] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
+- [x] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
 
 Logo depois do bloco de selects de Categoria (linha 52, fechamento da primeira `<div className="flex gap-3">`) e do bloco condicional de Subcategoria/Grupo (linhas 54-79), inserir, antes do bloco "Tipo de produto":
 ```tsx
@@ -1302,13 +1302,13 @@ Logo depois do bloco de selects de Categoria (linha 52, fechamento da primeira `
 ```
 Adicionar o import. Os `<select>` de Categoria/Subcategoria/Grupo continuam exatamente como estão — essa linha de pills é só uma exibição adicional da seleção atual, com atalho de remover que já reaproveita a mesma lógica de cascata (`subcategoria_id`/`grupo_cor_id` zerados junto) que os `onChange` dos selects já usam.
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: abrir "Novo produto" de uma loja com categoria/subcategoria/grupo cadastrados, escolher os três níveis nos selects — as pills devem aparecer refletindo a seleção; clicar no X de uma pill deve resetar aquele nível (e os de baixo).
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/tag-pill.tsx frontend/src/components/admin/ProdutoFormFields.tsx
