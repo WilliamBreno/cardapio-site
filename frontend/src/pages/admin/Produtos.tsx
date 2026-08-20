@@ -13,6 +13,7 @@ import { VariacaoFormFields } from '../../components/admin/VariacaoFormFields';
 import { CadastroEmMassaDialog } from '../../components/admin/CadastroEmMassaDialog';
 import { FichaTecnicaModal } from '../../components/admin/FichaTecnicaModal';
 import { InfoTooltip } from '../../components/InfoTooltip';
+import { InputSearch } from '../../components/ui/input-search';
 import { enviarImagem, logoMiniatura } from '../../api/upload';
 import { rotuloCatalogo } from '../../lib/utils';
 
@@ -63,6 +64,7 @@ export function Produtos() {
   const [form, setForm] = useState<ProdutoInput>(formVazio);
   const [erro, setErro] = useState<string | null>(null);
   const [enviandoFoto, setEnviandoFoto] = useState(false);
+  const [busca, setBusca] = useState('');
 
   // Variações
   const [produtoExpandido, setProdutoExpandido] = useState<number | null>(null);
@@ -473,6 +475,10 @@ export function Produtos() {
     );
   }
 
+  const produtosVisiveis = busca.trim()
+    ? produtos?.filter((p) => p.nome.toLowerCase().includes(busca.trim().toLowerCase()))
+    : produtos;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -493,6 +499,10 @@ export function Produtos() {
           </div>
         )}
       </div>
+
+      {!mostrarForm && (
+        <InputSearch value={busca} onValueChange={setBusca} placeholder="Buscar produto..." className="max-w-sm" />
+      )}
 
       {mostrarCadastroEmMassa && (
         <CadastroEmMassaDialog
@@ -521,10 +531,10 @@ export function Produtos() {
 
       {isLoading ? (
         <p className="text-tinta-suave">Carregando produtos...</p>
-      ) : produtos && produtos.length > 0 ? (
+      ) : produtosVisiveis && produtosVisiveis.length > 0 ? (
         <div className="space-y-6">
           {categorias?.map((categoria) => {
-            const produtosDaCategoria = produtos.filter((p) => p.categoria_id === categoria.id);
+            const produtosDaCategoria = produtosVisiveis.filter((p) => p.categoria_id === categoria.id);
             if (produtosDaCategoria.length === 0) return null;
             return (
               <div key={categoria.id} className="space-y-3">
