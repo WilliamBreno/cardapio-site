@@ -8,6 +8,7 @@ import { buscarSugestoesCarrinho } from '../api/sugestoes';
 import { SugestaoPreviewItem } from './SugestaoPreviewItem';
 import { Campo } from './Campo';
 import { EnderecoCampos, enderecoVazio, enderecoParaTexto, enderecoPreenchido, type EnderecoValor } from './EnderecoCampos';
+import { Stepper } from './ui/stepper';
 import { precoItem, rotuloCombo } from '../lib/utils';
 import type { Produto, TipoProduto } from '../api/types';
 
@@ -356,25 +357,11 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2 rounded-full border border-tinta/15 px-2 py-1">
-                        <button
-                          onClick={() => alterarQuantidade(item.produto.id, item.quantidade - 1, item.variacao?.id)}
-                          className="h-6 w-6 rounded-full text-tinta hover:bg-fundo"
-                          aria-label="Diminuir quantidade"
-                        >
-                          −
-                        </button>
-                        <span className="w-5 text-center font-carimbo text-sm">
-                          {item.quantidade}
-                        </span>
-                        <button
-                          onClick={() => alterarQuantidade(item.produto.id, item.quantidade + 1, item.variacao?.id)}
-                          className="h-6 w-6 rounded-full text-tinta hover:bg-fundo"
-                          aria-label="Aumentar quantidade"
-                        >
-                          +
-                        </button>
-                      </div>
+                      <Stepper
+                        value={item.quantidade}
+                        min={1}
+                        onValueChange={(nova) => alterarQuantidade(item.produto.id, nova, item.variacao?.id)}
+                      />
 
                       <button
                         onClick={() => remover(item.produto.id, item.variacao?.id)}
@@ -401,25 +388,11 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2 rounded-full border border-tinta/15 px-2 py-1">
-                      <button
-                        onClick={() => alterarQuantidadeCombo(item.combo.id, item.quantidade - 1)}
-                        className="h-6 w-6 rounded-full text-tinta hover:bg-fundo"
-                        aria-label="Diminuir quantidade"
-                      >
-                        −
-                      </button>
-                      <span className="w-5 text-center font-carimbo text-sm">
-                        {item.quantidade}
-                      </span>
-                      <button
-                        onClick={() => alterarQuantidadeCombo(item.combo.id, item.quantidade + 1)}
-                        className="h-6 w-6 rounded-full text-tinta hover:bg-fundo"
-                        aria-label="Aumentar quantidade"
-                      >
-                        +
-                      </button>
-                    </div>
+                    <Stepper
+                      value={item.quantidade}
+                      min={1}
+                      onValueChange={(nova) => alterarQuantidadeCombo(item.combo.id, nova)}
+                    />
 
                     <button
                       onClick={() => removerCombo(item.combo.id)}
