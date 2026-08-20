@@ -30,7 +30,7 @@
 **Interfaces:**
 - Produces: `Field`, `FieldLabel`, `FieldDescription`, `FieldError` (de `field.tsx`); `Input`, `inputVariants` (de `input.tsx`, com `status?: 'default' | 'success' | 'error'`).
 
-- [ ] **Passo 1: Criar `field.tsx`**
+- [x] **Passo 1: Criar `field.tsx`**
 
 ```tsx
 import { Field as FieldPrimitive } from "@base-ui/react/field"
@@ -83,7 +83,7 @@ function FieldError({ className, ...props }: FieldPrimitive.Error.Props) {
 export { Field, FieldLabel, FieldDescription, FieldError }
 ```
 
-- [ ] **Passo 2: Criar `input.tsx`**
+- [x] **Passo 2: Criar `input.tsx`**
 
 ```tsx
 import { Input as InputPrimitive } from "@base-ui/react/input"
@@ -136,12 +136,12 @@ function Input({ className, status, ...props }: InputProps) {
 export { Input, inputVariants }
 ```
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros. `Input`/`Field` ainda não são usados em lugar nenhum nessa task — normal não ter nada visual pra conferir ainda.
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/field.tsx frontend/src/components/ui/input.tsx
