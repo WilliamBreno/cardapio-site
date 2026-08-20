@@ -9,6 +9,7 @@ import { SugestaoPreviewItem } from './SugestaoPreviewItem';
 import { Campo } from './Campo';
 import { EnderecoCampos, enderecoVazio, enderecoParaTexto, enderecoPreenchido, type EnderecoValor } from './EnderecoCampos';
 import { Stepper } from './ui/stepper';
+import { Segmented } from './ui/segmented';
 import { precoItem, rotuloCombo } from '../lib/utils';
 import type { Produto, TipoProduto } from '../api/types';
 
@@ -432,18 +433,7 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
           ) : (
             <div className="space-y-4">
               {opcoesModoEntrega.length > 1 && (
-                <div className="flex gap-2">
-                  {opcoesModoEntrega.map((opcao) => (
-                    <button
-                      key={opcao.valor}
-                      type="button"
-                      onClick={() => setModoEntrega(opcao.valor)}
-                      className={`flex-1 rounded-full border-2 py-2 text-sm font-semibold transition ${modoEntrega === opcao.valor ? 'border-acento bg-acento text-superficie' : 'border-tinta/20 text-tinta'}`}
-                    >
-                      {opcao.label}
-                    </button>
-                  ))}
-                </div>
+                <Segmented opcoes={opcoesModoEntrega} valor={modoEntrega} onValorChange={setModoEntrega} className="w-full" />
               )}
 
               {modoEntrega === 'guardar' && (
