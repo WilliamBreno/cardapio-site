@@ -6,6 +6,7 @@ import {
 import type { Cupom } from '../../api/types';
 import { Campo } from '../../components/Campo';
 import { InputPrice } from '../../components/ui/input-price';
+import { InputDate } from '../../components/ui/input-date';
 
 const formVazio: CupomInput = {
   codigo: '',
@@ -142,12 +143,7 @@ export function Cupons() {
 
           <div className="grid grid-cols-2 gap-3">
             <Campo label="Validade (opcional)">
-              <input
-                type="date"
-                value={form.validade ?? ''}
-                onChange={(e) => setForm({ ...form, validade: e.target.value || null })}
-                className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-tinta outline-none focus:border-acento"
-              />
+              <InputDate value={form.validade ?? ''} onChange={(e) => setForm({ ...form, validade: e.target.value || null })} />
             </Campo>
             <Campo label="Uso máximo (opcional)">
               <input
