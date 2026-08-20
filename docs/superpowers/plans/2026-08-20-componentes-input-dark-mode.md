@@ -388,7 +388,7 @@ git commit -m "feat: componente B (stepper de quantidade), aplicado no carrinho"
 **Interfaces:**
 - Produces: `InputFloating` (`label: string` + props de `<input>`).
 
-- [ ] **Passo 1: Criar `input-floating.tsx`**
+- [x] **Passo 1: Criar `input-floating.tsx`**
 
 ```tsx
 import { Field as FieldPrimitive } from "@base-ui/react/field"
@@ -428,7 +428,7 @@ function InputFloating({ label, className, id, ...props }: InputFloatingProps) {
 export { InputFloating }
 ```
 
-- [ ] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
+- [x] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
 
 Trocar (linhas 36-38):
 ```tsx
@@ -442,13 +442,13 @@ por (sem o wrapper `<Campo>` — o label já vem embutido no componente):
 ```
 Adicionar o import.
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: abrir "Novo produto" — o campo "Nome do produto" deve mostrar o label dentro do campo (grande, cinza) quando vazio, e subir/encolher (pequeno, cor de destaque) ao focar ou digitar.
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/input-floating.tsx frontend/src/components/admin/ProdutoFormFields.tsx
