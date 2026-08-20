@@ -8,6 +8,7 @@ import { InputPrice } from '../ui/input-price';
 import { InputFloating } from '../ui/input-floating';
 import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
+import { Dropzone } from '../ui/dropzone';
 
 interface Props {
   form: ProdutoInput;
@@ -107,24 +108,21 @@ export function ProdutoFormFields({ form, onChange, categorias, subcategorias, g
       {/* Upload de foto */}
       <div>
         <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-tinta-suave">Foto (opcional)</span>
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-tinta/25 bg-fundo">
-            {form.foto_url ? <img src={logoMiniatura(form.foto_url)} alt="Foto" className="h-full w-full object-cover" /> : <span className="font-display text-xl text-tinta/30">{form.nome.charAt(0).toUpperCase() || '?'}</span>}
-          </div>
-          <label className="cursor-pointer btn-neu-secundario hover:border-acento">
-            {enviandoFoto ? 'Enviando...' : form.foto_url ? 'Trocar foto' : 'Enviar foto'}
-            <input type="file" accept="image/*" onChange={onSelecionarFoto} disabled={enviandoFoto} className="hidden" />
-          </label>
-          {form.foto_url && !enviandoFoto && (
-            <button
-              type="button"
-              onClick={() => onChange({ ...form, foto_url: '' })}
-              className="btn-neu-secundario-suave hover:border-acento hover:text-acento"
-            >
-              Remover foto
-            </button>
-          )}
-        </div>
+        <Dropzone
+          onFileChange={onSelecionarFoto}
+          previewUrl={form.foto_url ? logoMiniatura(form.foto_url) : undefined}
+          disabled={enviandoFoto}
+          texto={enviandoFoto ? 'Enviando...' : form.foto_url ? 'Trocar foto (ou arraste uma nova)' : 'Arraste a foto ou clique pra escolher'}
+        />
+        {form.foto_url && !enviandoFoto && (
+          <button
+            type="button"
+            onClick={() => onChange({ ...form, foto_url: '' })}
+            className="btn-neu-secundario-suave mt-2 hover:border-acento hover:text-acento"
+          >
+            Remover foto
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
