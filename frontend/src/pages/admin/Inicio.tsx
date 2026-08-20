@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { buscarDashboard, buscarLoja, listarProdutos, statusMercadoPago } from '../../api/admin';
+import { buscarDashboard, buscarLoja, listarProdutos, statusMercadoPago, buscarResumoPeriodo } from '../../api/admin';
 import { PLANOS, planoMaisBarato, custoPlano, NOME_PLANO } from '../../lib/planos';
 import { HistoricoClienteModal } from '../../components/admin/HistoricoClienteModal';
 import {
@@ -35,6 +35,28 @@ const ROTULO_FORMA_PAGAMENTO: Record<string, string> = {
 
 function rotuloChave(chave: string, mapa: Record<string, string>) {
   return mapa[chave] ?? chave.charAt(0).toUpperCase() + chave.slice(1);
+}
+
+const ROTULO_TIPO_PERIODO: Record<'dia' | 'semana' | 'mes', string> = {
+  dia: 'Dia',
+  semana: 'Semana',
+  mes: 'Mês',
+};
+
+function formatarDataBR(iso: string): string {
+  const [ano, mes, dia] = iso.split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
+// hojeISO() devolve a data de hoje no formato AAAA-MM-DD, usada como valor
+// inicial do seletor de período (Fase 10.5) — não precisa de precisão de
+// fuso horário fina aqui, é só o valor padrão de um campo editável pelo
+// dono.
+function hojeISO(): string {
+  const hoje = new Date();
+  const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoje.getDate()).padStart(2, '0');
+  return `${hoje.getFullYear()}-${mes}-${dia}`;
 }
 
 // LIMITE_PEDIDOS_START espelha domain.LimitePedidosStart no backend (Fase
@@ -80,6 +102,47 @@ export function Inicio() {
   const { data: mercadoPagoStatus } = useQuery({ queryKey: ['mercadopago-status'], queryFn: statusMercadoPago });
 
   const [clienteSelecionado, setClienteSelecionado] = useState<{ nome: string; telefone: string } | null>(null);
+
+  // Relatório via WhatsApp (Fase 10.5) — período escolhido pelo dono,
+  // diferente das janelas fixas do dashboard acima.
+  const [tipoPeriodo, setTipoPeriodo] = useState<'dia' | 'semana' | 'mes'>('dia');
+  const [dataPeriodo, setDataPeriodo] = useState(hojeISO());
+  const { data: resumoPeriodo, isLoading: carregandoResumo } = useQuery({
+    queryKey: ['resumo-periodo', tipoPeriodo, dataPeriodo],
+    queryFn: () => buscarResumoPeriodo(tipoPeriodo, dataPeriodo),
+    enabled: !!dataPeriodo,
+  });
+
+  function enviarRelatorioWhatsApp() {
+    if (!resumoPeriodo) return;
+    const nomeLoja = loja?.nome ?? 'minha loja';
+    const periodoTexto = resumoPeriodo.inicio === resumoPeriodo.fim
+      ? formatarDataBR(resumoPeriodo.inicio)
+      : `${formatarDataBR(resumoPeriodo.inicio)} a ${formatarDataBR(resumoPeriodo.fim)}`;
+
+    const linhas = [
+      `📊 Relatório – ${nomeLoja}`,
+      `Período: ${ROTULO_TIPO_PERIODO[resumoPeriodo.tipo]} (${periodoTexto})`,
+      '',
+      `Faturamento: ${moeda(resumoPeriodo.total)}`,
+      `Pedidos: ${resumoPeriodo.num_pedidos}`,
+      `Ticket médio: ${moeda(resumoPeriodo.ticket_medio)}`,
+    ];
+    // top_produtos vem null do backend quando a query de agregação não
+    // acha nenhuma linha (Scan do GORM não zera slice — mesma classe de
+    // bug já documentada na Fase 9.3) — guarda aqui, sem depender do
+    // backend nunca mudar isso.
+    const topProdutosPeriodo = resumoPeriodo.top_produtos ?? [];
+    if (topProdutosPeriodo.length > 0) {
+      linhas.push('', 'Mais vendidos:');
+      for (const p of topProdutosPeriodo) {
+        linhas.push(`- ${p.quantidade}x ${p.nome}`);
+      }
+    }
+
+    const url = `https://wa.me/?text=${encodeURIComponent(linhas.join('\n'))}`;
+    window.open(url, '_blank');
+  }
 
   if (isLoading) return <p className="text-tinta-suave">Carregando...</p>;
   if (!data) return null;
@@ -367,6 +430,57 @@ export function Inicio() {
           )}
         </div>
       )}
+
+      {/* Relatório via WhatsApp (Fase 10.5) — dono escolhe o período e
+          manda pra quem quiser (contador, sócio, ele mesmo); sem número de
+          destino fixo, o link wa.me sem telefone abre o seletor de
+          contato do próprio WhatsApp. */}
+      <div className="rounded-2xl bg-superficie p-5 shadow-sm">
+        <h2 className="mb-3 font-display text-base tracking-wide text-tinta">Relatório via WhatsApp</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-full bg-fundo p-1">
+            {(['dia', 'semana', 'mes'] as const).map((tipo) => (
+              <button
+                key={tipo}
+                onClick={() => setTipoPeriodo(tipo)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                  tipoPeriodo === tipo ? 'bg-acento text-white' : 'text-tinta-suave hover:text-tinta'
+                }`}
+              >
+                {ROTULO_TIPO_PERIODO[tipo]}
+              </button>
+            ))}
+          </div>
+          <input
+            type="date"
+            value={dataPeriodo}
+            onChange={(e) => setDataPeriodo(e.target.value)}
+            className="rounded-lg border border-tinta/15 bg-fundo px-2 py-1 text-sm text-tinta"
+          />
+        </div>
+
+        {carregandoResumo ? (
+          <p className="mt-3 text-sm text-tinta-suave">Calculando...</p>
+        ) : resumoPeriodo ? (
+          <div className="mt-3 space-y-1">
+            <p className="text-sm text-tinta-suave">
+              {resumoPeriodo.inicio === resumoPeriodo.fim
+                ? formatarDataBR(resumoPeriodo.inicio)
+                : `${formatarDataBR(resumoPeriodo.inicio)} a ${formatarDataBR(resumoPeriodo.fim)}`}
+              {' — '}
+              {resumoPeriodo.num_pedidos} pedido{resumoPeriodo.num_pedidos !== 1 ? 's' : ''}, faturamento{' '}
+              {moeda(resumoPeriodo.total)}
+            </p>
+            <button
+              onClick={enviarRelatorioWhatsApp}
+              disabled={resumoPeriodo.num_pedidos === 0}
+              className="mt-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Enviar relatório via WhatsApp
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       {clienteSelecionado && (
         <HistoricoClienteModal

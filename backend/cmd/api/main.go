@@ -360,6 +360,7 @@ func main() {
 	admin.POST("/insumos/importar-nfe/confirmar", nfeImportHandler.Confirmar)
 
 	admin.GET("/dashboard", dashboardHandler.Dados)
+	admin.GET("/dashboard/periodo", dashboardHandler.Periodo)
 
 	admin.GET("/cupons", cupomHandler.Listar)
 	admin.POST("/cupons", cupomHandler.Criar)

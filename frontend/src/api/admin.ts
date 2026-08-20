@@ -215,6 +215,15 @@ export async function buscarDashboard(): Promise<import('./types').DashboardData
   return data;
 }
 
+// Resumo de período exato pra relatório via WhatsApp (Fase 10.5) — data no
+// formato AAAA-MM-DD.
+export async function buscarResumoPeriodo(tipo: 'dia' | 'semana' | 'mes', data: string): Promise<import('./types').PeriodoResumo> {
+  const { data: resumo } = await api.get<import('./types').PeriodoResumo>('/admin/dashboard/periodo', {
+    params: { tipo, data },
+  });
+  return resumo;
+}
+
 // Fotos de produto
 export async function adicionarFoto(produtoId: number, url: string, ordem: number): Promise<import('./types').FotoProduto> {
   const { data } = await api.post(`/admin/fotos/${produtoId}`, { url, ordem });

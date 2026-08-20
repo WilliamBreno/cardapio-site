@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -55,6 +56,20 @@ type DashboardData struct {
 	TopClientesPorValor   []ClienteRanking `json:"top_clientes_por_valor"`
 	TiposEntrega          []Contagem       `json:"tipos_entrega"`
 	FormasPagamento       []Contagem       `json:"formas_pagamento"`
+}
+
+// PeriodoResumo (Fase 10.5) é o resumo de um período exato escolhido pelo
+// dono (dia/semana/mês), pra montar o texto do relatório enviado via
+// WhatsApp — diferente das janelas fixas de DashboardData (7 dias/4
+// semanas/30 dias), que não dão pra escolher a data.
+type PeriodoResumo struct {
+	Tipo        string       `json:"tipo"`
+	Inicio      string       `json:"inicio"` // AAAA-MM-DD, primeiro dia do período
+	Fim         string       `json:"fim"`    // AAAA-MM-DD, último dia do período (inclusive)
+	Total       float64      `json:"total"`
+	NumPedidos  int          `json:"num_pedidos"`
+	TicketMedio float64      `json:"ticket_medio"`
+	TopProdutos []TopProduto `json:"top_produtos"`
 }
 
 type DashboardService struct {
@@ -212,4 +227,74 @@ func (s *DashboardService) BuscarDados(lojaID uint) (*DashboardData, error) {
 	data.FormasPagamento = formasPagamento
 
 	return data, nil
+}
+
+// BuscarResumoPeriodo (Fase 10.5) calcula o resumo de um período exato
+// (dia/semana/mês) que contém `data`, no fuso de Brasília. "semana" segue
+// segunda a domingo (mesmo critério do DATE_TRUNC('week', ...) do
+// Postgres, já usado em Receita4Semanas acima). Diferente do resto desse
+// serviço, essa consulta não é uma janela fixa relativa a "agora" — o dono
+// escolhe a data de referência no frontend.
+func (s *DashboardService) BuscarResumoPeriodo(lojaID uint, tipo string, data time.Time) (*PeriodoResumo, error) {
+	fusoBrasil, _ := time.LoadLocation("America/Sao_Paulo")
+	// `data` chega de time.Parse("2006-01-02", ...), ou seja, meia-noite em
+	// UTC — .In(fusoBrasil) deslocaria isso pra 21h do dia ANTERIOR (UTC-3),
+	// trocando Year/Month/Day silenciosamente. Em vez de converter o
+	// instante, extrai o ano/mês/dia crus (que já são exatamente os dígitos
+	// da string recebida) e monta a data diretamente no fuso de Brasília.
+	data = time.Date(data.Year(), data.Month(), data.Day(), 0, 0, 0, 0, fusoBrasil)
+
+	var inicio, fimExclusivo time.Time
+	switch tipo {
+	case "dia":
+		inicio = time.Date(data.Year(), data.Month(), data.Day(), 0, 0, 0, 0, fusoBrasil)
+		fimExclusivo = inicio.AddDate(0, 0, 1)
+	case "semana":
+		diaBase := time.Date(data.Year(), data.Month(), data.Day(), 0, 0, 0, 0, fusoBrasil)
+		offsetSegunda := (int(diaBase.Weekday()) + 6) % 7 // segunda=0 ... domingo=6
+		inicio = diaBase.AddDate(0, 0, -offsetSegunda)
+		fimExclusivo = inicio.AddDate(0, 0, 7)
+	case "mes":
+		inicio = time.Date(data.Year(), data.Month(), 1, 0, 0, 0, 0, fusoBrasil)
+		fimExclusivo = inicio.AddDate(0, 1, 0)
+	default:
+		return nil, fmt.Errorf("tipo de período inválido: %s", tipo)
+	}
+
+	resumo := &PeriodoResumo{
+		Tipo:   tipo,
+		Inicio: inicio.Format("2006-01-02"),
+		Fim:    fimExclusivo.AddDate(0, 0, -1).Format("2006-01-02"),
+	}
+
+	var linha struct {
+		Total      float64
+		NumPedidos int
+	}
+	if err := s.db.Raw(`
+		SELECT COALESCE(SUM(total), 0) AS total, COUNT(*) AS num_pedidos
+		FROM pedidos
+		WHERE loja_id = ? AND status = 'pago' AND updated_at >= ? AND updated_at < ?
+	`, lojaID, inicio, fimExclusivo).Scan(&linha).Error; err != nil {
+		return nil, err
+	}
+	resumo.Total = linha.Total
+	resumo.NumPedidos = linha.NumPedidos
+	if linha.NumPedidos > 0 {
+		resumo.TicketMedio = linha.Total / float64(linha.NumPedidos)
+	}
+
+	var topProdutos []TopProduto
+	s.db.Raw(`
+		SELECT ip.produto_nome as nome, SUM(ip.quantidade) as quantidade
+		FROM itens_pedido ip
+		JOIN pedidos p ON p.id = ip.pedido_id
+		WHERE p.loja_id = ? AND p.status = 'pago' AND p.updated_at >= ? AND p.updated_at < ?
+		GROUP BY ip.produto_nome
+		ORDER BY quantidade DESC
+		LIMIT 3
+	`, lojaID, inicio, fimExclusivo).Scan(&topProdutos)
+	resumo.TopProdutos = topProdutos
+
+	return resumo, nil
 }

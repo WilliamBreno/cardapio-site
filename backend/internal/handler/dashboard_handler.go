@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/WilliamBreno/cardapio-backend/internal/domain"
 	"github.com/WilliamBreno/cardapio-backend/internal/repository"
@@ -29,6 +30,32 @@ func (h *DashboardHandler) Dados(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, data)
+}
+
+// Periodo atende GET /admin/dashboard/periodo?tipo=dia|semana|mes&data=AAAA-MM-DD
+// (Fase 10.5) — resumo de um período exato escolhido pelo dono, usado pra
+// montar o relatório enviado via WhatsApp (link wa.me, montado no
+// frontend). Backend só devolve o resumo, não envia nada.
+func (h *DashboardHandler) Periodo(c *gin.Context) {
+	lojaID := c.GetUint("loja_id")
+	tipo := c.Query("tipo")
+	if tipo != "dia" && tipo != "semana" && tipo != "mes" {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "tipo precisa ser dia, semana ou mes"})
+		return
+	}
+
+	data, err := time.Parse("2006-01-02", c.Query("data"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "data inválida, use o formato AAAA-MM-DD"})
+		return
+	}
+
+	resumo, err := h.dashboardService.BuscarResumoPeriodo(lojaID, tipo, data)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resumo)
 }
 
 // ─── Fotos de Produto ─────────────────────────────────────────────────────────

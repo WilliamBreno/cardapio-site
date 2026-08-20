@@ -208,6 +208,19 @@ export interface ClienteRanking {
   valor_total: number;
 }
 
+// PeriodoResumo (Fase 10.5) — resumo de um período exato (dia/semana/mês)
+// escolhido pelo dono, usado pra montar o relatório enviado via WhatsApp.
+// inicio/fim vêm em AAAA-MM-DD, os dois inclusivos.
+export interface PeriodoResumo {
+  tipo: 'dia' | 'semana' | 'mes';
+  inicio: string;
+  fim: string;
+  total: number;
+  num_pedidos: number;
+  ticket_medio: number;
+  top_produtos: { nome: string; quantidade: number }[];
+}
+
 // Tipo de cálculo da taxa de entrega:
 // "fixa"      → valor fixo definido pelo dono
 // "combinado" → cliente informa endereço, dono combina fora do sistema

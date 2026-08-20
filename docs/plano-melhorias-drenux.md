@@ -1132,8 +1132,8 @@ fica pendente de especificação própria antes de qualquer código, mesmo padr�
 PDF+IA da Fase 9.2 (não travar o resto do roadmap nisso).
 
 ### Fase 10 — Banner, etapas de pedido, sugestão/cupom visíveis, analytics de cliente, relatório via WhatsApp, impressora Bluetooth
-Status: `[~] 10.1, 10.2, 10.3, 10.4 e 10.6 implementadas e testadas (19–20/08/2026) — 10.5 e 10.7
-seguem pendentes`
+Status: `[~] 10.1, 10.2, 10.3, 10.4, 10.5 e 10.6 implementadas e testadas (19–20/08/2026) — só
+10.7 segue pendente`
 
 Combinada numa conversa com o William em 19/08/2026 — sete pedidos batidos juntos, quebrados aqui em
 sub-fases pra seguir o mesmo padrão do resto do roadmap (uma por vez). Antes de escrever a spec,
@@ -1310,10 +1310,11 @@ critérios diferentes (não é a mesma lista mostrada duas vezes): "Clientes mai
 pedidos primeiro, "Maiores clientes" trouxe o de R$100 primeiro. Validado com `go build ./...`/
 `go vet ./...`/`gofmt -l` (backend) e `npx tsc -b`/`npm run build` (frontend), todos limpos.
 
-**10.5 — Relatório do Dashboard via WhatsApp (link `wa.me`), com filtro dia/semana/mês**
+**10.5 — Relatório do Dashboard via WhatsApp (link `wa.me`), com filtro dia/semana/mês —
+implementada e testada em 20/08/2026**
 
-Não existe hoje — `Inicio.tsx` não tem nenhum seletor de período (as três janelas do dashboard —
-7 dias, 4 semanas, 30 dias — são fixas, sem parâmetro nenhum em `buscarDashboard()`). Precisa de
+Não existia — `Inicio.tsx` não tinha nenhum seletor de período (as três janelas do dashboard —
+7 dias, 4 semanas, 30 dias — são fixas, sem parâmetro nenhum em `buscarDashboard()`). Precisou de
 capacidade nova, não só reaproveitar o que já existe:
 
 - Endpoint novo, ex. `GET /admin/dashboard/periodo?tipo=dia|semana|mes&data=AAAA-MM-DD` — devolve um
@@ -1333,6 +1334,58 @@ capacidade nova, não só reaproveitar o que já existe:
   aqui — isso é o DONO mandando pra alguém, não o sistema mandando pro dono). Fica só o
   encode/abertura de URL no navegador, sem chamada de backend pra enviar nada — "até implementarmos
   a API oficial da Meta", como o William já colocou.
+
+Implementado exatamente como especificado acima:
+
+- Backend: `DashboardService.BuscarResumoPeriodo(lojaID, tipo, data)` (novo) — calcula o intervalo
+  do período (dia = só aquele dia; semana = segunda a domingo contendo a data, mesmo critério do
+  `DATE_TRUNC('week', ...)` do Postgres já usado em `Receita4Semanas`; mês = mês-calendário
+  contendo a data) no fuso `America/Sao_Paulo`, devolve total/nº pedidos/ticket médio/top 3
+  produtos. `DashboardHandler.Periodo`, rota `GET /admin/dashboard/periodo?tipo=dia|semana|mes&data=AAAA-MM-DD`.
+- **Bug real achado e corrigido durante o teste ao vivo**: a primeira versão convertia a data
+  recebida com `data.In(fusoBrasil)` antes de extrair ano/mês/dia — como `time.Parse("2006-01-02",
+  ...)` devolve meia-noite em UTC, converter isso pro fuso de Brasília (UTC-3) sempre resulta em
+  21h do dia **anterior**, trocando silenciosamente o ano/mês/dia pra um dia a menos. Testado com
+  `curl`: pedir `tipo=dia&data=2026-08-20` devolvia `"inicio":"2026-08-19"` e 0 pedidos, mesmo
+  tendo pedido cadastrado no dia certo. Corrigido extraindo ano/mês/dia direto da data recebida
+  (que já são exatamente os dígitos da string) e montando a data já no fuso de Brasília, sem
+  conversão de instante. Revalidado com `curl` nos 3 tipos, incluindo virada de mês/ano
+  (`data=2026-01-01`, que antes teria deslocado pra 2025-12-31) — todos batendo com o esperado
+  depois da correção.
+- **Segundo achado, corrigido antes de virar problema em produção**: a mesma classe de bug de
+  slice nulo já documentada na Fase 9.3 (`Scan()` do GORM não zera slice sem linha nenhuma,
+  diferente de `Find()`) aparecia aqui também — `top_produtos` vinha `null` no JSON pra período sem
+  pedido nenhum. Testado com `curl` numa data sem pedido, confirmado `"top_produtos":null`. Como
+  esse app não tem `ErrorBoundary` em lugar nenhum (mesma observação já registrada na Fase 9.3), um
+  `.length` direto nesse campo quebraria a tela. Corrigido no frontend com `?? []`, seguindo a
+  mesma convenção já usada nesse arquivo pros outros agregados do dashboard (Fase 10.6) — mesma
+  razão registrada lá: manter a consistência interna do arquivo em vez de misturar defesas
+  backend/frontend.
+- Frontend: seletor "Dia / Semana / Mês" (pills) + `<input type="date">` na seção nova "Relatório
+  via WhatsApp" em `Inicio.tsx`, abaixo dos agregados da Fase 10.6. Mostra o resumo do período
+  escolhido e um botão "Enviar relatório via WhatsApp" — desabilitado quando `num_pedidos === 0`
+  (não faz sentido mandar relatório vazio). Mensagem montada no frontend (`enviarRelatorioWhatsApp`
+  em `Inicio.tsx`) com emoji, nome da loja, período, faturamento, pedidos, ticket médio e mais
+  vendidos; abre `https://wa.me/?text=<mensagem>` numa aba nova, sem número de destino fixo.
+
+**Ressalva sobre o teste do link `wa.me`**: capturar a URL final depois do redirecionamento do
+`wa.me` (que redireciona pra `api.whatsapp.com`) mostrou o emoji 📊 corrompido
+(`%EF%BF%BD`, caractere de substituição). Investigado antes de assumir bug próprio: interceptando
+`window.open` no navegador (sem deixar a navegação acontecer de verdade), a URL que o código
+realmente gera está com o emoji intacto (`%F0%9F%93%8A`, UTF-8 correto) e o texto decodificado sai
+perfeito — a corrupção acontece do lado do servidor do WhatsApp durante o redirecionamento deles,
+não no código da Drenux. Não é algo pra corrigir aqui; registrado só pra não confundir numa
+investigação futura se alguém notar o mesmo em produção.
+
+Testado ao vivo (loja de teste temporária `loja-teste-105`, plano Pro, removida depois — mesmo
+padrão das fases anteriores): 4 pedidos pagos com datas espalhadas (2 hoje, 1 há 3 dias, 1 há 20
+dias) via SQL direto simulando o estado pós-pagamento. Confirmado por `curl` e por screenshot que
+os 3 tipos de período batem exatamente com o esperado — "Dia" mostrou 2 pedidos/R$80, "Semana"
+mostrou 3 pedidos/R$160 (17/08 a 23/08), "Mês" mostrou 3 pedidos/R$160 (01/08 a 31/08, o pedido de
+20 dias atrás caiu em julho, fora do mês corrente, como esperado pro calendário real). Testado
+também o caso de período sem pedido nenhum (`01/01/2025`): botão fica desabilitado, nenhum erro de
+JS no console, sem tela branca. Validado com `go build ./...`/`go vet ./...`/`gofmt -l` (backend) e
+`npx tsc -b`/`npm run build` (frontend), todos limpos.
 
 **10.6 — Histórico de pedidos por cliente + forma de pagamento mais usada + tipo de entrega mais
 usada — implementada e testada em 20/08/2026**
