@@ -323,6 +323,33 @@ de ponta a ponta pra fechar a Fase 5 de vez.
    `id:...;request-id:...;ts:...;`), mas isso é exatamente o tipo de detalhe que costuma ter
    pegadinha na prática — validar contra uma notificação real antes de confiar que pagamentos vão
    ser aceitos/rejeitados corretamente.
+   - **Auditoria de código feita em 20/08/2026 (sem credenciais de sandbox, só leitura + pesquisa
+     na documentação oficial), achado que precisa de verificação antes de confiar em produção**: o
+     único tipo de notificação que essa integração recebe de verdade hoje é `topic=merchant_order`
+     (confirmado no teste real de 24/07/2026, ver Correção 4 acima). A documentação de Webhooks do
+     Mercado Pago não deixa claro se `x-signature` vem preenchido em notificações desse formato
+     mais antigo (`?topic=merchant_order&id=...`) igual vem no formato novo
+     (`?type=payment&data.id=...`) — e uma página da documentação do Checkout Pro confirma
+     explicitamente que **pelo menos um tipo de notificação (QR Code) não tem `x-signature`
+     nenhum**, ou seja, o comportamento não é uniforme entre canais. Se `merchant_order` também não
+     vier assinado (ou vier com um `data.id` diferente do que `MercadoPagoHandler.Webhook` está
+     montando a partir do `id=` da query), **toda notificação seria rejeitada com "notificação
+     inválida"** e nenhum pedido seria confirmado automaticamente — mesma classe de falha silenciosa
+     já achada e corrigida uma vez (quando só `type=payment` era tratado), só que sem nenhum sinal
+     óbvio nos logs de que está acontecendo. Não alterei o código a partir dessa suspeita — não dá
+     pra confirmar sem uma notificação real, e mudar às cegas arrisca remover uma proteção de
+     segurança de verdade. **Antes de confiar em produção**: usar o simulador de notificação do
+     painel de desenvolvedor do Mercado Pago (tela de configuração do Webhook) pra disparar um
+     `merchant_order` de teste e conferir se o `x-signature` chega e bate com o manifest esperado.
+   - **Testes automatizados adicionados na mesma auditoria** (`mercadopago_service_test.go`, novo):
+     `TestValidarAssinaturaWebhook` cobre assinatura válida, secret ausente, header ausente/malformado,
+     secret errado, `dataID`/`requestID` adulterados (confirma que a validação realmente rejeita
+     payload trocado, não só documenta a intenção) e a normalização de `dataID` pra minúsculo.
+     `TestCalcularComissaoEscalonada`/`TestCalcularComissaoEscalonadaCasoPro` cobrem a fórmula de
+     comissão escalonada (Fase 7.2) nos planos Basic/Pro/Scale, incluindo pedido cruzando o teto de
+     mais de uma faixa no mesmo cálculo — nenhum dos dois tinha teste nenhum até então, apesar de
+     serem lógica pura financeira, sem banco/HTTP, e portanto triviais de testar. Validado com
+     `go build ./...`, `go vet ./...`, `gofmt -l` e `go test ./...`, todos limpos.
 3. **Fase 5.5 (repasse de comissão de afiliado) não foi implementada** — nem deveria, o texto
    original já pedia decisão do William antes. Hoje, um pedido pago via Mercado Pago numa loja com
    afiliado vinculado só gera um log de aviso (`ProcessarNotificacaoPagamento` em
