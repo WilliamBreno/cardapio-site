@@ -895,7 +895,7 @@ git commit -m "feat: componente H (textarea com contador), aplicado na descriç�
 **Interfaces:**
 - Produces: `Dropzone` (`onFileChange: (e: ChangeEvent<HTMLInputElement>) => void`, `previewUrl?`, `disabled?`, `texto?`) — reaproveita a MESMA assinatura de evento que `onSelecionarFoto` já usa hoje, pra não precisar mudar nada em `Produtos.tsx`/`CadastroEmMassaDialog.tsx` (que passam esse handler).
 
-- [ ] **Passo 1: Criar `dropzone.tsx`**
+- [x] **Passo 1: Criar `dropzone.tsx`**
 
 ```tsx
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react"
@@ -966,7 +966,7 @@ function Dropzone({ onFileChange, previewUrl, className, disabled, texto = "Arra
 export { Dropzone }
 ```
 
-- [ ] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
+- [x] **Passo 2: Aplicar em `ProdutoFormFields.tsx`**
 
 Trocar o bloco de upload de foto (linhas 105-126):
 ```tsx
@@ -1015,13 +1015,13 @@ por:
 ```
 Adicionar o import. `onSelecionarFoto` continua com a mesma assinatura que já vinha de `Produtos.tsx`/`CadastroEmMassaDialog.tsx` — nenhuma mudança precisa nesses dois arquivos.
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: abrir "Novo produto", clicar na área de foto (deve abrir o seletor de arquivo do sistema) e também testar arrastar um arquivo de imagem do explorador de arquivos até a área — os dois caminhos devem disparar o mesmo upload.
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/components/ui/dropzone.tsx frontend/src/components/admin/ProdutoFormFields.tsx
