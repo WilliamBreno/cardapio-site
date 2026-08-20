@@ -1132,8 +1132,7 @@ fica pendente de especificação própria antes de qualquer código, mesmo padr�
 PDF+IA da Fase 9.2 (não travar o resto do roadmap nisso).
 
 ### Fase 10 — Banner, etapas de pedido, sugestão/cupom visíveis, analytics de cliente, relatório via WhatsApp, impressora Bluetooth
-Status: `[~] 10.1, 10.2, 10.3, 10.4, 10.5 e 10.6 implementadas e testadas (19–20/08/2026) — só
-10.7 segue pendente`
+Status: `[x] concluída — 10.1 a 10.7 implementadas e testadas (19–20/08/2026)`
 
 Combinada numa conversa com o William em 19/08/2026 — sete pedidos batidos juntos, quebrados aqui em
 sub-fases pra seguir o mesmo padrão do resto do roadmap (uma por vez). Antes de escrever a spec,
@@ -1458,7 +1457,7 @@ valores batendo exatamente com R$95,00 total já mostrado em "Maiores clientes")
 Bruno) e por screenshot do modal aberto. Validado com `go build ./...`/`go vet ./...`/`gofmt -l`
 (backend) e `npx tsc -b`/`npm run build` (frontend), todos limpos.
 
-**10.7 — Impressora térmica via Bluetooth (ESC/POS)**
+**10.7 — Impressora térmica via Bluetooth (ESC/POS) — implementada e testada em 20/08/2026**
 
 Confirmado com o William: impressora comum de recibo/comanda, não equipamento fiscal — viável direto
 do navegador via **Web Bluetooth API**, sem servidor/serviço extra.
@@ -1466,9 +1465,8 @@ do navegador via **Web Bluetooth API**, sem servidor/serviço extra.
 - **Limitação importante, avisar antes de implementar**: Web Bluetooth só funciona em Chrome/Edge
   (desktop ou Android) — **não existe em nenhum navegador no iOS/iPadOS** (restrição da própria
   Apple, não é algo que dê pra contornar). Se o dono usa iPhone/iPad pra gerenciar a loja, esse botão
-  simplesmente não vai funcionar pra ele, sem alternativa — confirmar com o William se isso é
-  aceitável antes de investir tempo nisso, ou se a base de lojistas majoritariamente usa
-  Android/desktop.
+  simplesmente não vai funcionar pra ele, sem alternativa — **confirmado com o William antes de
+  implementar**: a base de lojistas usa majoritariamente Android/desktop, limitação aceitável.
 - Fluxo: botão "Imprimir comanda" no card do pedido (lista e Kanban, ver 10.2). Primeiro uso chama
   `navigator.bluetooth.requestDevice(...)` (filtro por serviço BLE de impressora térmica comum, ex.
   `000018f0-0000-1000-8000-00805f9b34fb`) pra parear: o navegador mostra o seletor nativo de
@@ -1479,6 +1477,69 @@ do navegador via **Web Bluetooth API**, sem servidor/serviço extra.
 - Monta os bytes ESC/POS (biblioteca leve tipo `esc-pos-encoder` ou equivalente, gerando texto
   formatado + corte de papel) com itens/quantidade/total do pedido, escreve na característica GATT
   de escrita da impressora. 100% client-side, nenhuma rota nova no backend.
+
+Implementado como especificado, com uma decisão de escopo e um achado:
+
+- **`frontend/src/lib/impressoraBluetooth.ts`** (novo) — em vez de adicionar `esc-pos-encoder` como
+  dependência nova, os comandos ESC/POS (init, alinhamento, negrito, corte de papel) foram escritos
+  à mão: são poucos bytes fixos, não justificava puxar mais uma dependência externa pra isso.
+  `bluetoothSuportado()` checa `'bluetooth' in navigator` antes de tentar qualquer coisa — usado
+  tanto pra recusar com mensagem clara em navegador sem suporte (iOS) quanto testável sem hardware
+  real. `obterCaracteristicaEscrita()` pareia via `requestDevice` filtrando pelo serviço
+  `000018f0-...`, conecta o GATT, e **procura entre as características do serviço a que anuncia
+  suporte a escrita** (`writeWithoutResponse`/`write`) em vez de fixar uma UUID de característica —
+  essa UUID varia por fabricante de impressora mesmo dentro do mesmo serviço, então uma UUID fixa
+  funcionaria só pra um modelo específico. A característica encontrada fica guardada em memória
+  (módulo-level, não localStorage) e é reaproveitada em impressões seguintes na mesma sessão, sem
+  pedir pareamento de novo — só perde essa referência se a página recarregar ou a impressora
+  desconectar (`gattserverdisconnected`).
+- **Escrita em blocos**: BLE tem limite de tamanho por escrita (MTU) — `imprimirComanda` quebra os
+  bytes gerados em blocos de 100 antes de escrever, em vez de mandar tudo de uma vez, pra não
+  estourar o buffer de característica em impressoras com MTU baixo.
+- **Acentuação**: sem saber o modelo exato da impressora do lojista (cada uma pode estar numa
+  codepage diferente — CP850, CP860, WCP1252 etc.), o texto é normalizado tirando acento
+  (`normalize('NFD')` + remoção dos diacríticos) antes de virar bytes — prefere "sem acento" a
+  arriscar caractere quebrado (mojibake) numa impressora com codepage desconhecida.
+- **`@types/web-bluetooth`** adicionado como dependência de desenvolvimento (`package.json`) — a
+  Web Bluetooth API não faz parte do `lib.dom.d.ts` padrão do TypeScript. Precisou também adicionar
+  `"web-bluetooth"` no array `types` de `tsconfig.app.json` — esse projeto já restringe os `@types/*`
+  carregados automaticamente só a `vite/client`, então o pacote instalado não era pego sozinho sem
+  essa entrada explícita.
+- Botão "🖨️ Imprimir comanda" adicionado em `Pedidos.tsx`, nos dois lugares: `PedidoCard` (lista,
+  visível só pra pedido `status === 'pago'`, mesmo critério da etapa de preparo) e no card do
+  `QuadroPedidos` (Kanban, onde todo card já é `pago` por definição — sempre visível ali). Erro de
+  impressão (pareamento cancelado, impressora desligada, navegador sem suporte) é mostrado com
+  `alert()`, mesmo padrão já usado em `Insumos.tsx` pra erro de mutação.
+
+**Testado ao vivo, dois níveis diferentes** (loja de teste temporária `loja-teste-107`, plano Pro,
+removida depois — mesmo padrão das fases anteriores), já que não há impressora Bluetooth real
+disponível nesse ambiente:
+1. **Sem hardware**: confirmado visualmente por screenshot que o botão aparece corretamente nos
+   dois lugares (lista e Kanban) e que clicar nele, num navegador que expõe `navigator.bluetooth`
+   mas sem um seletor de pareamento real disponível (ambiente headless), dispara o fluxo de verdade
+   (`requestDevice()`), captura o erro do próprio navegador ("User cancelled the requestDevice()
+   chooser") e mostra via `alert()` sem quebrar a página nem gerar erro de JS não tratado — o mesmo
+   comportamento esperado no caso real de o dono cancelar o seletor de pareamento.
+2. **Com impressora simulada**: escrito um mock completo de `navigator.bluetooth` (dispositivo
+   fake que aceita pareamento e loga tudo que for escrito na característica), injetado via
+   `page.addInitScript` antes da SPA carregar — exercita o caminho real do código (`requestDevice` →
+   `gatt.connect` → `getPrimaryService` → `getCharacteristics` → escrita em blocos) de ponta a
+   ponta, sem precisar de hardware. Os 313 bytes escritos batem exatamente com o esperado: comandos
+   ESC/POS corretos (`ESC @` init, `ESC a 1` centralizado, `ESC E 1` negrito, `ESC a 0` esquerda,
+   `GS V 0` corte) intercalados com o conteúdo do pedido de teste (nome da loja, `#48`, data, nome/
+   telefone/endereço do cliente, os 2 itens com a variação indentada, e o total `R$ 65,90`
+   coincidindo com `45 + 15 + 5,90` de frete). Confirmado à parte que a remoção de acento funciona
+   (`"João Configuração – Não é possível"` → `"Joao Configuracao – Nao e possivel"`).
+
+**Ressalva, não testável nesse ambiente**: nenhum teste contra uma impressora térmica Bluetooth
+real foi feito (não há hardware disponível) — o formato dos comandos ESC/POS segue o padrão
+documentado publicamente (mesmo comando `GS V 0` de corte cheio usado por praticamente todo
+fabricante), mas o comportamento exato (corte parcial vs. cheio, códigos de caractere aceitos,
+tamanho de bloco ideal) pode variar por modelo — recomendo testar com a impressora real do William
+antes de anunciar pro lojista, e ajustar o corte pra `GS V 1` (parcial) se o `GS V 0` não for aceito
+pelo modelo dele. Validado com `npx tsc -b` e `npm run build`, ambos limpos.
+
+Com isso, as sete sub-fases da Fase 10 (10.1–10.7) estão implementadas.
 
 ---
 

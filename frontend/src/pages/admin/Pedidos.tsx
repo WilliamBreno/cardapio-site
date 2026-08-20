@@ -5,6 +5,7 @@ import { listarPedidos, buscarLoja } from '../../api/admin';
 import { atualizarStatusEntrega, type EtapaPedido } from '../../api/rastreamento';
 import type { Pedido, StatusPedido, TipoProduto } from '../../api/types';
 import { rotuloCombo } from '../../lib/utils';
+import { imprimirComanda } from '../../lib/impressoraBluetooth';
 
 const statusInfo: Record<StatusPedido, { label: string; classe: string }> = {
   aguardando_pagamento: { label: 'Aguardando pagamento', classe: 'bg-douro/20 text-douro' },
@@ -101,6 +102,18 @@ export function Pedidos() {
     if (proxima) mutAvancar.mutate({ pedidoId: pedido.id, etapa: proxima });
   }
 
+  // Impressão de comanda via Bluetooth (Fase 10.7) — 100% client-side, sem
+  // chamada de backend. Erro aqui é normal na primeira tentativa (usuário
+  // cancelou o seletor de pareamento, impressora desligada etc.), avisa
+  // com alert() mesmo padrão já usado em Insumos.tsx pra erro de mutação.
+  async function handleImprimir(pedido: Pedido) {
+    try {
+      await imprimirComanda(pedido, loja?.nome ?? 'Comanda');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Não foi possível imprimir a comanda.');
+    }
+  }
+
   const pesoPendenteCount = pedidos?.filter((p) => p.peso_pendente).length ?? 0;
 
   // O filtro de peso pendente só aparece quando há algum — evita poluir a
@@ -171,13 +184,13 @@ export function Pedidos() {
           ) : (
             <ul className="space-y-3">
               {pedidosFiltrados.map((pedido) => (
-                <PedidoCard key={pedido.id} pedido={pedido} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} />
+                <PedidoCard key={pedido.id} pedido={pedido} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onImprimir={handleImprimir} />
               ))}
             </ul>
           )}
         </>
       ) : (
-        <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} onAvancar={avancarEtapa} />
+        <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} onAvancar={avancarEtapa} onImprimir={handleImprimir} />
       )}
     </div>
   );
@@ -187,7 +200,7 @@ export function Pedidos() {
 // coluna por etapa, cada card com um botão único de avançar. Sem
 // drag-and-drop de propósito (mais frágil de acertar bem e não foi
 // pedido explicitamente) — "um clique" já é bem atendido pelo botão.
-function QuadroPedidos({ pedidos, isLoading, onAvancar }: { pedidos: Pedido[]; isLoading: boolean; onAvancar: (pedido: Pedido) => void }) {
+function QuadroPedidos({ pedidos, isLoading, onAvancar, onImprimir }: { pedidos: Pedido[]; isLoading: boolean; onAvancar: (pedido: Pedido) => void; onImprimir: (pedido: Pedido) => void }) {
   if (isLoading) return <p className="text-tinta-suave">Carregando pedidos...</p>;
   if (pedidos.length === 0) return <p className="text-tinta-suave">Nenhum pedido pago ainda.</p>;
 
@@ -217,6 +230,9 @@ function QuadroPedidos({ pedidos, isLoading, onAvancar }: { pedidos: Pedido[]; i
                         Avançar → {rotuloEtapa(proxima, pedido.modo_entrega)}
                       </button>
                     )}
+                    <button onClick={() => onImprimir(pedido)} className="btn-neu-secundario btn-neu-sm mt-2 w-full">
+                      🖨️ Imprimir comanda
+                    </button>
                   </div>
                 );
               })}
@@ -233,7 +249,7 @@ function QuadroPedidos({ pedidos, isLoading, onAvancar }: { pedidos: Pedido[]; i
   );
 }
 
-function PedidoCard({ pedido, segmentoLoja, onAvancar }: { pedido: Pedido; segmentoLoja?: TipoProduto; onAvancar: (pedido: Pedido) => void }) {
+function PedidoCard({ pedido, segmentoLoja, onAvancar, onImprimir }: { pedido: Pedido; segmentoLoja?: TipoProduto; onAvancar: (pedido: Pedido) => void; onImprimir: (pedido: Pedido) => void }) {
   const status = statusInfo[pedido.status];
   // Etapa de preparo/entrega (Fase 10.2) só existe em pedido pago.
   const etapa = pedido.status === 'pago' ? infoEtapa(etapaAtual(pedido)) : null;
@@ -326,6 +342,12 @@ function PedidoCard({ pedido, segmentoLoja, onAvancar }: { pedido: Pedido; segme
       {proxima && (
         <button onClick={() => onAvancar(pedido)} className="btn-neu-primario mt-3 w-full">
           Avançar → {rotuloEtapa(proxima, pedido.modo_entrega)}
+        </button>
+      )}
+
+      {pedido.status === 'pago' && (
+        <button onClick={() => onImprimir(pedido)} className="btn-neu-secundario mt-2 w-full">
+          🖨️ Imprimir comanda
         </button>
       )}
 
