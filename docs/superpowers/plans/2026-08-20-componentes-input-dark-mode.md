@@ -731,7 +731,7 @@ git commit -m "feat: componente F (segmentado), aplicado no modo de entrega do c
 **Interfaces:**
 - Consumes: `Input` + `status` prop de `input.tsx` (Task 1) — não cria arquivo novo, G e L reaproveitam o que já existe.
 
-- [ ] **Passo 1: Aplicar em `Configuracoes.tsx` (telefone)**
+- [x] **Passo 1: Aplicar em `Configuracoes.tsx` (telefone)**
 
 Trocar (linhas ~300-309):
 ```tsx
@@ -761,7 +761,7 @@ por:
 ```
 Adicionar `import { Input } from '../../components/ui/input';` (ajustar caminho relativo conforme localização real de `Configuracoes.tsx`).
 
-- [ ] **Passo 2: Aplicar em `EnderecoCampos.tsx` (CEP)**
+- [x] **Passo 2: Aplicar em `EnderecoCampos.tsx` (CEP)**
 
 Trocar (linhas 106-117):
 ```tsx
@@ -795,13 +795,13 @@ por:
 ```
 Adicionar `import { Input } from './ui/input';` e remover `campoClasse` da chamada (o componente `Input` já tem seu próprio estilo — pode manter a constante `campoClasse` se outros campos do mesmo arquivo ainda a usam, só não passar ela pro `Input` novo).
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual: em Configurações, digitar um número de WhatsApp incompleto (borda vermelha + ícone X) e depois completo (borda verde + ícone check). No endereço da loja, digitar um CEP válido (borda verde após a busca preencher o resto) e um CEP inexistente (borda vermelha, mensagem de erro já existente).
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/pages/admin/Configuracoes.tsx frontend/src/components/EnderecoCampos.tsx
