@@ -266,32 +266,40 @@ export function Produtos() {
                 </p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-1 shrink-0">
-              <button
-                onClick={() => setProdutoFotos(produtoFotos === produto.id ? null : produto.id)}
-                className="rounded-full border border-tinta/15 px-2 py-1 text-xs font-semibold text-tinta-suave hover:border-acento hover:text-acento"
-              >
-                Fotos {produto.fotos && produto.fotos.length > 0 && `(${produto.fotos.length})`}
-              </button>
-              <button
-                onClick={() => setProdutoExpandido(produtoExpandido === produto.id ? null : produto.id)}
-                className="rounded-full border border-tinta/15 px-2 py-1 text-xs font-semibold text-tinta-suave hover:border-acento hover:text-acento"
-              >
-                Variações
-              </button>
-              {loja?.plano === 'scale' && (
+            <div className="flex flex-col gap-1 shrink-0">
+              <div className="grid grid-cols-2 gap-1">
                 <button
-                  onClick={() => setProdutoFichaTecnica(produto)}
+                  onClick={() => setProdutoFotos(produtoFotos === produto.id ? null : produto.id)}
                   className="rounded-full border border-tinta/15 px-2 py-1 text-xs font-semibold text-tinta-suave hover:border-acento hover:text-acento"
                 >
-                  Ficha técnica
+                  Fotos {produto.fotos && produto.fotos.length > 0 && `(${produto.fotos.length})`}
                 </button>
-              )}
-              <button onClick={() => alternarDisponibilidade(produto)} className={`rounded-full px-2 py-1 text-xs font-semibold ${produto.disponivel ? 'bg-douro/20 text-douro' : 'bg-tinta/10 text-tinta-suave'}`}>
-                {produto.disponivel ? 'Disponível' : 'Pausado'}
-              </button>
-              <button onClick={() => abrirEdicao(produto)} className="rounded-full border border-acento/30 px-2 py-1 text-xs font-medium text-acento hover:bg-acento/5">Editar</button>
-              <button onClick={() => { if (confirm(`Excluir "${produto.nome}"?`)) mutDeletar.mutate(produto.id); }} className="rounded-full border border-tinta/15 px-2 py-1 text-xs text-tinta-suave hover:text-acento col-span-2">Excluir</button>
+                <button
+                  onClick={() => setProdutoExpandido(produtoExpandido === produto.id ? null : produto.id)}
+                  className="rounded-full border border-tinta/15 px-2 py-1 text-xs font-semibold text-tinta-suave hover:border-acento hover:text-acento"
+                >
+                  Variações
+                </button>
+                {loja?.plano === 'scale' && (
+                  <button
+                    onClick={() => setProdutoFichaTecnica(produto)}
+                    className="rounded-full border border-tinta/15 px-2 py-1 text-xs font-semibold text-tinta-suave hover:border-acento hover:text-acento"
+                  >
+                    Ficha técnica
+                  </button>
+                )}
+                <button onClick={() => alternarDisponibilidade(produto)} className={`rounded-full px-2 py-1 text-xs font-semibold ${produto.disponivel ? 'bg-douro/20 text-douro' : 'bg-tinta/10 text-tinta-suave'}`}>
+                  {produto.disponivel ? 'Disponível' : 'Pausado'}
+                </button>
+              </div>
+              {/* Editar/Excluir sempre juntos, numa linha própria — não
+                  dependem de quantos botões de status vêm antes (ex: Ficha
+                  técnica só aparece pra Scale), então ficavam desalinhados
+                  no grid único de antes. */}
+              <div className="grid grid-cols-2 gap-1">
+                <button onClick={() => abrirEdicao(produto)} className="rounded-full border border-acento/30 px-2 py-1 text-xs font-medium text-acento hover:bg-acento/5">Editar</button>
+                <button onClick={() => { if (confirm(`Excluir "${produto.nome}"?`)) mutDeletar.mutate(produto.id); }} className="rounded-full border border-tinta/15 px-2 py-1 text-xs text-tinta-suave hover:text-acento">Excluir</button>
+              </div>
             </div>
           </div>
         </div>

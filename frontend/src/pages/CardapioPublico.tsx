@@ -10,8 +10,8 @@ import { CarrinhoFlutuante } from '../components/CarrinhoFlutuante';
 import { CarrinhoDrawer } from '../components/CarrinhoDrawer';
 import { HistoricoDrawer } from '../components/HistoricoDrawer';
 import { GuardadosDrawer } from '../components/GuardadosDrawer';
-import { rotuloCatalogo, rotuloCombo } from '../lib/utils';
-import type { TipoProduto, Produto, Subcategoria, GrupoCor } from '../api/types';
+import { rotuloCatalogo, rotuloCombo, cn } from '../lib/utils';
+import type { TipoProduto, Produto, Subcategoria, GrupoCor, FotoBanner } from '../api/types';
 
 // Lembra o segmento da loja (cardápio/catálogo) de uma visita anterior,
 // só pra acertar a palavra certa na tela de "abrindo..." — nesse momento
@@ -106,27 +106,55 @@ function renderProdutosAgrupados(produtos: Produto[], categoriaId: number, subca
   );
 }
 
-// BannerOferta (redesign de 20/08/2026): card dedicado abaixo do
-// cabeçalho da loja, não mais colado acima dele. object-contain nunca
-// corta a imagem (diferente do object-cover de antes); o espaço vazio
-// nas bordas, quando a proporção da imagem não bate com a altura fixa
-// do card, é preenchido com uma cópia desfocada da própria imagem em
-// vez de deixar uma faixa da cor de fundo — fica visualmente consistente
-// entre lojas com banners de proporções bem diferentes.
-function BannerOferta({ url }: { url: string }) {
+// BannerCarrossel (redesign de 24/08/2026, substitui o BannerOferta de
+// foto única): card dedicado abaixo do cabeçalho da loja, com largura
+// proporcional mas limitada (max-w-4xl — não vai mais de ponta a ponta
+// da tela em telas largas) e a imagem preenchendo todo o espaço
+// disponível do card via object-cover (sem a faixa desfocada de antes —
+// feedback do William foi que a "moldura" ficava esquisita; cobrir com
+// crop, mesmo cortando um pouco a imagem, ficou melhor). Com mais de uma
+// foto, alterna sozinho a cada 5s e mostra os pontinhos de navegação.
+function BannerCarrossel({ fotos }: { fotos: FotoBanner[] }) {
+  const [indice, setIndice] = useState(0);
+
+  useEffect(() => {
+    if (fotos.length <= 1) return;
+    const intervalo = setInterval(() => setIndice((i) => (i + 1) % fotos.length), 5000);
+    return () => clearInterval(intervalo);
+  }, [fotos.length]);
+
+  if (fotos.length === 0) return null;
+
   return (
-    <div className="relative mx-4 mt-4 h-40 overflow-hidden rounded-2xl shadow-sm sm:mx-6 sm:h-56">
-      <img
-        src={url}
-        alt=""
-        aria-hidden="true"
-        className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
-      />
-      <img
-        src={url}
-        alt="Oferta em destaque"
-        className="relative h-full w-full object-contain"
-      />
+    <div className="mx-auto max-w-4xl px-4 sm:px-6">
+      <div className="relative mt-4 h-40 overflow-hidden rounded-2xl shadow-sm sm:h-56">
+        {fotos.map((foto, i) => (
+          <img
+            key={foto.id}
+            src={foto.url}
+            alt="Oferta em destaque"
+            className={cn(
+              'absolute inset-0 h-full w-full object-cover transition-opacity duration-700',
+              i === indice ? 'opacity-100' : 'opacity-0'
+            )}
+          />
+        ))}
+        {fotos.length > 1 && (
+          <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
+            {fotos.map((foto, i) => (
+              <button
+                key={foto.id}
+                onClick={() => setIndice(i)}
+                aria-label={`Foto ${i + 1}`}
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full transition',
+                  i === indice ? 'bg-superficie' : 'bg-superficie/40'
+                )}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -192,7 +220,7 @@ export function CardapioPublico() {
           )}
           <h1 className="font-display text-3xl tracking-wide text-superficie">{data.loja.nome}</h1>
         </header>
-        {data.loja.banner_url && <BannerOferta url={data.loja.banner_url} />}
+        <BannerCarrossel fotos={data.loja.banner_fotos} />
         <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
           <span className="rounded-full bg-tinta/10 px-4 py-1 font-carimbo text-xs uppercase tracking-widest text-tinta-suave">
             {data.loja.pausado ? 'Produção pausada' : 'Fechado'}
@@ -250,7 +278,7 @@ export function CardapioPublico() {
         </div>
       </header>
 
-      {data.loja.banner_url && <BannerOferta url={data.loja.banner_url} />}
+      <BannerCarrossel fotos={data.loja.banner_fotos} />
 
       {ehMercadoria ? (
         <main className="mx-auto max-w-4xl">

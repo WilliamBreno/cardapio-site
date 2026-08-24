@@ -54,6 +54,7 @@ func main() {
 		&domain.Insumo{},
 		&domain.FichaTecnicaItem{},
 		&domain.MovimentacaoInsumo{},
+		&domain.FotoBanner{},
 	); err != nil {
 		log.Fatalf("erro ao migrar o banco: %v", err)
 	}
@@ -65,6 +66,17 @@ func main() {
 	var cfgPlataforma domain.ConfiguracaoPlataforma
 	if err := db.FirstOrCreate(&cfgPlataforma, domain.ConfiguracaoPlataforma{ID: 1}).Error; err != nil {
 		log.Fatalf("erro ao inicializar configuração da plataforma: %v", err)
+	}
+
+	// Migração de dado (redesign do banner, 24/08/2026): quem já tinha
+	// configurado um banner via o campo único antigo (Loja.BannerURL)
+	// ganha uma FotoBanner equivalente automaticamente, uma única vez —
+	// sem isso, o banner já configurado sumiria do cardápio público na
+	// primeira vez que essa versão subisse. Roda toda vez que a API sobe,
+	// mas é idempotente (só insere pra loja que ainda não tem nenhuma
+	// linha na tabela nova), então não é problema não pular isso depois.
+	if err := repository.NewFotoBannerRepository(db).MigrarBannerUnico(); err != nil {
+		log.Printf("aviso: não foi possível migrar banners antigos pro carrossel: %v", err)
 	}
 
 	router := gin.Default()
@@ -231,6 +243,7 @@ func main() {
 	dashboardService := service.NewDashboardService(db)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 	fotoHandler := handler.NewFotoHandler(db)
+	fotoBannerHandler := handler.NewFotoBannerHandler(db)
 
 	cupomService := service.NewCupomService(db)
 	cupomHandler := handler.NewCupomHandler(cupomService)
@@ -370,6 +383,14 @@ func main() {
 	admin.POST("/fotos/:produtoId", fotoHandler.Adicionar)
 	admin.PUT("/fotos/:produtoId/reordenar", fotoHandler.Reordenar)
 	admin.DELETE("/fotos/:produtoId/:fotoId", fotoHandler.Deletar)
+
+	// Carrossel de fotos do banner (redesign de 24/08/2026, substitui o
+	// antigo Loja.BannerURL único) — sempre escopado pelo loja_id do
+	// próprio token, sem precisar de rota aninhada num recurso pai.
+	admin.GET("/banners", fotoBannerHandler.Listar)
+	admin.POST("/banners", fotoBannerHandler.Adicionar)
+	admin.PUT("/banners/reordenar", fotoBannerHandler.Reordenar)
+	admin.DELETE("/banners/:fotoId", fotoBannerHandler.Deletar)
 
 	variacoes := admin.Group("/variacoes")
 	variacoes.GET("/:produtoId", variacaoHandler.Listar)

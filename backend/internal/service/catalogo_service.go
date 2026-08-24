@@ -16,6 +16,7 @@ type CatalogoService struct {
 	grupoCorRepo     *repository.GrupoCorRepository
 	produtoRepo      *repository.ProdutoRepository
 	comboRepo        *repository.ComboRepository
+	fotoBannerRepo   *repository.FotoBannerRepository
 }
 
 func NewCatalogoService(db *gorm.DB) *CatalogoService {
@@ -26,6 +27,7 @@ func NewCatalogoService(db *gorm.DB) *CatalogoService {
 		grupoCorRepo:     repository.NewGrupoCorRepository(db),
 		produtoRepo:      repository.NewProdutoRepository(db),
 		comboRepo:        repository.NewComboRepository(db),
+		fotoBannerRepo:   repository.NewFotoBannerRepository(db),
 	}
 }
 
@@ -40,6 +42,9 @@ type CardapioPublico struct {
 	GruposCor     []domain.GrupoCor
 	Produtos      []domain.Produto
 	Combos        []domain.Combo
+	// BannerFotos (redesign de 24/08/2026) — carrossel de fotos do
+	// banner, substitui o antigo Loja.BannerURL (foto única).
+	BannerFotos []domain.FotoBanner
 }
 
 // BuscarCardapioPorSlug é o que alimenta a rota pública GET /lojas/:slug.
@@ -76,6 +81,11 @@ func (s *CatalogoService) BuscarCardapioPorSlug(slug string) (*CardapioPublico, 
 		return nil, fmt.Errorf("listando combos: %w", err)
 	}
 
+	bannerFotos, err := s.fotoBannerRepo.ListarPorLoja(loja.ID)
+	if err != nil {
+		return nil, fmt.Errorf("listando fotos do banner: %w", err)
+	}
+
 	return &CardapioPublico{
 		Loja:          *loja,
 		Categorias:    categorias,
@@ -83,5 +93,6 @@ func (s *CatalogoService) BuscarCardapioPorSlug(slug string) (*CardapioPublico, 
 		GruposCor:     gruposCor,
 		Produtos:      produtos,
 		Combos:        combos,
+		BannerFotos:   bannerFotos,
 	}, nil
 }

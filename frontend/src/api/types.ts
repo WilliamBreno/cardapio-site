@@ -60,6 +60,15 @@ export interface FotoProduto {
   ordem: number;
 }
 
+// FotoBanner (redesign de 24/08/2026) — uma foto do carrossel de banner
+// do cardápio público, substitui o antigo campo único Loja.banner_url.
+export interface FotoBanner {
+  id: number;
+  loja_id: number;
+  url: string;
+  ordem: number;
+}
+
 export interface FotoVariacao {
   id: number;
   variacao_id: number;
@@ -285,7 +294,9 @@ export interface CardapioPublico {
     nome: string;
     slug: string;
     logo_url: string;
-    banner_url: string;
+    // banner_fotos (redesign de 24/08/2026) — carrossel de fotos,
+    // substitui o antigo campo banner_url único ([] = sem banner).
+    banner_fotos: FotoBanner[];
     modo_pedido: 'imediato' | 'agendado';
     antecedencia_minima_horas: number;
     horario_abertura: string;

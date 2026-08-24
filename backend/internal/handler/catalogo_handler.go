@@ -36,10 +36,12 @@ func (h *CatalogoHandler) BuscarCardapio(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"loja": gin.H{
-			"nome":                       cardapio.Loja.Nome,
-			"slug":                       cardapio.Loja.Slug,
-			"logo_url":                   cardapio.Loja.LogoURL,
-			"banner_url":                 cardapio.Loja.BannerURL,
+			"nome":     cardapio.Loja.Nome,
+			"slug":     cardapio.Loja.Slug,
+			"logo_url": cardapio.Loja.LogoURL,
+			// banner_fotos (redesign de 24/08/2026): lista de fotos do
+			// carrossel do banner, substitui o antigo campo banner_url único.
+			"banner_fotos":               cardapio.BannerFotos,
 			"modo_pedido":                cardapio.Loja.ModoPedido,
 			"antecedencia_minima_horas":  cardapio.Loja.AntecedenciaMinimaHoras,
 			"horario_abertura":           cardapio.Loja.HorarioAbertura,

@@ -5,6 +5,10 @@ import {
   atualizarConfiguracoes,
   statusMercadoPago,
   iniciarOnboardingMercadoPago,
+  listarBanners,
+  adicionarBanner,
+  deletarBanner,
+  reordenarBanners,
 } from '../../api/admin';
 import { enviarImagem, logoMiniatura } from '../../api/upload';
 import { buscarConfiguracaoPlataforma, assinarSugestaoInteligente, cancelarAssinaturaSugestaoInteligente } from '../../api/sugestoes';
@@ -24,10 +28,10 @@ export function Configuracoes() {
   const { data: loja, isLoading } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
   const { data: mercadoPagoStatus } = useQuery({ queryKey: ['mercadopago-status'], queryFn: statusMercadoPago });
   const { data: configuracaoPlataforma } = useQuery({ queryKey: ['configuracao-plataforma'], queryFn: buscarConfiguracaoPlataforma });
+  const { data: banners } = useQuery({ queryKey: ['banners'], queryFn: listarBanners });
 
   const [whatsapp, setWhatsapp] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
-  const [bannerUrl, setBannerUrl] = useState('');
   const [modoPedido, setModoPedido] = useState<'imediato' | 'agendado'>('imediato');
   const [antecedencia, setAntecedencia] = useState(24);
   const [abertura, setAbertura] = useState('');
@@ -56,12 +60,12 @@ export function Configuracoes() {
   const [erroLogo, setErroLogo] = useState<string | null>(null);
   const [enviandoBanner, setEnviandoBanner] = useState(false);
   const [erroBanner, setErroBanner] = useState<string | null>(null);
+  const [movendoBanner, setMovendoBanner] = useState(false);
 
   useEffect(() => {
     if (loja) {
       setWhatsapp(loja.whatsapp_numero);
       setLogoUrl(loja.logo_url);
-      setBannerUrl(loja.banner_url ?? '');
       setModoPedido(loja.modo_pedido ?? 'imediato');
       setAntecedencia(loja.antecedencia_minima_horas || 24);
       setAbertura(loja.horario_abertura ?? '');
@@ -99,7 +103,6 @@ export function Configuracoes() {
     return {
       whatsapp_numero: whatsapp,
       logo_url: logoUrl,
-      banner_url: bannerUrl,
       modo_pedido: modoPedido,
       antecedencia_minima_horas: antecedencia,
       horario_abertura: abertura,
@@ -155,16 +158,19 @@ export function Configuracoes() {
     }
   }
 
-  async function selecionarBanner(e: ChangeEvent<HTMLInputElement>) {
+  // Carrossel de fotos do banner (redesign de 24/08/2026) — mesmo
+  // espírito da galeria de fotos de produto (Produtos.tsx): várias fotos,
+  // ordem controlada por ▲/▼ (sem drag-and-drop, mais simples de acertar
+  // bem numa lista curta como essa costuma ser).
+  async function adicionarFotoBanner(e: ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0];
     if (!arquivo) return;
     setEnviandoBanner(true);
     setErroBanner(null);
     try {
       const url = await enviarImagem(arquivo);
-      setBannerUrl(url);
-      await atualizarConfiguracoes({ ...montarPayload(), banner_url: url });
-      queryClient.invalidateQueries({ queryKey: ['loja'] });
+      await adicionarBanner(url, banners?.length ?? 0);
+      queryClient.invalidateQueries({ queryKey: ['banners'] });
     } catch {
       setErroBanner('Não foi possível enviar a imagem.');
     } finally {
@@ -172,14 +178,30 @@ export function Configuracoes() {
     }
   }
 
-  async function removerBanner() {
-    setBannerUrl('');
+  async function removerFotoBanner(fotoId: number) {
+    if (!confirm('Remover esta foto do banner?')) return;
     setErroBanner(null);
     try {
-      await atualizarConfiguracoes({ ...montarPayload(), banner_url: '' });
-      queryClient.invalidateQueries({ queryKey: ['loja'] });
+      await deletarBanner(fotoId);
+      queryClient.invalidateQueries({ queryKey: ['banners'] });
     } catch {
-      setErroBanner('Não foi possível remover o banner.');
+      setErroBanner('Não foi possível remover a foto.');
+    }
+  }
+
+  async function moverFotoBanner(fotoId: number, direcao: -1 | 1) {
+    if (!banners) return;
+    const i = banners.findIndex((f) => f.id === fotoId);
+    const j = i + direcao;
+    if (i === -1 || j < 0 || j >= banners.length) return;
+    const novaOrdem = [...banners];
+    [novaOrdem[i], novaOrdem[j]] = [novaOrdem[j], novaOrdem[i]];
+    setMovendoBanner(true);
+    try {
+      await reordenarBanners(novaOrdem.map((f) => f.id));
+      queryClient.invalidateQueries({ queryKey: ['banners'] });
+    } finally {
+      setMovendoBanner(false);
     }
   }
 
@@ -268,33 +290,53 @@ export function Configuracoes() {
           {erroLogo && <p className="mt-2 text-sm text-acento">{erroLogo}</p>}
         </div>
 
-        {/* Banner de oferta */}
+        {/* Carrossel de banner */}
         <div>
           <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-tinta-suave">
-            Banner de oferta (topo do cardápio)
+            Banner do cardápio (carrossel)
           </span>
           <p className="mb-2 text-xs text-tinta-suave">
-            Foto larga pra destacar uma promoção ou produto no topo do seu cardápio público. Opcional
-            — sem banner, o cardápio fica igual está hoje.
+            Uma ou mais fotos pra destacar promoções no topo do seu cardápio público — com mais de
+            uma foto, elas alternam sozinhas. Opcional — sem nenhuma, o cardápio fica igual está hoje.
           </p>
-          <div className="flex h-24 w-full items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-tinta/25 bg-fundo">
-            {bannerUrl ? (
-              <img src={bannerUrl} alt="Banner" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-xs text-tinta/40">Nenhum banner ainda</span>
-            )}
-          </div>
-          <div className="mt-2 flex items-center gap-3">
-            <label className="cursor-pointer btn-neu-secundario btn-neu-sm hover:border-acento">
-              {enviandoBanner ? 'Enviando...' : bannerUrl ? 'Trocar banner' : 'Enviar banner'}
-              <input type="file" accept="image/*" onChange={selecionarBanner} disabled={enviandoBanner} className="hidden" />
-            </label>
-            {bannerUrl && (
-              <button type="button" onClick={removerBanner} className="text-xs text-tinta-suave hover:text-acento">
-                Remover
-              </button>
-            )}
-          </div>
+          {banners && banners.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {banners.map((foto, i) => (
+                <div key={foto.id} className="relative group">
+                  <img
+                    src={foto.url}
+                    alt={`Banner ${i + 1}`}
+                    className="h-20 w-32 rounded-xl object-cover"
+                  />
+                  <button
+                    onClick={() => removerFotoBanner(foto.id)}
+                    title="Remover foto"
+                    className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-superficie group-hover:flex"
+                  >×</button>
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-1 pb-0.5 opacity-0 group-hover:pointer-events-auto group-hover:opacity-100">
+                    <button
+                      onClick={() => moverFotoBanner(foto.id, -1)}
+                      disabled={i === 0 || movendoBanner}
+                      title="Mover pra trás"
+                      className="rounded-full bg-tinta/70 px-1.5 text-xs text-superficie disabled:opacity-30"
+                    >◀</button>
+                    <button
+                      onClick={() => moverFotoBanner(foto.id, 1)}
+                      disabled={i === banners.length - 1 || movendoBanner}
+                      title="Mover pra frente"
+                      className="rounded-full bg-tinta/70 px-1.5 text-xs text-superficie disabled:opacity-30"
+                    >▶</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-tinta/40">Nenhuma foto ainda.</p>
+          )}
+          <label className="mt-2 inline-block cursor-pointer btn-neu-secundario btn-neu-sm hover:border-acento">
+            {enviandoBanner ? 'Enviando...' : '+ Adicionar foto'}
+            <input type="file" accept="image/*" onChange={adicionarFotoBanner} disabled={enviandoBanner} className="hidden" />
+          </label>
           {erroBanner && <p className="mt-2 text-sm text-acento">{erroBanner}</p>}
         </div>
 

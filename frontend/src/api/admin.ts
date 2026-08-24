@@ -125,7 +125,10 @@ export async function buscarLoja(): Promise<Loja> {
 export interface ConfiguracoesInput {
   whatsapp_numero: string;
   logo_url: string;
-  banner_url: string;
+  // banner_url (campo único antigo, opcional) foi substituído pelo
+  // carrossel de fotos — ver listarBanners/adicionarBanner/deletarBanner/
+  // reordenarBanners abaixo. Não é mais enviado por Configuracoes.tsx.
+  banner_url?: string;
   modo_pedido: string;
   antecedencia_minima_horas: number;
   horario_abertura: string;
@@ -161,6 +164,27 @@ export interface ConfiguracoesInput {
 
 export async function atualizarConfiguracoes(input: ConfiguracoesInput): Promise<void> {
   await api.put('/admin/loja', input);
+}
+
+// Carrossel de fotos do banner (redesign de 24/08/2026) — mesmo padrão
+// de adicionarFoto/deletarFoto/reordenarFotos (produto), só que
+// escopado direto pela loja do token, sem precisar de um :produtoId.
+export async function listarBanners(): Promise<import('./types').FotoBanner[]> {
+  const { data } = await api.get('/admin/banners');
+  return data;
+}
+
+export async function adicionarBanner(url: string, ordem: number): Promise<import('./types').FotoBanner> {
+  const { data } = await api.post('/admin/banners', { url, ordem });
+  return data;
+}
+
+export async function deletarBanner(fotoId: number): Promise<void> {
+  await api.delete(`/admin/banners/${fotoId}`);
+}
+
+export async function reordenarBanners(ids: number[]): Promise<void> {
+  await api.put('/admin/banners/reordenar', { ids });
 }
 
 // Plano

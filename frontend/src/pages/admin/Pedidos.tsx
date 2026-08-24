@@ -73,7 +73,7 @@ type FiltroPedido = 'todos' | StatusPedido | 'peso_pendente' | EtapaPedido;
 // pro fim, dando ênfase aos pedidos novos/em andamento primeiro.
 const filtrosBase: { valor: FiltroPedido; label: string }[] = [
   { valor: 'todos', label: 'Todos' },
-  { valor: 'aguardando_pagamento', label: 'Aguardando' },
+  { valor: 'aguardando_pagamento', label: 'Aguardando pagamento' },
   { valor: 'a_preparar', label: '🧾 A preparar' },
   { valor: 'preparando', label: '👨‍🍳 Preparando' },
   { valor: 'saiu_para_entrega', label: '🛵 Saiu p/ entrega' },
@@ -110,14 +110,18 @@ export function Pedidos() {
 
   const definirLarguraCompleta = useLayoutAdminStore((state) => state.definirLarguraCompleta);
 
-  // Largura total do <main> só faz sentido na visão Quadro (precisa de
-  // ~1150px pras 4 colunas lado a lado) — desliga ao trocar pra Lista ou
-  // ao sair da tela (cleanup do useEffect), pra não vazar largura total
-  // pras outras ~15 telas do admin que reaproveitam o mesmo <main>.
+  // Largura total do <main> — Lista também precisa (a barra de filtros
+  // tinha 7+ pills forçando scroll horizontal em max-w-3xl) e Quadro
+  // precisa (4 colunas, ~1150px) — então liga pra qualquer visão de
+  // Pedidos, não só Quadro. Desliga ao sair da tela (cleanup), pra não
+  // vazar largura total pras outras ~15 telas do admin que reaproveitam
+  // o mesmo <main>. A lista de pedidos em si mantém uma largura de
+  // leitura confortável própria (ver `<ul className="max-w-3xl">`
+  // abaixo) mesmo com o <main> liberado.
   useEffect(() => {
-    definirLarguraCompleta(visualizacao === 'quadro');
+    definirLarguraCompleta(true);
     return () => definirLarguraCompleta(false);
-  }, [visualizacao, definirLarguraCompleta]);
+  }, [definirLarguraCompleta]);
 
   // avancarEtapa é compartilhado pela lista e pelo quadro — os dois
   // chamam o mesmo endpoint, só muda onde o botão aparece.
@@ -195,7 +199,7 @@ export function Pedidos() {
 
       {visualizacao === 'lista' ? (
         <>
-          <div className="flex gap-2 overflow-x-auto">
+          <div className="flex flex-wrap gap-2">
             {filtros.map((item) => (
               <button
                 key={item.valor}
@@ -218,7 +222,7 @@ export function Pedidos() {
           ) : pedidosFiltrados.length === 0 ? (
             <p className="text-tinta-suave">Nenhum pedido por aqui ainda.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="max-w-3xl space-y-3">
               {pedidosFiltrados.map((pedido) => (
                 <PedidoCard key={pedido.id} pedido={pedido} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onImprimir={handleImprimir} />
               ))}
