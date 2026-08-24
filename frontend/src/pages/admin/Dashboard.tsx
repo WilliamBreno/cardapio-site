@@ -4,6 +4,7 @@ import { Moon, Sun } from 'lucide-react';
 import { buscarLoja, statusMercadoPago } from '../../api/admin';
 import { useAuthStore } from '../../store/authStore';
 import { useTemaAdminStore } from '../../store/temaAdminStore';
+import { useLayoutAdminStore } from '../../store/layoutAdminStore';
 import { rotuloCatalogo, rotuloCombo, cn } from '../../lib/utils';
 
 const linksBase = [
@@ -26,6 +27,7 @@ export function Dashboard() {
   const { data: mercadoPagoStatus } = useQuery({ queryKey: ['mercadopago-status'], queryFn: statusMercadoPago });
   const preferencia = useTemaAdminStore((state) => state.preferencia);
   const alternarTema = useTemaAdminStore((state) => state.alternar);
+  const larguraCompleta = useLayoutAdminStore((state) => state.larguraCompleta);
 
   // Só aparece pra loja que ativou o recurso — pra maioria (lojas de
   // comida) esse link não faz sentido.
@@ -130,7 +132,7 @@ export function Dashboard() {
         ))}
       </nav>
 
-      <main className="mx-auto max-w-3xl px-6 py-6">
+      <main className={cn('mx-auto px-6 py-6', larguraCompleta ? 'max-w-none' : 'max-w-3xl')}>
         <Outlet />
       </main>
     </div>
