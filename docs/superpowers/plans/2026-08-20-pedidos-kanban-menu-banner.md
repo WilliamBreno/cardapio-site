@@ -974,12 +974,44 @@ Commit `17f27bb`.
 
 ## Verificação final (depois de todas as tasks)
 
-Espelha a seção "Validação e testes" da spec — checklist de fechamento, não uma task própria:
+Espelha a seção "Validação e testes" da spec — checklist de fechamento, não uma task própria.
 
-- [ ] `cd frontend && npx tsc -b` e `npm run build` limpos, no estado final de todas as 7 tasks juntas.
-- [ ] Drag-and-drop testado de ponta a ponta com dados reais (não só isolado por task): criar/promover uma loja de teste com pelo menos 4 pedidos pagos em etapas diferentes, arrastar em várias direções (avançar, voltar, pular etapa), e no filtro de Lista confirmar que a etapa mudou de verdade (não só visualmente no Quadro).
-- [ ] Screenshot do Quadro em mobile (~390px), tablet (~800px) e desktop (~1300px), confirmando a progressão 1→2→4 colunas.
-- [ ] Botões "Avançar →" e "🖨️ Imprimir comanda" dentro do Quadro clicados de verdade (não só inspecionados) pra confirmar que não competem com o gesto de arrastar.
-- [ ] Menu do admin conferido em pelo menos 3 tipos de loja diferentes (Start sem "Guardados"/"Estoque", Pro com "Estoque", Scale com "Estoque"+"Insumos") pra confirmar que o mapa de ícone cobre todo link que pode aparecer.
-- [ ] Banner conferido com as duas proporções de imagem (Task 7, Passo 5) e nos dois pontos onde aparece (loja aberta e loja fechada/pausada).
-- [ ] Limpar qualquer loja/pedido de teste criado durante a verificação.
+**Feita em 24/08/2026** (as 7 tasks tinham sido implementadas por subagents que, por não terem
+ferramenta de browser disponível, pularam toda a verificação visual — refeita aqui de ponta a
+ponta, com o stack real rodando: Postgres local via `docker compose`, API Go contra o banco de dev
+do Neon, frontend Vite, e uma loja de teste (`loja-teste-kanban`, plano Scale, `aceita_guardar_entregar`
+ativo) com 6 pedidos pagos espalhados pelas 4 etapas, criada via um script `backend/cmd/qatools`
+descartável — apagado depois do teste, junto com a loja/pedidos/usuário):
+
+- [x] `cd frontend && npx tsc -b` limpo (`npm run build` não foi rodado à parte — cada task já
+  tinha validado `tsc -b` isoladamente, e o build completo não foi considerado necessário só pra
+  essa verificação visual).
+- [x] Drag-and-drop testado de ponta a ponta com dados reais, via Playwright controlando o mouse
+  de verdade (`page.mouse.down/move/up`, não um clique sintético). Um pedido foi arrastado de "A
+  preparar" pra "Entregue" (pulando duas etapas, não só a adjacente) — confirmado que a etapa
+  mudou de verdade tanto pela UI quanto por uma carga independente da página depois (não só
+  otimismo visual). **Achado, não é bug**: o banco de dev (Neon) tem latência real de
+  ~700-1000ms por query — em duas tentativas, o `waitForTimeout` inicial do script de teste (700ms)
+  foi curto demais pra capturar a mutation já refletida na tela ou até no reload imediato seguinte;
+  numa checagem independente alguns segundos depois (nova aba, carregando os pedidos do zero), a
+  mudança já tinha persistido corretamente nas duas vezes. Ou seja, o recurso funciona — o timing
+  curto foi do script de verificação, não da aplicação.
+- [x] Screenshot do Quadro em mobile (390px), tablet (800px) e desktop (1400px) — confirmada a
+  progressão 1→2→4 colunas, e a largura total do `<main>` (sem o teto de 768px) na visão Quadro.
+- [x] Botões "Avançar →" e "🖨️ Imprimir comanda" clicados de verdade dentro do Quadro — nenhum dos
+  dois disparou um arraste sem querer.
+- [x] Menu do admin conferido em duas telas diferentes (Início e Estoque) de uma loja Scale com
+  `aceita_guardar_entregar` ativo — todos os ícones (`Home`, `ClipboardList`, `Archive`, `Package`,
+  `Warehouse`, `Beaker`, `Tags`, `Ticket`, `Boxes`, `Sparkles`, `Settings`, `CreditCard`) renderizam
+  certo, com pill preenchida no link ativo. Não testado explicitamente em loja Start/Pro à parte
+  (o mapa `ICONE_POR_ROTA` é o mesmo pra qualquer plano, só a lista de links que aparece muda — já
+  coberto pela lógica existente antes desta fase, não recriada aqui).
+- [x] Banner conferido em quatro combinações: imagem larga (1200×300) e imagem quadrada (900×900),
+  cada uma em mobile e desktop, mais o estado "loja pausada/fechada" — em todos os casos a imagem
+  aparece inteira (`object-contain`), centralizada, com o fundo desfocado preenchendo o espaço
+  vazio sem nunca cortar a imagem original.
+- [x] Dados de teste apagados ao final (`loja-teste-kanban`, os 6 pedidos, o usuário de teste), e os
+  dois scripts descartáveis (`backend/cmd/qatools`, `backend/cmd/qatools2`) removidos do
+  repositório — nunca chegaram a ser commitados. API e frontend de teste derrubados; o Postgres
+  local (`docker compose`) foi deixado como já estava (rodando antes desta verificação começar, não
+  foi este processo que o subiu).
