@@ -1,6 +1,22 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Moon, Sun } from 'lucide-react';
+import {
+  Archive,
+  Beaker,
+  Boxes,
+  ClipboardList,
+  CreditCard,
+  Home,
+  Moon,
+  Package,
+  Settings,
+  Sparkles,
+  Sun,
+  Tags,
+  Ticket,
+  Warehouse,
+  type LucideIcon,
+} from 'lucide-react';
 import { buscarLoja, statusMercadoPago } from '../../api/admin';
 import { useAuthStore } from '../../store/authStore';
 import { useTemaAdminStore } from '../../store/temaAdminStore';
@@ -18,6 +34,25 @@ const linksBase = [
   { to: '/admin/configuracoes', label: 'Configurações' },
   { to: '/admin/meu-plano', label: 'Meu Plano' },
 ];
+
+// Ícone por rota (Fase de redesign, 20/08/2026) — mapa fixo por `to`
+// porque o `label` de alguns links muda em runtime (ex: "Combos" vira
+// "Kits" pra loja mercadoria, via rotuloCombo), então indexar pelo
+// texto seria frágil.
+const ICONE_POR_ROTA: Record<string, LucideIcon> = {
+  '/admin': Home,
+  '/admin/pedidos': ClipboardList,
+  '/admin/produtos': Package,
+  '/admin/categorias': Tags,
+  '/admin/cupons': Ticket,
+  '/admin/combos': Boxes,
+  '/admin/sugestao-inteligente': Sparkles,
+  '/admin/configuracoes': Settings,
+  '/admin/meu-plano': CreditCard,
+  '/admin/estoque': Warehouse,
+  '/admin/insumos': Beaker,
+  '/admin/solicitacoes': Archive,
+};
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -113,23 +148,28 @@ export function Dashboard() {
         </NavLink>
       )}
 
-      <nav className="flex gap-1 overflow-x-auto border-b border-tinta/10 bg-superficie px-6">
-        {links.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.to === '/admin'}
-            className={({ isActive }) =>
-              `whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition ${
-                isActive
-                  ? 'border-acento text-acento'
-                  : 'border-transparent text-tinta-suave hover:text-tinta'
-              }`
-            }
-          >
-            {link.label}
-          </NavLink>
-        ))}
+      <nav className="flex gap-1 overflow-x-auto border-b border-tinta/10 bg-superficie px-6 py-2">
+        {links.map((link) => {
+          const Icone = ICONE_POR_ROTA[link.to];
+          return (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              end={link.to === '/admin'}
+              className={({ isActive }) =>
+                cn(
+                  'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition',
+                  isActive
+                    ? 'bg-acento text-superficie'
+                    : 'text-tinta-suave hover:bg-tinta/5 hover:text-tinta'
+                )
+              }
+            >
+              {Icone && <Icone className="size-4" />}
+              {link.label}
+            </NavLink>
+          );
+        })}
       </nav>
 
       <main className={cn('mx-auto px-6 py-6', larguraCompleta ? 'max-w-none' : 'max-w-3xl')}>
