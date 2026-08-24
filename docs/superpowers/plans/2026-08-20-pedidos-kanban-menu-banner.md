@@ -78,7 +78,7 @@ git commit -m "feat: adiciona @dnd-kit/core e layoutAdminStore (base do Kanban a
 **Interfaces:**
 - Consumes: `useLayoutAdminStore` (Task 1) — lê `larguraCompleta`.
 
-- [ ] **Passo 1: Ler o store e trocar a classe do `<main>`**
+- [x] **Passo 1: Ler o store e trocar a classe do `<main>`**
 
 Em `frontend/src/pages/admin/Dashboard.tsx`, adicionar o import do store junto aos outros (linha 6, depois de `useTemaAdminStore`):
 
@@ -103,12 +103,12 @@ por:
 
 (`cn` já está importado nesse arquivo, linha 7.)
 
-- [ ] **Passo 2: Verificar o typecheck**
+- [x] **Passo 2: Verificar o typecheck**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros. `larguraCompleta` fica sempre `false` até a Task 3 existir — nenhuma tela muda de largura ainda, é esperado.
 
-- [ ] **Passo 3: Commit**
+- [x] **Passo 3: Commit**
 
 ```bash
 git add frontend/src/pages/admin/Dashboard.tsx
