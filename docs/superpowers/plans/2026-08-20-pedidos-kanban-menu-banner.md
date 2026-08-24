@@ -792,7 +792,7 @@ Commit `218473f`.
 **Interfaces:**
 - Produces: `BannerOferta({ url: string })`, componente local (não exportado).
 
-- [ ] **Passo 1: Criar o componente `BannerOferta`**
+- [x] **Passo 1: Criar o componente `BannerOferta`**
 
 Adicionar, logo antes de `export function CardapioPublico()` (antes da linha 109):
 
@@ -823,7 +823,7 @@ function BannerOferta({ url }: { url: string }) {
 }
 ```
 
-- [ ] **Passo 2: Mover o banner pra depois do cabeçalho — estado "loja fechada"**
+- [x] **Passo 2: Mover o banner pra depois do cabeçalho — estado "loja fechada"**
 
 Trocar (linhas 161-172):
 ```tsx
@@ -856,7 +856,7 @@ por:
         <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
 ```
 
-- [ ] **Passo 3: Mover o banner pra depois do cabeçalho — estado normal**
+- [x] **Passo 3: Mover o banner pra depois do cabeçalho — estado normal**
 
 Trocar (linhas 199-231, do banner até o fechamento do `</header>`):
 ```tsx
@@ -930,21 +930,45 @@ por:
       {data.loja.banner_url && <BannerOferta url={data.loja.banner_url} />}
 ```
 
-- [ ] **Passo 4: Verificar o typecheck**
+- [x] **Passo 4: Verificar o typecheck**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 
-- [ ] **Passo 5: Verificar no navegador — duas proporções de imagem**
+Confirmado limpo — `npx tsc -b` não devolveu nenhuma saída/erro. Os três trechos trocados
+(criação de `BannerOferta`, e o `banner_url` movido pra depois de `</header>` nos dois estados,
+"loja fechada" e "loja aberta") batiam exatamente com os números de linha do plano antes da
+edição, então nenhuma adaptação extra foi necessária.
 
-Configurar `banner_url` de uma loja de teste (via `PUT /admin/loja` ou direto no banco) pra uma imagem larga/baixa (ex: 1200×300) e conferir que aparece inteira, centralizada, com o fundo desfocado preenchendo as laterais/topo-base vazios. Repetir com uma imagem mais quadrada (ex: 800×800) e confirmar que também aparece inteira, sem cortar, com o fundo desfocado preenchendo o excesso. Testar também com a loja fechada/pausada (segundo local do banner) e com `aceita_guardar_entregar` ligado (pra conferir que o botão "📦 Itens guardados" continua no lugar certo, já que o header não mudou de posição, só o banner saiu de cima dele).
+- [x] **Passo 5: Verificar no navegador — duas proporções de imagem**
 
-- [ ] **Passo 6: Commit**
+**Nota**: verificação visual pulada nesta sessão — mesma limitação já registrada nas Tasks 3-6
+deste plano: nenhuma ferramenta de browser/screenshot disponível neste ambiente (confirmado via
+`ToolSearch`, só existe `WebFetch`, que não serve pra inspecionar uma SPA como essa). Dessa vez o
+Docker Desktop CLI respondeu (diferente das tentativas anteriores), mas `docker info` confirmou que
+o daemon/engine não está de fato rodando (`failed to connect to the docker API at
+npipe:////./pipe/dockerDesktopLinuxEngine`) — subir o Postgres, a API e criar uma loja de teste com
+`banner_url` configurado não teria como acontecer, e mesmo que acontecesse não haveria como
+registrar o resultado visual sem uma ferramenta de screenshot. Verificação feita por leitura
+cuidadosa do código em vez disso: `BannerOferta` usa `object-contain` na imagem principal (nunca
+corta, faz o oposto do `object-cover` de antes) sobre uma cópia de fundo com `object-cover blur-xl
+scale-110` (preenche o espaço vazio nas bordas quando a proporção da imagem não bate com a altura
+fixa do card `h-40`/`sm:h-56`) — o comportamento é o mesmo pra qualquer proporção de imagem (larga
+ou quadrada), já que `object-contain` sempre encaixa a imagem inteira dentro do container sem
+distorcer. Reconferido que, nos dois estados (loja fechada e loja aberta), o `<header>` não mudou
+de posição nem de conteúdo (o botão "📦 Itens guardados" continua dentro dele, condicionado a
+`aceita_guardar_entregar`) — só o banner saiu de antes do `<header>` pra depois de `</header>`,
+exatamente como o plano pedia. Fica registrado como verificação visual pendente pro William
+confirmar quando tiver o stack rodando de verdade.
+
+- [x] **Passo 6: Commit**
 
 ```bash
 git add frontend/src/pages/CardapioPublico.tsx
 git commit -m "feat: banner do cardápio público em card dedicado abaixo do cabeçalho, sem cortar a imagem"
 ```
+
+Commit `17f27bb`.
 
 ---
 
