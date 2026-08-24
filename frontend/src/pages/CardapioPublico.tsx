@@ -109,15 +109,17 @@ function renderProdutosAgrupados(produtos: Produto[], categoriaId: number, subca
 // BannerCarrossel (redesign de 24/08/2026, substitui o BannerOferta de
 // foto única): card dedicado abaixo do cabeçalho da loja, com largura
 // proporcional mas limitada (max-w-4xl — não vai mais de ponta a ponta
-// da tela em telas largas). A altura do card se ajusta à proporção de
-// cada foto (w-full h-auto, sem object-cover nem altura fixa) — testado
-// com object-cover antes e o corte cortava texto importante de peças
-// promocionais (ex: título no topo da arte), então a prioridade agora é
-// nunca cortar a imagem, mesmo que a altura do card varie de foto pra
-// foto no carrossel. Com mais de uma foto, alterna sozinho a cada 5s e
-// mostra os pontinhos de navegação; a troca usa fade-in (tw-animate-css)
-// em vez do crossfade por opacidade empilhada de antes, que exigia
-// altura fixa pra funcionar.
+// da tela em telas largas) E altura limitada (h-40/h-56 — a versão
+// anterior, sem limite nenhum, deixava o card enorme com fotos mais
+// verticais). object-contain garante que a foto nunca é cortada mesmo
+// dentro dessa altura fixa; quando a proporção da foto não preenche o
+// card inteiro, uma cópia desfocada da própria imagem preenche o espaço
+// vazio (mesmo truque do design original desta seção) em vez de deixar
+// uma faixa lisa. Com mais de uma foto, alterna sozinho a cada 5s e
+// mostra os pontinhos de navegação — a troca usa `banner-fade-in`
+// (index.css), não as classes `animate-in`/`fade-in-0` do
+// `tw-animate-css` usadas antes, que não existem de verdade nesse
+// projeto (ver comentário em index.css).
 function BannerCarrossel({ fotos }: { fotos: FotoBanner[] }) {
   const [indice, setIndice] = useState(0);
 
@@ -133,12 +135,19 @@ function BannerCarrossel({ fotos }: { fotos: FotoBanner[] }) {
 
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6">
-      <div className="relative mt-4 overflow-hidden rounded-2xl shadow-sm">
+      <div className="relative mt-4 h-40 overflow-hidden rounded-2xl shadow-sm sm:h-56">
+        <img
+          key={`fundo-${fotoAtual.id}`}
+          src={fotoAtual.url}
+          alt=""
+          aria-hidden="true"
+          className="banner-fade-in absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+        />
         <img
           key={fotoAtual.id}
           src={fotoAtual.url}
           alt="Oferta em destaque"
-          className="block h-auto w-full animate-in fade-in-0 duration-500"
+          className="banner-fade-in relative h-full w-full object-contain"
         />
         {fotos.length > 1 && (
           <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">

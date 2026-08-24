@@ -360,6 +360,24 @@
   .btn-neu-pulsa {
     animation: pulso-avancar 1.8s ease-in-out infinite;
   }
+
+  /* banner-fade-in (24/08/2026, CardapioPublico.tsx) — achado ao
+     verificar ao vivo: `tw-animate-css` (import no topo deste arquivo)
+     é escrito em sintaxe `@utility` do Tailwind v4 — esse projeto está
+     no v3, então o PostCSS do v3 simplesmente ignora esse bloco, e
+     classes como `animate-in`/`fade-in-0` nunca existiram de verdade no
+     CSS final (confirmado: zero ocorrências no build compilado). Por
+     isso a troca de foto do carrossel trocava na hora, sem nenhuma
+     transição. Keyframe própria, mesmo padrão de `pulso-avancar` acima
+     — reaplicada do zero a cada troca de `key` no React (uma animação
+     CSS reinicia sozinha quando o elemento é remontado). */
+  @keyframes banner-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .banner-fade-in {
+    animation: banner-fade-in 0.6s ease-out;
+  }
 }
 
 @theme inline {
