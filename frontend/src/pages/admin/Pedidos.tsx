@@ -305,7 +305,12 @@ export function Pedidos() {
           ) : pedidosFiltrados.length === 0 ? (
             <p className="text-tinta-suave">Nenhum pedido por aqui ainda.</p>
           ) : (
-            <ul className="max-w-3xl space-y-3">
+            // Grid responsivo (pedido do William, 24/08/2026) — com o
+            // <main> liberado em largura total (ver useEffect acima),
+            // uma lista de 1 coluna só deixava metade da tela vazia em
+            // desktop. 1 coluna no mobile (ainda é uma "lista" ali,
+            // como pedido), 2 em tablet, 3 em desktop bem largo.
+            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {pedidosFiltrados.map((pedido) => (
                 <PedidoCard key={pedido.id} pedido={pedido} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onImprimir={handleImprimir} />
               ))}
