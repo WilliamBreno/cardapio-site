@@ -315,6 +315,51 @@
   .btn-neu-sm {
     @apply px-3 py-1.5 text-xs;
   }
+
+  /* Modo noturno (24/08/2026): o realce em branco puro do relevo claro
+     (rgb(255 255 255 / ...)) fica sem graça — quase invisível — sobre
+     fundo escuro. Troca por um brilho dourado sutil (--color-douro, que
+     já é redefinido pro tom certo dentro de .dark em :root acima),
+     mantendo a sombra escura como está (preto puro continua funcionando
+     nos dois sentidos). Só o admin usa .dark hoje (Dashboard.tsx) — o
+     cardápio público continua no sistema de 16 temas (data-tema), que
+     não usa essa classe. */
+  .dark .btn-neu-primario {
+    box-shadow:
+      3px 3px 10px rgb(0 0 0 / 0.5),
+      -2px -2px 8px rgb(var(--color-douro) / 0.1),
+      inset 0 1px 0 rgb(var(--color-douro) / 0.15);
+  }
+  .dark .btn-neu-primario:hover:not(:disabled) {
+    box-shadow:
+      4px 4px 12px rgb(0 0 0 / 0.55),
+      -3px -3px 10px rgb(var(--color-douro) / 0.16),
+      inset 0 1px 0 rgb(var(--color-douro) / 0.22);
+  }
+  .dark .btn-neu-secundario {
+    box-shadow:
+      3px 3px 8px rgb(0 0 0 / 0.4),
+      -3px -3px 8px rgb(var(--color-douro) / 0.06);
+  }
+  .dark .btn-neu-secundario:hover:not(:disabled) {
+    box-shadow:
+      4px 4px 10px rgb(0 0 0 / 0.45),
+      -4px -4px 10px rgb(var(--color-douro) / 0.1);
+  }
+
+  /* Pulso do botão "Avançar" quando o pedido está em "A preparar"
+     (Pedidos.tsx, ver ESTILO_AVANCAR) — chama atenção pro pedido novo
+     que ainda não começou a ser preparado. Só essa etapa pulsa (pedido
+     do William), por isso o halo usa --color-acento fixo (a cor do
+     próprio botão nessa etapa) em vez de tentar acompanhar cada bg-*
+     diferente por etapa. */
+  @keyframes pulso-avancar {
+    0%, 100% { box-shadow: 0 0 0 0 rgb(var(--color-acento) / 0.45); }
+    50% { box-shadow: 0 0 0 9px rgb(var(--color-acento) / 0); }
+  }
+  .btn-neu-pulsa {
+    animation: pulso-avancar 1.8s ease-in-out infinite;
+  }
 }
 
 @theme inline {

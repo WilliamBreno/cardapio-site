@@ -15,10 +15,12 @@ import { buscarConfiguracaoPlataforma, assinarSugestaoInteligente, cancelarAssin
 import { TEMAS } from '../../themes';
 import { Campo } from '../../components/Campo';
 import { Input } from '../../components/ui/input';
+import { Switch } from '../../components/ui/switch';
 import { ThemePicker } from '../../components/ui/theme-picker';
 import { QRCodeCardapio } from '../../components/QRCodeCardapio';
 import { EnderecoCampos, enderecoVazio, enderecoParaTexto, enderecoParaCampos, enderecoPreenchido, type EnderecoValor } from '../../components/EnderecoCampos';
 import { rotuloCatalogo } from '../../lib/utils';
+import { useImpressoraStore } from '../../store/impressoraStore';
 
 const MARGENS = [0, 5, 10, 15, 20, 25, 30];
 
@@ -29,6 +31,8 @@ export function Configuracoes() {
   const { data: mercadoPagoStatus } = useQuery({ queryKey: ['mercadopago-status'], queryFn: statusMercadoPago });
   const { data: configuracaoPlataforma } = useQuery({ queryKey: ['configuracao-plataforma'], queryFn: buscarConfiguracaoPlataforma });
   const { data: banners } = useQuery({ queryKey: ['banners'], queryFn: listarBanners });
+  const impressoraAutoBuscar = useImpressoraStore((state) => state.autoBuscar);
+  const definirImpressoraAutoBuscar = useImpressoraStore((state) => state.definirAutoBuscar);
 
   const [whatsapp, setWhatsapp] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -679,6 +683,26 @@ export function Configuracoes() {
           {mutSalvar.isPending ? 'Salvando...' : 'Salvar'}
         </button>
       </form>
+
+      {/* Impressora Bluetooth (24/08/2026) — preferência local do
+          navegador/computador, não da loja (o pareamento é físico, não
+          faz sentido salvar no backend e "sincronizar" entre
+          dispositivos). Por isso fica fora do <form> acima, sem entrar
+          no payload de /admin/loja. */}
+      <section className="rounded-2xl bg-superficie p-5 shadow-sm">
+        <h2 className="font-display text-lg tracking-wide text-tinta">Impressora Bluetooth</h2>
+        <div className="mt-3 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-tinta">Buscar impressora automaticamente</p>
+            <p className="text-xs text-tinta-suave">
+              Ao abrir Pedidos, tenta reconectar sozinho numa impressora que você já pareou antes
+              neste navegador. Sem isso, você conecta manualmente pelo botão que aparece em Pedidos.
+            </p>
+          </div>
+          <Switch checked={impressoraAutoBuscar} onCheckedChange={definirImpressoraAutoBuscar} />
+        </div>
+      </section>
+
       {loja && <QRCodeCardapio slug={loja.slug} nomeLoja={loja.nome} segmentoLoja={loja.segmento_principal} />}
     </div>
   );

@@ -11,6 +11,17 @@ function withOpacity(varName) {
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  // darkMode: 'class' (achado em 24/08/2026, corrige texto preto ilegível
+  // no modo noturno do admin): sem essa opção, o Tailwind v3 usa a
+  // estratégia padrão 'media' — as classes dark: (number-ticker.tsx,
+  // MeuPlano.tsx, badge.tsx, button.tsx, QRCodeCardapio.tsx) respondiam
+  // só à preferência do SISTEMA OPERACIONAL, não ao toggle manual do
+  // Dashboard.tsx (que só adiciona a classe `.dark` no wrapper). Um
+  // computador em modo claro do SO com o toggle do admin em "escuro"
+  // deixava esses `dark:text-white` etc. inertes, sobrando `text-black`
+  // puro sobre fundo escuro. 'class' faz os `dark:` responderem à mesma
+  // classe `.dark` que já controla as variáveis de cor customizadas.
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {

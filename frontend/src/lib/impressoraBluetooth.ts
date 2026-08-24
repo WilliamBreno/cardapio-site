@@ -52,6 +52,54 @@ async function obterCaracteristicaEscrita(): Promise<BluetoothRemoteGATTCharacte
   return caracteristica;
 }
 
+// conectarImpressora expõe obterCaracteristicaEscrita pra quem só quer
+// garantir a conexão (ex: botão "Conectar impressora"), sem imprimir
+// nada ainda — mesmo fluxo de pareamento de sempre (abre o seletor
+// nativo do navegador, exige clique do usuário).
+export async function conectarImpressora(): Promise<void> {
+  await obterCaracteristicaEscrita();
+}
+
+export function impressoraJaConectada(): boolean {
+  return caracteristicaAtual !== null && caracteristicaAtual.service.device.gatt?.connected === true;
+}
+
+// tentarReconectarSilenciosamente (Fase de redesign, 24/08/2026) — usa
+// navigator.bluetooth.getDevices(), que devolve os dispositivos JÁ
+// AUTORIZADOS numa sessão anterior, SEM abrir o seletor de pareamento
+// (não exige gesto do usuário). É o único jeito real de "buscar
+// automaticamente": a Web Bluetooth API nunca permite chamar
+// requestDevice() sozinha, sem clique — então "automático" aqui
+// significa reconectar numa impressora que o dono já pareou antes
+// manualmente pelo menos uma vez neste navegador, não descobrir uma
+// impressora nova sozinho.
+export async function tentarReconectarSilenciosamente(): Promise<boolean> {
+  if (!bluetoothSuportado() || !navigator.bluetooth.getDevices) return false;
+
+  const dispositivos = await navigator.bluetooth.getDevices();
+  for (const dispositivo of dispositivos) {
+    try {
+      const servidor = await dispositivo.gatt?.connect();
+      if (!servidor) continue;
+      const servico = await servidor.getPrimaryService(SERVICO_IMPRESSORA);
+      const caracteristicas = await servico.getCharacteristics();
+      const caracteristica = caracteristicas.find((c) => c.properties.writeWithoutResponse || c.properties.write);
+      if (!caracteristica) continue;
+
+      dispositivo.addEventListener('gattserverdisconnected', () => {
+        caracteristicaAtual = null;
+      });
+      caracteristicaAtual = caracteristica;
+      return true;
+    } catch {
+      // Esse dispositivo autorizado não é (ou não está mais alcançável
+      // como) a impressora — tenta o próximo da lista antes de desistir.
+      continue;
+    }
+  }
+  return false;
+}
+
 // Impressoras térmicas variam de codepage (CP850, CP860, WCP1252 etc.) e
 // sem saber o modelo exato do lojista não dá pra garantir qual delas está
 // configurada — tira acento antes de imprimir pra evitar caractere quebrado

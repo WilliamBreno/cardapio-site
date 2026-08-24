@@ -18,8 +18,22 @@ import { listarPedidos, buscarLoja } from '../../api/admin';
 import { atualizarStatusEntrega, type EtapaPedido } from '../../api/rastreamento';
 import type { Pedido, StatusPedido, TipoProduto } from '../../api/types';
 import { cn, rotuloCombo } from '../../lib/utils';
-import { imprimirComanda } from '../../lib/impressoraBluetooth';
+import { imprimirComanda, bluetoothSuportado, conectarImpressora, tentarReconectarSilenciosamente } from '../../lib/impressoraBluetooth';
 import { useLayoutAdminStore } from '../../store/layoutAdminStore';
+import { useImpressoraStore } from '../../store/impressoraStore';
+
+// ESTILO_AVANCAR varia o botão "Avançar" pela etapa ATUAL do pedido (não
+// a de destino) — sinaliza visualmente o que precisa de atenção agora.
+// "A preparar" pulsa (pedido novo, ainda não começou) e mantém a cor de
+// marca; as demais têm cor própria, sem pulsar. "entregue" nunca chega a
+// renderizar o botão (não tem próxima etapa) — mantido só por
+// completude do Record.
+const ESTILO_AVANCAR: Record<EtapaPedido, string> = {
+  a_preparar: 'bg-acento btn-neu-pulsa',
+  preparando: 'bg-amber-600',
+  saiu_para_entrega: 'bg-sky-600',
+  entregue: 'bg-emerald-600',
+};
 
 const statusInfo: Record<StatusPedido, { label: string; classe: string }> = {
   aguardando_pagamento: { label: 'Aguardando pagamento', classe: 'bg-douro/20 text-douro' },
@@ -92,6 +106,74 @@ function formatarData(iso: string): string {
 }
 
 const ETAPA_VALORES = new Set<string>(ETAPAS.map((e) => e.valor));
+
+// StatusImpressoraBluetooth (24/08/2026) — fica entre o título "Pedidos"
+// e os botões Lista/Quadro, pedido do William. Serve dois propósitos no
+// mesmo lugar: (1) indicador de "buscando..." quando a preferência
+// "buscar automaticamente" (Configurações) está ligada — tenta
+// reconectar numa impressora já pareada antes, sem abrir o seletor
+// (Web Bluetooth não permite abrir o seletor sem clique do usuário,
+// então "automático" aqui é reconexão silenciosa, não descoberta de
+// impressora nova); (2) botão de conectar/buscar manual — sempre
+// disponível no mesmo lugar, pra quem prefere ligar na hora ou não usa
+// o automático. Não aparece em navegador sem suporte a Web Bluetooth
+// (ex: iOS/Safari) — não tem nada útil a mostrar/fazer ali.
+function StatusImpressoraBluetooth() {
+  const autoBuscar = useImpressoraStore((state) => state.autoBuscar);
+  const [status, setStatus] = useState<'ocioso' | 'buscando' | 'conectado' | 'nao_encontrada'>('ocioso');
+
+  useEffect(() => {
+    if (!autoBuscar || !bluetoothSuportado()) return;
+    let cancelado = false;
+    setStatus('buscando');
+    tentarReconectarSilenciosamente().then((conectou) => {
+      if (cancelado) return;
+      setStatus(conectou ? 'conectado' : 'nao_encontrada');
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [autoBuscar]);
+
+  if (!bluetoothSuportado()) return null;
+
+  async function conectarManual() {
+    setStatus('buscando');
+    try {
+      await conectarImpressora();
+      setStatus('conectado');
+    } catch {
+      setStatus('nao_encontrada');
+    }
+  }
+
+  const rotulo =
+    status === 'buscando' ? 'Buscando impressora...' : status === 'conectado' ? '🖨️ Impressora conectada' : '🖨️ Conectar impressora';
+
+  return (
+    <button
+      onClick={conectarManual}
+      disabled={status === 'buscando'}
+      title="Impressora Bluetooth pra comandas"
+      className={cn(
+        'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition disabled:cursor-wait',
+        status === 'conectado'
+          ? 'bg-emerald-500/10 text-emerald-600'
+          : status === 'buscando'
+          ? 'bg-douro/10 text-douro'
+          : 'bg-tinta/5 text-tinta-suave hover:bg-tinta/10'
+      )}
+    >
+      <span
+        className={cn(
+          'h-1.5 w-1.5 rounded-full',
+          status === 'conectado' ? 'bg-emerald-500' : status === 'buscando' ? 'animate-pulse bg-douro' : 'bg-tinta-suave'
+        )}
+      />
+      {rotulo}
+    </button>
+  );
+}
 
 export function Pedidos() {
   const queryClient = useQueryClient();
@@ -181,6 +263,7 @@ export function Pedidos() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl tracking-wide text-tinta">Pedidos</h1>
+        <StatusImpressoraBluetooth />
         <div className="flex shrink-0 gap-1 rounded-full bg-superficie p-1 shadow-sm">
           <button
             onClick={() => setVisualizacao('lista')}
@@ -435,7 +518,7 @@ function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir }: {
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => onAvancar(pedido)}
-          className="btn-neu-primario btn-neu-sm mt-2 w-full"
+          className={cn('btn-neu-primario btn-neu-sm mt-2 w-full', ESTILO_AVANCAR[etapaAtual(pedido)])}
         >
           Avançar → {rotuloEtapa(proxima, pedido.modo_entrega)}
         </button>
@@ -542,7 +625,7 @@ function PedidoCard({ pedido, segmentoLoja, onAvancar, onImprimir }: { pedido: P
       </div>
 
       {proxima && (
-        <button onClick={() => onAvancar(pedido)} className="btn-neu-primario mt-3 w-full">
+        <button onClick={() => onAvancar(pedido)} className={cn('btn-neu-primario mt-3 w-full', ESTILO_AVANCAR[etapaAtual(pedido)])}>
           Avançar → {rotuloEtapa(proxima, pedido.modo_entrega)}
         </button>
       )}
