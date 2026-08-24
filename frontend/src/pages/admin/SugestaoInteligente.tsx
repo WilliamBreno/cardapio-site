@@ -60,13 +60,12 @@ export function SugestaoInteligente() {
   // vai-e-volta de um erro previsível.
   const limiteGratisAtingido = !loja?.sugestao_inteligente_contratada && (sugestoes?.length ?? 0) >= 1;
 
-  // Bloqueia na UI: o próprio produto e qualquer produto de categoria já
-  // usada por um vínculo existente dessa origem (o backend rejeita do
-  // mesmo jeito, isso só evita o vai-e-volta de erro).
-  const categoriasJaUsadas = new Set(sugestoesDoOrigem.map((s) => s.produto_sugerido?.categoria_id).filter(Boolean));
-  const opcoesSugerido = (produtos ?? []).filter(
-    (p) => p.id !== produtoOrigemId && !categoriasJaUsadas.has(p.categoria_id)
-  );
+  // Bloqueia na UI só o próprio produto (o backend rejeita do mesmo
+  // jeito, isso só evita o vai-e-volta de erro). A restrição antiga de
+  // "só uma sugestão por categoria por origem" foi removida a pedido do
+  // William (24/08/2026) — produto de categoria já usada por outra
+  // sugestão dessa origem agora pode aparecer normalmente aqui.
+  const opcoesSugerido = (produtos ?? []).filter((p) => p.id !== produtoOrigemId);
 
   const produtoSugeridoSelecionado = produtos?.find((p) => p.id === produtoSugeridoId) ?? null;
 
@@ -190,7 +189,7 @@ export function SugestaoInteligente() {
                         ))}
                       </select>
                       <span className="mt-1 block text-xs text-tinta-suave">
-                        O próprio produto e produtos de categorias já usadas em outra sugestão dessa origem não aparecem aqui — só uma sugestão por categoria.
+                        Só o próprio produto não aparece aqui — pode sugerir mais de um produto da mesma categoria.
                       </span>
                     </Campo>
 

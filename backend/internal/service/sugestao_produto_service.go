@@ -67,12 +67,16 @@ func (s *SugestaoProdutoService) Listar(lojaID uint) ([]SugestaoProdutoComStatus
 }
 
 // Criar valida a regra central da Fase 6: nunca sugerir o próprio
-// produto, e nunca deixar dois produtos sugeridos da MESMA categoria
-// vinculados à mesma origem — isso reforça, já na configuração, a regra
-// de exibição que só mostra uma sugestão por categoria no carrinho (ver
-// MontarSugestoesCarrinho). Sem a Sugestão Inteligente contratada, a loja
-// só pode ter 1 vínculo no total — o "gostinho grátis" que funciona de
-// verdade pro cliente final, sem limite de uso, só de quantidade.
+// produto. A restrição antiga de "só uma sugestão por categoria por
+// origem" foi removida a pedido do William (24/08/2026) — o lojista
+// pode cadastrar quantas sugestões quiser da mesma categoria pra uma
+// origem, mesmo com mais de uma competindo pela mesma vaga; quem decide
+// qual aparece de fato pro cliente continua sendo MontarSugestoesCarrinho
+// (regra separada, não mexida aqui — essa sim mantém "uma por categoria"
+// na hora de montar a seção do carrinho, pra não empilhar sugestão
+// demais na revisão da compra). Sem a Sugestão Inteligente contratada, a
+// loja só pode ter 1 vínculo no total — o "gostinho grátis" que funciona
+// de verdade pro cliente final, sem limite de uso, só de quantidade.
 func (s *SugestaoProdutoService) Criar(lojaID uint, input SugestaoProdutoInput) (*domain.SugestaoProduto, error) {
 	if input.ProdutoOrigemID == input.ProdutoSugeridoID {
 		return nil, errors.New("um produto não pode sugerir ele mesmo")
@@ -99,16 +103,6 @@ func (s *SugestaoProdutoService) Criar(lojaID uint, input SugestaoProdutoInput) 
 	sugerido, err := s.produtoRepo.BuscarPorID(input.ProdutoSugeridoID)
 	if err != nil || sugerido.LojaID != lojaID {
 		return nil, errors.New("produto sugerido não encontrado")
-	}
-
-	existentes, err := s.sugestaoRepo.ListarPorProdutosOrigem(lojaID, []uint{input.ProdutoOrigemID})
-	if err != nil {
-		return nil, fmt.Errorf("verificando sugestões existentes: %w", err)
-	}
-	for _, existente := range existentes {
-		if existente.ProdutoSugerido.CategoriaID == sugerido.CategoriaID {
-			return nil, fmt.Errorf("já existe uma sugestão da categoria %q pra esse produto — só uma sugestão por categoria", sugerido.Categoria.Nome)
-		}
 	}
 
 	var tipoDesconto *domain.TipoDesconto
