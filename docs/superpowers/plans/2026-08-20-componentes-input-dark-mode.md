@@ -1326,7 +1326,7 @@ git commit -m "feat: componente M (tags removíveis), aplicado na seleção de c
 **Interfaces:**
 - Produces: `useTemaAdminStore` (hook Zustand: `{ preferencia: 'claro' | 'escuro', definirPreferencia, alternar }`).
 
-- [ ] **Passo 1: Criar `temaAdminStore.ts`**
+- [x] **Passo 1: Criar `temaAdminStore.ts`**
 
 ```tsx
 import { create } from 'zustand';
@@ -1361,7 +1361,7 @@ export const useTemaAdminStore = create<TemaAdminState>()(
 );
 ```
 
-- [ ] **Passo 2: Adicionar a paleta escura em `index.css`**
+- [x] **Passo 2: Adicionar a paleta escura em `index.css`**
 
 Dentro do bloco `.dark { ... }` já existente (linhas 196-228, tokens shadcn), adicionar estas linhas logo antes do `}` de fechamento (depois de `--sidebar-ring:        oklch(0.556 0 0);`):
 ```css
@@ -1377,12 +1377,12 @@ Dentro do bloco `.dark { ... }` já existente (linhas 196-228, tokens shadcn), a
     --color-douro:        214 158 74;
 ```
 
-- [ ] **Passo 3: Validar**
+- [x] **Passo 3: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros (essa task ainda não tem nenhum consumidor visual do store — isso vem na Task 15).
 
-- [ ] **Passo 4: Commit**
+- [x] **Passo 4: Commit**
 
 ```bash
 git add frontend/src/store/temaAdminStore.ts frontend/src/index.css
