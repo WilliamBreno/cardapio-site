@@ -1,8 +1,10 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Moon, Sun } from 'lucide-react';
 import { buscarLoja, statusMercadoPago } from '../../api/admin';
 import { useAuthStore } from '../../store/authStore';
-import { rotuloCatalogo, rotuloCombo } from '../../lib/utils';
+import { useTemaAdminStore } from '../../store/temaAdminStore';
+import { rotuloCatalogo, rotuloCombo, cn } from '../../lib/utils';
 
 const linksBase = [
   { to: '/admin', label: 'Início' },
@@ -22,6 +24,8 @@ export function Dashboard() {
 
   const { data: loja } = useQuery({ queryKey: ['loja'], queryFn: buscarLoja });
   const { data: mercadoPagoStatus } = useQuery({ queryKey: ['mercadopago-status'], queryFn: statusMercadoPago });
+  const preferencia = useTemaAdminStore((state) => state.preferencia);
+  const alternarTema = useTemaAdminStore((state) => state.alternar);
 
   // Só aparece pra loja que ativou o recurso — pra maioria (lojas de
   // comida) esse link não faz sentido.
@@ -67,7 +71,7 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-fundo">
+    <div className={cn('min-h-screen bg-fundo', preferencia === 'escuro' && 'dark')}>
       <header className="flex items-center justify-between border-b border-tinta/10 bg-superficie px-6 py-4">
         <div>
           <p className="font-display text-lg tracking-wide text-tinta">
@@ -84,9 +88,18 @@ export function Dashboard() {
             </a>
           )}
         </div>
-        <button onClick={sair} className="text-sm font-medium text-tinta-suave hover:text-acento">
-          Sair
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={alternarTema}
+            aria-label={preferencia === 'escuro' ? 'Mudar pro modo claro' : 'Mudar pro modo escuro'}
+            className="flex size-8 items-center justify-center rounded-full text-tinta-suave transition hover:bg-tinta/10 hover:text-tinta"
+          >
+            {preferencia === 'escuro' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          </button>
+          <button onClick={sair} className="text-sm font-medium text-tinta-suave hover:text-acento">
+            Sair
+          </button>
+        </div>
       </header>
 
       {mercadoPagoStatus && !mercadoPagoStatus.mercadopago_conectado && (
