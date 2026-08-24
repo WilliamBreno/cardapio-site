@@ -225,6 +225,17 @@
     --sidebar-accent-foreground:        oklch(0.985 0 0);
     --sidebar-border:        oklch(1 0 0 / 10%);
     --sidebar-ring:        oklch(0.556 0 0);
+
+    /* Modo noturno do admin (20/08/2026) — redefine a MESMA camada de cor
+       de produto usada em toda tela do admin (bg-fundo/text-tinta/etc),
+       em vez de migrar pros tokens shadcn acima (que exigiria editar
+       dezenas de arquivos existentes). --color-acento (terracota) fica
+       IDÊNTICO ao modo claro, de propósito — mantém a identidade visual. */
+    --color-fundo:        26 20 15;
+    --color-superficie:   38 30 23;
+    --color-tinta:        236 226 209;
+    --color-tinta-suave:  162 146 124;
+    --color-douro:        214 158 74;
   }
   * {
     @apply border-border outline-ring/50;
