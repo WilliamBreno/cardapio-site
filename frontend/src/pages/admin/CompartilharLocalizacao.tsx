@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import {
   atualizarStatusEntrega, atualizarLocalizacao,
   atualizarStatusEntregaSolicitacao, atualizarLocalizacaoSolicitacao,
@@ -34,6 +35,11 @@ export function CompartilharLocalizacao() {
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [finalizando, setFinalizando] = useState(false);
+  // Código de confirmação (24/08/2026) — só existe pra Pedido (não pra
+  // SolicitacaoEntrega, ver escopo no comentário de marcarEntregue
+  // abaixo). O cliente vê esse código na própria tela de rastreamento e
+  // informa pro entregador na hora da entrega.
+  const [codigo, setCodigo] = useState('');
   const watchIdRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const posicaoAtualRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -104,14 +110,28 @@ export function CompartilharLocalizacao() {
     setCompartilhando(false);
   }
 
+  // marcarEntregue chama a função certa direto (não via `atualizarStatus`
+  // genérico) porque só o fluxo de Pedido exige o código de confirmação
+  // — atualizarStatusEntregaSolicitacao nem aceita esse 3º parâmetro. O
+  // código errado (ou vazio) volta como erro 400 do backend com uma
+  // mensagem clara, mostrada aqui em vez do texto genérico.
   async function marcarEntregue() {
     setFinalizando(true);
+    setErro(null);
     try {
-      await atualizarStatus(pedidoId, 'entregue');
+      if (ehSolicitacao) {
+        await atualizarStatusEntregaSolicitacao(pedidoId, 'entregue');
+      } else {
+        await atualizarStatusEntrega(pedidoId, 'entregue', codigo);
+      }
       pararCompartilhamento();
       navigate(rotaVoltar);
-    } catch {
-      setErro('Não foi possível marcar como entregue. Tenta de novo.');
+    } catch (e) {
+      setErro(
+        axios.isAxiosError(e) && e.response?.data?.erro
+          ? e.response.data.erro
+          : 'Não foi possível marcar como entregue. Tenta de novo.'
+      );
       setFinalizando(false);
     }
   }
@@ -155,9 +175,30 @@ export function CompartilharLocalizacao() {
             <p className="mt-3 text-xs text-tinta-suave">
               Mantenha essa aba aberta e a tela do celular ligada até finalizar a entrega.
             </p>
+
+            {!ehSolicitacao && (
+              <div className="mt-4">
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-tinta-suave">
+                  Código de confirmação
+                </label>
+                <p className="mb-2 text-xs text-tinta-suave">
+                  Peça pro cliente o código que aparece na tela de rastreamento dele.
+                </p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="0000"
+                  className="w-full rounded-xl border border-tinta/15 bg-fundo px-3 py-2 text-center font-carimbo text-lg tracking-[0.3em] text-tinta outline-none focus:border-acento"
+                />
+              </div>
+            )}
+
             <button
               onClick={marcarEntregue}
-              disabled={finalizando}
+              disabled={finalizando || (!ehSolicitacao && codigo.length !== 4)}
               className="mt-4 w-full rounded-full bg-acento py-3 font-semibold text-texto-claro disabled:opacity-60"
             >
               {finalizando ? 'Finalizando...' : '✅ Marcar como entregue'}

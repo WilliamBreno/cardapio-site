@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/WilliamBreno/cardapio-backend/internal/domain"
 	"github.com/WilliamBreno/cardapio-backend/internal/notification"
 	"github.com/WilliamBreno/cardapio-backend/internal/repository"
 	"github.com/WilliamBreno/cardapio-backend/internal/service"
@@ -175,6 +176,9 @@ func (h *PedidoHandler) HistoricoCliente(c *gin.Context) {
 // aceitava as duas últimas etapas.
 type statusEntregaRequest struct {
 	StatusEntrega string `json:"status_entrega" binding:"required,oneof=a_preparar preparando saiu_para_entrega entregue"`
+	// CodigoConfirmacao só é exigido (e checado) quando StatusEntrega ==
+	// "entregue" e o pedido é modo "entrega" — ver AtualizarStatusEntrega.
+	CodigoConfirmacao string `json:"codigo_confirmacao"`
 }
 
 // AtualizarStatusEntrega atende PUT /admin/pedidos/:id/status-entrega.
@@ -203,6 +207,19 @@ func (h *PedidoHandler) AtualizarStatusEntrega(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})
 		return
+	}
+
+	// Confirmação por código (24/08/2026): só pra pedido modo "entrega"
+	// indo pra "entregue" — o entregador precisa digitar o código que o
+	// cliente já vê na própria tela de rastreamento, fechando o ciclo de
+	// que a entrega realmente aconteceu (em vez de um clique sem nenhuma
+	// checagem). Retirada/guardar não têm entregador, não passam por
+	// aqui — continuam marcando "entregue" livremente.
+	if req.StatusEntrega == "entregue" && pedido.ModoEntrega == domain.ModoEntregaEntrega {
+		if req.CodigoConfirmacao == "" || req.CodigoConfirmacao != pedido.CodigoConfirmacao {
+			c.JSON(http.StatusBadRequest, gin.H{"erro": "código de confirmação incorreto — peça o código pro cliente"})
+			return
+		}
 	}
 
 	if err := h.pedidoRepo.AtualizarStatusEntrega(uint(pedidoID), req.StatusEntrega); err != nil {
@@ -322,6 +339,12 @@ type rastrearResponse struct {
 	// (Fase 7.4) — false não é erro, é o frontend sabendo pra mostrar um
 	// aviso em vez do mapa (as coordenadas acima vêm zeradas nesse caso).
 	Disponivel bool `json:"disponivel"`
+	// CodigoConfirmacao (24/08/2026) — sempre incluído, independente do
+	// plano (Disponivel só afeta o mapa ao vivo, não esse mecanismo de
+	// confirmação): o cliente mostra esse código pro entregador na
+	// entrega, que digita ele pra marcar o pedido como "entregue" (ver
+	// AtualizarStatusEntrega).
+	CodigoConfirmacao string `json:"codigo_confirmacao"`
 }
 
 // Rastrear atende GET /lojas/:slug/pedidos/:id/rastrear?telefone=...
@@ -355,8 +378,9 @@ func (h *PedidoHandler) Rastrear(c *gin.Context) {
 	disponivel := rastreamentoDisponivel(loja.Plano)
 
 	resposta := rastrearResponse{
-		StatusEntrega: pedido.StatusEntrega,
-		Disponivel:    disponivel,
+		StatusEntrega:     pedido.StatusEntrega,
+		Disponivel:        disponivel,
+		CodigoConfirmacao: pedido.CodigoConfirmacao,
 	}
 	if disponivel {
 		resposta.EntregadorLatitude = pedido.EntregadorLatitude

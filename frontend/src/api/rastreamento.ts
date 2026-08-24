@@ -8,6 +8,10 @@ interface RastrearResponse {
   // disponivel (Fase 7.4): rastreamento em tempo real é Pro/Scale — false
   // não é erro, é o backend avisando que o plano da loja não inclui mapa.
   disponivel: boolean;
+  // codigo_confirmacao (24/08/2026): sempre vem preenchido, mesmo em
+  // planos sem mapa ao vivo — o cliente mostra pro entregador, que
+  // digita na tela de gerenciar entrega pra confirmar.
+  codigo_confirmacao: string;
 }
 
 // Chamadas administrativas (exigem token — o interceptor do client.ts já
@@ -17,8 +21,11 @@ interface RastrearResponse {
 // só existiam as duas últimas (saiu_para_entrega/entregue).
 export type EtapaPedido = 'a_preparar' | 'preparando' | 'saiu_para_entrega' | 'entregue';
 
-export async function atualizarStatusEntrega(pedidoId: number, statusEntrega: EtapaPedido): Promise<void> {
-  await api.put(`/admin/pedidos/${pedidoId}/status-entrega`, { status_entrega: statusEntrega });
+// codigoConfirmacao só é necessário (e checado pelo backend) quando
+// statusEntrega === 'entregue' num pedido modo "entrega" — ver
+// CompartilharLocalizacao.tsx. Nos outros casos, pode ser omitido.
+export async function atualizarStatusEntrega(pedidoId: number, statusEntrega: EtapaPedido, codigoConfirmacao?: string): Promise<void> {
+  await api.put(`/admin/pedidos/${pedidoId}/status-entrega`, { status_entrega: statusEntrega, codigo_confirmacao: codigoConfirmacao });
 }
 
 export async function atualizarLocalizacao(pedidoId: number, latitude: number, longitude: number): Promise<void> {

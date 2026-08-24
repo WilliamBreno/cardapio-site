@@ -418,6 +418,10 @@ export interface Pedido {
   created_at: string;
   updated_at: string;
   status_entrega: string;
+  // codigo_confirmacao (24/08/2026): código de 4 dígitos que o cliente
+  // vê na tela de rastreamento e informa pro entregador pra confirmar a
+  // entrega — ver CompartilharLocalizacao.tsx.
+  codigo_confirmacao: string;
   entregador_latitude: number;
   entregador_longitude: number;
   entregador_atualizado_em: string | null;

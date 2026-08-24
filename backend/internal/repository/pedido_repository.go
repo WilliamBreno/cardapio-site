@@ -140,6 +140,21 @@ func (r *PedidoRepository) AtualizarStatusEntrega(pedidoID uint, statusEntrega s
 	return r.db.Model(&domain.Pedido{}).Where("id = ?", pedidoID).Update("status_entrega", statusEntrega).Error
 }
 
+// PreencherCodigosDeConfirmacaoFaltantes é uma migração de dado, chamada
+// uma vez no boot da API (main.go) — pedido criado antes do campo
+// CodigoConfirmacao existir fica com ele vazio, o que o travaria pra
+// sempre de ser marcado "entregue" (o handler agora exige um código
+// não-vazio que bata com o do pedido). Preenche com um valor aleatório
+// qualquer — não precisa da mesma robustez de crypto/rand usada na
+// geração de pedido novo (PedidoService.gerarCodigoConfirmacao), é só
+// destravar pedido antigo.
+func (r *PedidoRepository) PreencherCodigosDeConfirmacaoFaltantes() error {
+	return r.db.Exec(`
+		UPDATE pedidos SET codigo_confirmacao = lpad(floor(random() * 10000)::text, 4, '0')
+		WHERE codigo_confirmacao = '' OR codigo_confirmacao IS NULL
+	`).Error
+}
+
 // AtualizarLocalizacaoEntregador grava a posição mais recente de quem
 // está entregando. Chamado periodicamente pelo navegador de quem
 // compartilha a localização, enquanto a entrega está em andamento.

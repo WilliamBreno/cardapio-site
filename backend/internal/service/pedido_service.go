@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log"
+	"math/big"
 	"time"
 	_ "time/tzdata"
 
@@ -77,6 +79,24 @@ func NewPedidoService(db *gorm.DB, distanciaService *DistanciaService, notificat
 		distanciaService:   distanciaService,
 		notificationSender: notificationSender,
 	}
+}
+
+// gerarCodigoConfirmacao devolve um código numérico de 4 dígitos
+// (0000-9999, com zero à esquerda quando necessário), usado pra
+// confirmar entrega — fácil do cliente ler em voz alta e do entregador
+// digitar. crypto/rand em vez de math/rand porque, apesar de não ser um
+// segredo forte (só 10 mil combinações), ainda é o mecanismo que evita
+// marcar entrega sem confirmação nenhuma, então não custa usar a fonte
+// de aleatoriedade correta.
+func gerarCodigoConfirmacao() string {
+	n, err := rand.Int(rand.Reader, big.NewInt(10000))
+	if err != nil {
+		// Praticamente nunca acontece (fonte de aleatoriedade do SO
+		// indisponível) — cai num código fixo em vez de travar a
+		// criação do pedido inteiro por causa disso.
+		return "0000"
+	}
+	return fmt.Sprintf("%04d", n.Int64())
 }
 
 func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pedido, error) {
@@ -168,14 +188,15 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 	}
 
 	pedido := domain.Pedido{
-		LojaID:          loja.ID,
-		ClienteNome:     input.ClienteNome,
-		ClienteTelefone: input.ClienteTelefone,
-		DataRetirada:    input.DataRetirada,
-		Status:          domain.StatusAguardandoPagamento,
-		ModoEntrega:     modoEntrega,
-		EnderecoEntrega: input.EnderecoEntrega,
-		TaxaEntrega:     taxaEntrega,
+		LojaID:            loja.ID,
+		ClienteNome:       input.ClienteNome,
+		ClienteTelefone:   input.ClienteTelefone,
+		DataRetirada:      input.DataRetirada,
+		Status:            domain.StatusAguardandoPagamento,
+		ModoEntrega:       modoEntrega,
+		EnderecoEntrega:   input.EnderecoEntrega,
+		TaxaEntrega:       taxaEntrega,
+		CodigoConfirmacao: gerarCodigoConfirmacao(),
 	}
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {

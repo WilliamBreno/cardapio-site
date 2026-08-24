@@ -18,6 +18,22 @@ const iconePadrao = L.icon({
 
 const INTERVALO_POLL_MS = 10_000; // atualiza o mapa a cada 10s
 
+// CodigoConfirmacaoEntrega (24/08/2026) — mostra o código de 4 dígitos
+// que o cliente informa pro entregador na hora da entrega, pra ele
+// confirmar no painel dele que a entrega aconteceu de verdade (ver
+// CompartilharLocalizacao.tsx). Sempre visível assim que o pedido está
+// "saiu para entrega", independente do plano ter mapa ao vivo ou não —
+// esse mecanismo não depende de rastreamento em tempo real.
+function CodigoConfirmacaoEntrega({ codigo }: { codigo: string }) {
+  if (!codigo) return null;
+  return (
+    <div className="mx-auto max-w-xs rounded-xl bg-superficie px-4 py-3 text-center shadow-sm">
+      <p className="text-xs text-tinta-suave">Mostre esse código pro entregador na entrega</p>
+      <p className="font-carimbo text-2xl font-semibold tracking-[0.3em] text-acento">{codigo}</p>
+    </div>
+  );
+}
+
 export function RastrearPedido() {
   const { slug, id } = useParams<{ slug: string; id: string }>();
   const [searchParams] = useSearchParams();
@@ -33,6 +49,7 @@ export function RastrearPedido() {
     entregador_longitude: number;
     entregador_atualizado_em: string | null;
     disponivel: boolean;
+    codigo_confirmacao: string;
   } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -105,11 +122,12 @@ export function RastrearPedido() {
 
   if (!dados.disponivel) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-2 bg-fundo px-6 text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-fundo px-6 text-center">
         <p className="font-display text-xl text-tinta">Pedido saiu para entrega 🛵</p>
         <p className="text-sm text-tinta-suave">
           O rastreamento em tempo real não está disponível pra essa loja no momento.
         </p>
+        <CodigoConfirmacaoEntrega codigo={dados.codigo_confirmacao} />
       </div>
     );
   }
@@ -129,6 +147,10 @@ export function RastrearPedido() {
             : `Atualizado às ${new Date(dados.entregador_atualizado_em!).toLocaleTimeString('pt-BR')}`}
         </p>
       </header>
+
+      <div className="px-6 pt-3">
+        <CodigoConfirmacaoEntrega codigo={dados.codigo_confirmacao} />
+      </div>
 
       <div className="flex-1">
         {semLocalizacaoAinda ? (

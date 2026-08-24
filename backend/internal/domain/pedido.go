@@ -77,14 +77,23 @@ type Pedido struct {
 	// Combos (Fase 6) — snapshot dos combos comprados nesse pedido, à
 	// parte de Itens (que continua só produto avulso). Um pedido pode
 	// misturar os dois: produtos soltos + combos, na mesma compra.
-	Combos                 []PedidoCombo `gorm:"foreignKey:PedidoID;constraint:OnDelete:CASCADE" json:"combos,omitempty"`
-	CreatedAt              time.Time     `json:"created_at"`
-	UpdatedAt              time.Time     `json:"updated_at"`
-	TaxaEntrega            float64       `gorm:"default:0" json:"taxa_entrega"`
-	StatusEntrega          string        `gorm:"size:30;default:''" json:"status_entrega"`
-	EntregadorLatitude     float64       `gorm:"default:0" json:"entregador_latitude"`
-	EntregadorLongitude    float64       `gorm:"default:0" json:"entregador_longitude"`
-	EntregadorAtualizadoEm *time.Time    `json:"entregador_atualizado_em"`
+	Combos        []PedidoCombo `gorm:"foreignKey:PedidoID;constraint:OnDelete:CASCADE" json:"combos,omitempty"`
+	CreatedAt     time.Time     `json:"created_at"`
+	UpdatedAt     time.Time     `json:"updated_at"`
+	TaxaEntrega   float64       `gorm:"default:0" json:"taxa_entrega"`
+	StatusEntrega string        `gorm:"size:30;default:''" json:"status_entrega"`
+	// CodigoConfirmacao (24/08/2026) — código de 4 dígitos gerado na
+	// criação do pedido, mostrado pro cliente na própria tela de
+	// rastreamento. O entregador precisa digitar esse código pra marcar o
+	// pedido como "entregue" (ver PedidoHandler.AtualizarStatusEntrega) —
+	// fecha o ciclo de confirmar que a entrega aconteceu de verdade, em
+	// vez de só um clique sem nenhuma checagem. Só é exigido pra pedido
+	// modo "entrega"; retirada/guardar não passam por essa checagem (não
+	// tem entregador).
+	CodigoConfirmacao      string     `gorm:"size:10" json:"codigo_confirmacao"`
+	EntregadorLatitude     float64    `gorm:"default:0" json:"entregador_latitude"`
+	EntregadorLongitude    float64    `gorm:"default:0" json:"entregador_longitude"`
+	EntregadorAtualizadoEm *time.Time `json:"entregador_atualizado_em"`
 }
 
 func (Pedido) TableName() string {

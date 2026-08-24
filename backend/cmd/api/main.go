@@ -79,6 +79,14 @@ func main() {
 		log.Printf("aviso: não foi possível migrar banners antigos pro carrossel: %v", err)
 	}
 
+	// Migração de dado (confirmação de entrega por código, 24/08/2026):
+	// pedido criado antes desse campo existir fica destravado com um
+	// código preenchido agora, em vez de nunca mais poder ser marcado
+	// "entregue" (ver PedidoRepository.PreencherCodigosDeConfirmacaoFaltantes).
+	if err := repository.NewPedidoRepository(db).PreencherCodigosDeConfirmacaoFaltantes(); err != nil {
+		log.Printf("aviso: não foi possível preencher códigos de confirmação de pedidos antigos: %v", err)
+	}
+
 	router := gin.Default()
 
 	// Não confia em X-Forwarded-For/X-Real-IP vindo da requisição — sem

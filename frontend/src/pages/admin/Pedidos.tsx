@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 import {
   DndContext,
   DragOverlay,
@@ -206,10 +207,16 @@ export function Pedidos() {
   }, [definirLarguraCompleta]);
 
   // avancarEtapa é compartilhado pela lista e pelo quadro — os dois
-  // chamam o mesmo endpoint, só muda onde o botão aparece.
+  // chamam o mesmo endpoint, só muda onde o botão aparece. onError
+  // mostra a mensagem real do backend (24/08/2026: virou relevante
+  // depois da confirmação por código — sem isso, tentar pular direto
+  // pra "Entregue" num pedido de entrega falhava sem nenhum aviso).
   const mutAvancar = useMutation({
     mutationFn: ({ pedidoId, etapa }: { pedidoId: number; etapa: EtapaPedido }) => atualizarStatusEntrega(pedidoId, etapa),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pedidos'] }),
+    onError: (e) => {
+      alert(axios.isAxiosError(e) && e.response?.data?.erro ? e.response.data.erro : 'Não foi possível atualizar o pedido.');
+    },
   });
   function avancarEtapa(pedido: Pedido) {
     const proxima = proximaEtapa(etapaAtual(pedido));
@@ -219,9 +226,18 @@ export function Pedidos() {
   // moverParaEtapa é o que o drag-and-drop chama — diferente de
   // avancarEtapa (que só sabe ir pra próxima etapa da lista), aceita
   // qualquer etapa de destino, porque soltar um card no Kanban pode
-  // avançar, voltar ou pular etapa livremente.
+  // avançar, voltar ou pular etapa livremente. Exceção (24/08/2026):
+  // "Entregue" num pedido modo "entrega" exige o código de confirmação
+  // que só existe na tela "Gerenciar entrega" — arrastar pra lá direto
+  // sempre falharia no backend, então nem tenta, já orienta pro lugar
+  // certo.
   function moverParaEtapa(pedido: Pedido, etapa: EtapaPedido) {
-    if (etapa !== etapaAtual(pedido)) mutAvancar.mutate({ pedidoId: pedido.id, etapa });
+    if (etapa === etapaAtual(pedido)) return;
+    if (etapa === 'entregue' && pedido.modo_entrega === 'entrega') {
+      alert('Pra marcar como entregue, use "Gerenciar entrega" no card — precisa do código que o cliente recebeu.');
+      return;
+    }
+    mutAvancar.mutate({ pedidoId: pedido.id, etapa });
   }
 
   // Impressão de comanda via Bluetooth (Fase 10.7) — 100% client-side, sem
@@ -475,6 +491,10 @@ function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir }: {
 }) {
   const proxima = proximaEtapa(etapaAtual(pedido));
   const totalItens = pedido.itens.length + (pedido.combos?.length ?? 0);
+  // Entregar um pedido modo "entrega" exige o código de confirmação
+  // (24/08/2026) — só existe na tela "Gerenciar entrega", não no botão
+  // "Avançar" genérico do Kanban (que sempre falharia sem o código).
+  const precisaCodigoParaEntregar = proxima === 'entregue' && pedido.modo_entrega === 'entrega';
 
   return (
     <>
@@ -515,7 +535,7 @@ function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir }: {
       <p className="mt-2 border-t border-tinta/10 pt-2 text-sm font-carimbo font-semibold text-tinta">
         R$ {pedido.total.toFixed(2).replace('.', ',')}
       </p>
-      {proxima && (
+      {proxima && !precisaCodigoParaEntregar && (
         // onPointerDown + stopPropagation: o container arrastável (pai)
         // também escuta pointerdown (dnd-kit) — sem isso, um toque rápido
         // no botão poderia, em telas de toque, disputar com o início do
@@ -527,6 +547,15 @@ function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir }: {
         >
           Avançar → {rotuloEtapa(proxima, pedido.modo_entrega)}
         </button>
+      )}
+      {precisaCodigoParaEntregar && (
+        <Link
+          onPointerDown={(e) => e.stopPropagation()}
+          to={`/admin/pedidos/${pedido.id}/localizacao`}
+          className="btn-neu-primario btn-neu-sm mt-2 block w-full text-center"
+        >
+          📍 Confirmar entrega
+        </Link>
       )}
       <button
         onPointerDown={(e) => e.stopPropagation()}
@@ -554,6 +583,12 @@ function PedidoCard({ pedido, segmentoLoja, onAvancar, onImprimir }: { pedido: P
     pedido.status === 'pago' &&
     pedido.modo_entrega === 'entrega' &&
     pedido.status_entrega !== 'entregue';
+
+  // Entregar um pedido modo "entrega" exige o código de confirmação
+  // (24/08/2026) — o botão "Avançar" genérico sempre falharia sem ele;
+  // o link "Gerenciar entrega" logo abaixo (podeGerenciarEntrega) é o
+  // caminho certo pra esse último passo.
+  const precisaCodigoParaEntregar = proxima === 'entregue' && pedido.modo_entrega === 'entrega';
 
   return (
     <li className="rounded-2xl bg-superficie p-4 shadow-sm">
@@ -629,7 +664,7 @@ function PedidoCard({ pedido, segmentoLoja, onAvancar, onImprimir }: { pedido: P
         </span>
       </div>
 
-      {proxima && (
+      {proxima && !precisaCodigoParaEntregar && (
         <button onClick={() => onAvancar(pedido)} className={cn('btn-neu-primario mt-3 w-full', ESTILO_AVANCAR[etapaAtual(pedido)])}>
           Avançar → {rotuloEtapa(proxima, pedido.modo_entrega)}
         </button>
