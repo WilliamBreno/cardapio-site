@@ -1,10 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
 import { listarPedidos, buscarLoja } from '../../api/admin';
 import { atualizarStatusEntrega, type EtapaPedido } from '../../api/rastreamento';
 import type { Pedido, StatusPedido, TipoProduto } from '../../api/types';
-import { rotuloCombo } from '../../lib/utils';
+import { cn, rotuloCombo } from '../../lib/utils';
 import { imprimirComanda } from '../../lib/impressoraBluetooth';
 import { useLayoutAdminStore } from '../../store/layoutAdminStore';
 
@@ -117,6 +130,14 @@ export function Pedidos() {
     if (proxima) mutAvancar.mutate({ pedidoId: pedido.id, etapa: proxima });
   }
 
+  // moverParaEtapa é o que o drag-and-drop chama — diferente de
+  // avancarEtapa (que só sabe ir pra próxima etapa da lista), aceita
+  // qualquer etapa de destino, porque soltar um card no Kanban pode
+  // avançar, voltar ou pular etapa livremente.
+  function moverParaEtapa(pedido: Pedido, etapa: EtapaPedido) {
+    if (etapa !== etapaAtual(pedido)) mutAvancar.mutate({ pedidoId: pedido.id, etapa });
+  }
+
   // Impressão de comanda via Bluetooth (Fase 10.7) — 100% client-side, sem
   // chamada de backend. Erro aqui é normal na primeira tentativa (usuário
   // cancelou o seletor de pareamento, impressora desligada etc.), avisa
@@ -205,101 +226,224 @@ export function Pedidos() {
           )}
         </>
       ) : (
-        <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onImprimir={handleImprimir} />
+        <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onMover={moverParaEtapa} onImprimir={handleImprimir} />
       )}
     </div>
   );
 }
 
-// QuadroPedidos é a visão "dinâmica e interativa" (Fase 10.2, redesenhada
-// em 20/08/2026 com drag-and-drop de verdade — ver próxima task). Grid
-// responsivo (1/2/4 colunas) no lugar do scroll horizontal forçado de
-// antes; card com a mesma densidade de informação da Lista (itens,
-// telefone, horário, cupom, peso pendente), não só nome+total.
-function QuadroPedidos({ pedidos, isLoading, segmentoLoja, onAvancar, onImprimir }: {
+// QuadroPedidos é a visão "dinâmica e interativa" (Fase 10.2, com
+// drag-and-drop de verdade desde 20/08/2026) — soltar um card em
+// qualquer coluna chama a mesma mutation de sempre (moverParaEtapa),
+// sem validar ordem: avança, volta ou pula etapa livremente, igual um
+// Kanban de verdade. Funciona em mouse (PointerSensor), toque
+// (TouchSensor) e teclado (KeyboardSensor, ativado pelos atributos que
+// useDraggable já injeta no card).
+function QuadroPedidos({ pedidos, isLoading, segmentoLoja, onAvancar, onMover, onImprimir }: {
   pedidos: Pedido[];
   isLoading: boolean;
   segmentoLoja?: TipoProduto;
   onAvancar: (pedido: Pedido) => void;
+  onMover: (pedido: Pedido, etapa: EtapaPedido) => void;
   onImprimir: (pedido: Pedido) => void;
 }) {
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(
+    // distance: 8 evita que um clique parado no botão "Avançar"/"Imprimir"
+    // seja interpretado como início de arraste.
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor)
+  );
+
   if (isLoading) return <p className="text-tinta-suave">Carregando pedidos...</p>;
   if (pedidos.length === 0) return <p className="text-tinta-suave">Nenhum pedido pago ainda.</p>;
 
+  const pedidoArrastado = activeId ? pedidos.find((p) => `pedido-${p.id}` === activeId) ?? null : null;
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id));
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+    const etapaDestino = String(over.id);
+    if (!ETAPA_VALORES.has(etapaDestino)) return;
+    const pedidoId = Number(String(active.id).replace('pedido-', ''));
+    const pedido = pedidos.find((p) => p.id === pedidoId);
+    if (pedido) onMover(pedido, etapaDestino as EtapaPedido);
+  }
+
   return (
-    <div className="grid grid-cols-1 gap-4 pb-2 sm:grid-cols-2 lg:grid-cols-4">
-      {ETAPAS.map((etapa) => {
-        const pedidosDaEtapa = pedidos.filter((p) => etapaAtual(p) === etapa.valor);
-        return (
-          <div key={etapa.valor} className="space-y-3">
-            <div className={`rounded-full px-3 py-1.5 text-center text-xs font-semibold ${etapa.classe}`}>
-              {etapa.rotuloEntrega === etapa.rotuloRetirada ? etapa.rotuloEntrega : `${etapa.rotuloEntrega} / ${etapa.rotuloRetirada}`}
-              {' · '}{pedidosDaEtapa.length}
-            </div>
-            <div className="space-y-2">
-              {pedidosDaEtapa.map((pedido) => {
-                const proxima = proximaEtapa(etapaAtual(pedido));
-                const totalItens = pedido.itens.length + (pedido.combos?.length ?? 0);
-                return (
-                  <div key={pedido.id} className="rounded-xl bg-superficie p-3 shadow-sm">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-tinta">
-                        {pedido.cliente_nome} <span className="text-tinta-suave">· #{pedido.id}</span>
-                      </p>
-                      {pedido.peso_pendente && (
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${PESO_PENDENTE_CLASSE}`}>
-                          ⚠️ Peso pendente
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-tinta-suave">{pedido.cliente_telefone}</p>
-                    <p className="mt-1 text-xs text-tinta-suave">
-                      {pedido.modo_entrega === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'} · {formatarData(pedido.data_retirada)}
-                    </p>
-                    <div className="mt-2 space-y-0.5 border-t border-tinta/10 pt-2">
-                      {pedido.itens.slice(0, 2).map((item) => (
-                        <p key={item.id} className="truncate text-xs text-tinta">
-                          {item.quantidade}x {item.produto_nome}
-                        </p>
-                      ))}
-                      {pedido.combos?.slice(0, 2).map((combo) => (
-                        <p key={combo.id} className="truncate text-xs text-tinta">
-                          {combo.quantidade}x {combo.nome} <span className="text-acento">· {rotuloCombo(segmentoLoja)}</span>
-                        </p>
-                      ))}
-                      {totalItens > 2 && (
-                        <p className="text-xs text-tinta-suave">+{totalItens - 2} ite{totalItens - 2 === 1 ? 'm' : 'ns'}</p>
-                      )}
-                    </div>
-                    {pedido.cupom_codigo && (
-                      <p className="mt-1 text-xs text-emerald-600">
-                        Cupom {pedido.cupom_codigo} · -R$ {pedido.desconto.toFixed(2).replace('.', ',')}
-                      </p>
-                    )}
-                    <p className="mt-2 border-t border-tinta/10 pt-2 text-sm font-carimbo font-semibold text-tinta">
-                      R$ {pedido.total.toFixed(2).replace('.', ',')}
-                    </p>
-                    {proxima && (
-                      <button onClick={() => onAvancar(pedido)} className="btn-neu-primario btn-neu-sm mt-2 w-full">
-                        Avançar → {rotuloEtapa(proxima, pedido.modo_entrega)}
-                      </button>
-                    )}
-                    <button onClick={() => onImprimir(pedido)} className="btn-neu-secundario btn-neu-sm mt-2 w-full">
-                      🖨️ Imprimir comanda
-                    </button>
-                  </div>
-                );
-              })}
-              {pedidosDaEtapa.length === 0 && (
-                <p className="rounded-xl border-2 border-dashed border-tinta/10 p-3 text-center text-xs text-tinta-suave/60">
-                  Nenhum pedido aqui
-                </p>
-              )}
-            </div>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div className="grid grid-cols-1 gap-4 pb-2 sm:grid-cols-2 lg:grid-cols-4">
+        {ETAPAS.map((etapa) => (
+          <ColunaEtapa
+            key={etapa.valor}
+            etapa={etapa}
+            pedidosDaEtapa={pedidos.filter((p) => etapaAtual(p) === etapa.valor)}
+            segmentoLoja={segmentoLoja}
+            onAvancar={onAvancar}
+            onImprimir={onImprimir}
+          />
+        ))}
+      </div>
+      <DragOverlay>
+        {pedidoArrastado && (
+          <div className="rounded-xl bg-superficie p-3 shadow-lg ring-2 ring-acento/40">
+            <ConteudoCardQuadro pedido={pedidoArrastado} segmentoLoja={segmentoLoja} onAvancar={onAvancar} onImprimir={onImprimir} />
           </div>
-        );
-      })}
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+// ColunaEtapa é a zona de soltar (useDroppable, id = etapa.valor) — o
+// destaque visual (isOver) confirma pro dono onde o card vai cair antes
+// de soltar o dedo/mouse.
+function ColunaEtapa({ etapa, pedidosDaEtapa, segmentoLoja, onAvancar, onImprimir }: {
+  etapa: (typeof ETAPAS)[number];
+  pedidosDaEtapa: Pedido[];
+  segmentoLoja?: TipoProduto;
+  onAvancar: (pedido: Pedido) => void;
+  onImprimir: (pedido: Pedido) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: etapa.valor });
+
+  return (
+    <div className="space-y-3">
+      <div className={`rounded-full px-3 py-1.5 text-center text-xs font-semibold ${etapa.classe}`}>
+        {etapa.rotuloEntrega === etapa.rotuloRetirada ? etapa.rotuloEntrega : `${etapa.rotuloEntrega} / ${etapa.rotuloRetirada}`}
+        {' · '}{pedidosDaEtapa.length}
+      </div>
+      <div
+        ref={setNodeRef}
+        className={cn(
+          // min-h-[6rem] (não min-h-24): a escala numérica padrão do
+          // Tailwind v3 para min-height só tem 0/full/screen/min/max/fit —
+          // diferente de height/width, que herdam a escala de espaçamento
+          // inteira. Precisa do valor arbitrário aqui.
+          'min-h-[6rem] space-y-2 rounded-2xl p-1 transition',
+          isOver && 'bg-acento/5 ring-2 ring-acento/30'
+        )}
+      >
+        {pedidosDaEtapa.map((pedido) => (
+          <CardArrastavel key={pedido.id} pedido={pedido} segmentoLoja={segmentoLoja} onAvancar={onAvancar} onImprimir={onImprimir} />
+        ))}
+        {pedidosDaEtapa.length === 0 && (
+          <p className="rounded-xl border-2 border-dashed border-tinta/10 p-3 text-center text-xs text-tinta-suave/60">
+            Solte um pedido aqui
+          </p>
+        )}
+      </div>
     </div>
+  );
+}
+
+// CardArrastavel é o card em si (useDraggable, id = "pedido-{id}") — fica
+// com opacidade reduzida no lugar de origem enquanto arrasta (o
+// DragOverlay do QuadroPedidos mostra a cópia "de verdade" seguindo o
+// ponteiro).
+function CardArrastavel({ pedido, segmentoLoja, onAvancar, onImprimir }: {
+  pedido: Pedido;
+  segmentoLoja?: TipoProduto;
+  onAvancar: (pedido: Pedido) => void;
+  onImprimir: (pedido: Pedido) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `pedido-${pedido.id}` });
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={cn(
+        'touch-none cursor-grab rounded-xl bg-superficie p-3 shadow-sm active:cursor-grabbing',
+        isDragging && 'opacity-30'
+      )}
+    >
+      <ConteudoCardQuadro pedido={pedido} segmentoLoja={segmentoLoja} onAvancar={onAvancar} onImprimir={onImprimir} />
+    </div>
+  );
+}
+
+// ConteudoCardQuadro é só o miolo visual do card (sem nenhum hook de
+// drag) — reaproveitado tanto dentro do CardArrastavel quanto dentro do
+// DragOverlay, pra não duplicar o JSX nos dois lugares.
+function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir }: {
+  pedido: Pedido;
+  segmentoLoja?: TipoProduto;
+  onAvancar: (pedido: Pedido) => void;
+  onImprimir: (pedido: Pedido) => void;
+}) {
+  const proxima = proximaEtapa(etapaAtual(pedido));
+  const totalItens = pedido.itens.length + (pedido.combos?.length ?? 0);
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium text-tinta">
+          {pedido.cliente_nome} <span className="text-tinta-suave">· #{pedido.id}</span>
+        </p>
+        {pedido.peso_pendente && (
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${PESO_PENDENTE_CLASSE}`}>
+            ⚠️ Peso pendente
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-tinta-suave">{pedido.cliente_telefone}</p>
+      <p className="mt-1 text-xs text-tinta-suave">
+        {pedido.modo_entrega === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'} · {formatarData(pedido.data_retirada)}
+      </p>
+      <div className="mt-2 space-y-0.5 border-t border-tinta/10 pt-2">
+        {pedido.itens.slice(0, 2).map((item) => (
+          <p key={item.id} className="truncate text-xs text-tinta">
+            {item.quantidade}x {item.produto_nome}
+          </p>
+        ))}
+        {pedido.combos?.slice(0, 2).map((combo) => (
+          <p key={combo.id} className="truncate text-xs text-tinta">
+            {combo.quantidade}x {combo.nome} <span className="text-acento">· {rotuloCombo(segmentoLoja)}</span>
+          </p>
+        ))}
+        {totalItens > 2 && (
+          <p className="text-xs text-tinta-suave">+{totalItens - 2} ite{totalItens - 2 === 1 ? 'm' : 'ns'}</p>
+        )}
+      </div>
+      {pedido.cupom_codigo && (
+        <p className="mt-1 text-xs text-emerald-600">
+          Cupom {pedido.cupom_codigo} · -R$ {pedido.desconto.toFixed(2).replace('.', ',')}
+        </p>
+      )}
+      <p className="mt-2 border-t border-tinta/10 pt-2 text-sm font-carimbo font-semibold text-tinta">
+        R$ {pedido.total.toFixed(2).replace('.', ',')}
+      </p>
+      {proxima && (
+        // onPointerDown + stopPropagation: o container arrastável (pai)
+        // também escuta pointerdown (dnd-kit) — sem isso, um toque rápido
+        // no botão poderia, em telas de toque, disputar com o início do
+        // gesto de arraste (mesmo com o delay do TouchSensor).
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => onAvancar(pedido)}
+          className="btn-neu-primario btn-neu-sm mt-2 w-full"
+        >
+          Avançar → {rotuloEtapa(proxima, pedido.modo_entrega)}
+        </button>
+      )}
+      <button
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => onImprimir(pedido)}
+        className="btn-neu-secundario btn-neu-sm mt-2 w-full"
+      >
+        🖨️ Imprimir comanda
+      </button>
+    </>
   );
 }
 
