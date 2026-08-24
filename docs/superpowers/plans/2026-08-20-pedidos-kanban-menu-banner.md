@@ -644,7 +644,7 @@ git commit -m "feat: drag-and-drop de verdade no Kanban de Pedidos via @dnd-kit/
 
 **Interfaces:** nenhuma nova — só troca visual do `<nav>` já existente.
 
-- [ ] **Passo 1: Importar os ícones e montar o mapa rota→ícone**
+- [x] **Passo 1: Importar os ícones e montar o mapa rota→ícone**
 
 Trocar a linha 3:
 ```tsx
@@ -694,7 +694,7 @@ const ICONE_POR_ROTA: Record<string, LucideIcon> = {
 };
 ```
 
-- [ ] **Passo 2: Trocar o visual do `<nav>`**
+- [x] **Passo 2: Trocar o visual do `<nav>`**
 
 Trocar (linhas 114-131):
 ```tsx
@@ -746,21 +746,41 @@ por:
 
 (`cn` já está importado nesse arquivo, linha 7.)
 
-- [ ] **Passo 3: Verificar o typecheck**
+- [x] **Passo 3: Verificar o typecheck**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 
-- [ ] **Passo 4: Verificar no navegador**
+Confirmado limpo — antes de trocar qualquer ícone, verifiquei um por um contra o `.d.ts` real do
+pacote instalado (`node_modules/lucide-react/dist/lucide-react.d.ts`): `Archive`, `Beaker`, `Boxes`,
+`ClipboardList`, `CreditCard`, `Package`, `Settings`, `Sparkles`, `Tags`, `Ticket`, `Warehouse`,
+`Moon`, `Sun` existem como ícone próprio. `Home` é especial — não existe mais como ícone próprio
+nesta versão (renomeado pra `House`), mas o pacote reexporta `House as Home` como alias mantido pra
+compatibilidade (confirmado no bloco de `export { ... }` no fim do `.d.ts`), então `import { Home }
+from 'lucide-react'` funciona normalmente sem precisar trocar de nome. `type LucideIcon` também
+confirmado exportado (`export type { IconNode, LucideIcon, LucideProps, SVGAttributes };`). Nenhum
+nome de ícone precisou ser ajustado — o código foi copiado exatamente como no plano.
 
-Abrir qualquer tela do admin. Confirmar: cada link do menu mostra o ícone certo (conferir "Estoque"/"Insumos"/"Guardados" também, logando com uma loja Scale que tenha `aceita_guardar_entregar` ativo, se disponível); o link da página atual aparece como pill preenchida (`bg-acento`); passar o mouse sobre um link inativo mostra o fundo suave (`hover:bg-tinta/5`); a barra continua horizontal com scroll lateral em tela estreita (não virou sidebar).
+- [x] **Passo 4: Verificar no navegador**
 
-- [ ] **Passo 5: Commit**
+**Nota**: verificação visual pulada nesta sessão — mesma situação já registrada nas Tasks 3/4/5
+deste plano: Docker Desktop não estava rodando (`docker info` falhou com "failed to connect to the
+docker API... daemon is running: open //./pipe/dockerDesktopLinuxEngine") e, mais importante, este
+ambiente não tem nenhuma ferramenta de browser/screenshot disponível — não haveria como registrar o
+resultado mesmo subindo o stack completo (Postgres + API + Vite + login admin). `npx tsc -b` limpo
+confirma a mudança de código; o JSX é a tradução direta do plano (mesmas classes Tailwind já
+validadas visualmente em telas anteriores do projeto — pill/hover já é um padrão usado em outros
+componentes shadcn do admin), sem lógica nova que o typecheck não cubra. Fica registrado como
+verificação pendente pro William confirmar visualmente quando tiver o stack rodando.
+
+- [x] **Passo 5: Commit**
 
 ```bash
 git add frontend/src/pages/admin/Dashboard.tsx
 git commit -m "feat: redesenha o menu do admin com ícone por link e pill no estado ativo"
 ```
+
+Commit `218473f`.
 
 ---
 
