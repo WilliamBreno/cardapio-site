@@ -106,6 +106,31 @@ function renderProdutosAgrupados(produtos: Produto[], categoriaId: number, subca
   );
 }
 
+// BannerOferta (redesign de 20/08/2026): card dedicado abaixo do
+// cabeçalho da loja, não mais colado acima dele. object-contain nunca
+// corta a imagem (diferente do object-cover de antes); o espaço vazio
+// nas bordas, quando a proporção da imagem não bate com a altura fixa
+// do card, é preenchido com uma cópia desfocada da própria imagem em
+// vez de deixar uma faixa da cor de fundo — fica visualmente consistente
+// entre lojas com banners de proporções bem diferentes.
+function BannerOferta({ url }: { url: string }) {
+  return (
+    <div className="relative mx-4 mt-4 h-40 overflow-hidden rounded-2xl shadow-sm sm:mx-6 sm:h-56">
+      <img
+        src={url}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+      />
+      <img
+        src={url}
+        alt="Oferta em destaque"
+        className="relative h-full w-full object-contain"
+      />
+    </div>
+  );
+}
+
 export function CardapioPublico() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
@@ -160,9 +185,6 @@ export function CardapioPublico() {
 
     return (
       <div className="min-h-screen bg-fundo" data-tema={data.loja.tema || 'kraft'}>
-        {data.loja.banner_url && (
-          <img src={data.loja.banner_url} alt="Oferta em destaque" className="h-32 w-full object-cover sm:h-48" />
-        )}
         <header className="bg-acento px-6 py-8 text-center">
           {data.loja.logo_url && (
             <img src={data.loja.logo_url} alt={data.loja.nome}
@@ -170,6 +192,7 @@ export function CardapioPublico() {
           )}
           <h1 className="font-display text-3xl tracking-wide text-superficie">{data.loja.nome}</h1>
         </header>
+        {data.loja.banner_url && <BannerOferta url={data.loja.banner_url} />}
         <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
           <span className="rounded-full bg-tinta/10 px-4 py-1 font-carimbo text-xs uppercase tracking-widest text-tinta-suave">
             {data.loja.pausado ? 'Produção pausada' : 'Fechado'}
@@ -196,9 +219,6 @@ export function CardapioPublico() {
         </div>
       )}
 
-      {data.loja.banner_url && (
-        <img src={data.loja.banner_url} alt="Oferta em destaque" className="h-32 w-full object-cover sm:h-48" />
-      )}
       <header className="bg-acento px-6 py-8 text-center">
         {data.loja.logo_url && (
           <img src={data.loja.logo_url} alt={data.loja.nome}
@@ -229,6 +249,8 @@ export function CardapioPublico() {
           )}
         </div>
       </header>
+
+      {data.loja.banner_url && <BannerOferta url={data.loja.banner_url} />}
 
       {ehMercadoria ? (
         <main className="mx-auto max-w-4xl">
