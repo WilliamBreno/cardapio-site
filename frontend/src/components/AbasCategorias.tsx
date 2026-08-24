@@ -40,7 +40,7 @@ function BotaoAba({
       onClick={onClick}
       className={`shrink-0 rounded-full border-2 px-5 py-1.5 font-display text-sm tracking-wide transition ${
         ativa
-          ? 'border-acento bg-acento text-superficie'
+          ? 'border-acento bg-acento text-texto-claro'
           : 'border-tinta/25 bg-superficie text-tinta-suave hover:border-tinta/40'
       }`}
     >

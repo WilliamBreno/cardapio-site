@@ -44,7 +44,7 @@ export function SugestaoPreviewItem({ nome, fotoUrl, preco, precoComDesconto, on
       <button
         onClick={onAdicionar}
         disabled={!onAdicionar}
-        className="rounded-full bg-acento px-3 py-1.5 text-xs font-semibold text-superficie disabled:opacity-70"
+        className="rounded-full bg-acento px-3 py-1.5 text-xs font-semibold text-texto-claro disabled:opacity-70"
       >
         Adicionar
       </button>

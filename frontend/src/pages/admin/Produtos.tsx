@@ -309,7 +309,7 @@ export function Produtos() {
           <div className="border-t border-tinta/10 px-4 pb-4 pt-3 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Galeria de fotos</p>
-              <label className="cursor-pointer rounded-full bg-tinta px-3 py-1 text-xs font-semibold text-superficie">
+              <label className="cursor-pointer rounded-full bg-tinta px-3 py-1 text-xs font-semibold text-texto-claro">
                 {enviandoFotoProduto ? 'Enviando...' : '+ Adicionar'}
                 <input type="file" accept="image/*" className="hidden" disabled={enviandoFotoProduto}
                   onChange={(e) => adicionarFotoProduto(produto.id, e)} />
@@ -329,10 +329,10 @@ export function Produtos() {
                     <button
                       onClick={() => removerFotoProduto(produto.id, foto.id)}
                       title="Remover foto"
-                      className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-superficie group-hover:flex"
+                      className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-texto-claro group-hover:flex"
                     >×</button>
                     {i === 0 && (
-                      <span className="pointer-events-none absolute bottom-0 left-0 right-0 rounded-b-xl bg-tinta/60 py-0.5 text-center text-xs text-superficie">
+                      <span className="pointer-events-none absolute bottom-0 left-0 right-0 rounded-b-xl bg-tinta/60 py-0.5 text-center text-xs text-texto-claro">
                         Principal
                       </span>
                     )}
@@ -349,7 +349,7 @@ export function Produtos() {
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Variações (tamanhos, sabores, etc.)</p>
               {!mostrarFormVariacao && (
-                <button onClick={() => abrirNovaVariacao(produto.id)} className="rounded-full bg-tinta px-3 py-1 text-xs font-semibold text-superficie">
+                <button onClick={() => abrirNovaVariacao(produto.id)} className="rounded-full bg-tinta px-3 py-1 text-xs font-semibold text-texto-claro">
                   + Adicionar
                 </button>
               )}
@@ -394,7 +394,7 @@ export function Produtos() {
                     <div className="space-y-2 rounded-lg border border-tinta/10 bg-superficie p-2">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Fotos da variação</p>
-                        <label className="cursor-pointer rounded-full bg-tinta px-3 py-1 text-xs font-semibold text-superficie">
+                        <label className="cursor-pointer rounded-full bg-tinta px-3 py-1 text-xs font-semibold text-texto-claro">
                           {enviandoFotoVariacao ? 'Enviando...' : '+ Adicionar'}
                           <input type="file" accept="image/*" className="hidden" disabled={enviandoFotoVariacao}
                             onChange={(e) => variacaoAtual && adicionarFotoDaVariacao(produto.id, variacaoAtual, e)} />
@@ -407,7 +407,7 @@ export function Produtos() {
                               <img src={foto.url} alt={variacaoAtual.nome} className="h-14 w-14 rounded-lg object-cover" />
                               <button
                                 onClick={() => removerFotoDaVariacao(produto.id, editandoVariacaoId, foto.id)}
-                                className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-superficie group-hover:flex"
+                                className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-texto-claro group-hover:flex"
                               >×</button>
                             </div>
                           ))}
@@ -422,7 +422,7 @@ export function Produtos() {
                 {erroVariacao && <p className="text-xs text-acento">{erroVariacao}</p>}
                 <div className="flex gap-2">
                   <button type="button" onClick={fecharFormVariacao} className="rounded-full border border-tinta/20 px-3 py-1 text-xs font-semibold text-tinta">Cancelar</button>
-                  <button type="submit" disabled={mutCriarVar.isPending || mutAtualizarVar.isPending} className="rounded-full bg-acento px-3 py-1 text-xs font-semibold text-superficie disabled:opacity-60">Salvar</button>
+                  <button type="submit" disabled={mutCriarVar.isPending || mutAtualizarVar.isPending} className="rounded-full bg-acento px-3 py-1 text-xs font-semibold text-texto-claro disabled:opacity-60">Salvar</button>
                 </div>
               </form>
             )}

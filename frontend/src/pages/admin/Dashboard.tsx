@@ -142,7 +142,7 @@ export function Dashboard() {
       {mercadoPagoStatus && !mercadoPagoStatus.mercadopago_conectado && (
         <NavLink
           to="/admin/configuracoes"
-          className="block bg-acento px-6 py-2 text-center text-sm font-medium text-superficie hover:bg-acento/90"
+          className="block bg-acento px-6 py-2 text-center text-sm font-medium text-texto-claro hover:bg-acento/90"
         >
           ⚠️ Pagamento não configurado — seus clientes não conseguem finalizar pedidos até você conectar sua conta do Mercado Pago. Clica aqui pra resolver.
         </NavLink>
@@ -160,7 +160,7 @@ export function Dashboard() {
                 cn(
                   'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition',
                   isActive
-                    ? 'bg-acento text-superficie'
+                    ? 'bg-acento text-texto-claro'
                     : 'text-tinta-suave hover:bg-tinta/5 hover:text-tinta'
                 )
               }

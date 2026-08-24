@@ -90,7 +90,7 @@ export function ComboCard({ combo, segmentoLoja }: Props) {
                           onClick={() => selecionarVariacao(item.id, selecoes[item.id]?.id === v.id ? null : v)}
                           className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold transition ${
                             selecoes[item.id]?.id === v.id
-                              ? 'border-acento bg-acento text-superficie'
+                              ? 'border-acento bg-acento text-texto-claro'
                               : 'border-tinta/20 text-tinta hover:border-acento/50'
                           }`}
                         >

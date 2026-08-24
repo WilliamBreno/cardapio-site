@@ -141,7 +141,7 @@ export function ImportarNFeModal({ onFechar }: { onFechar: () => void }) {
               accept=".xml"
               onChange={selecionarArquivo}
               disabled={carregandoArquivo}
-              className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-sm text-tinta outline-none file:mr-3 file:rounded-full file:border-0 file:bg-tinta file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-superficie"
+              className="w-full rounded-lg border border-tinta/20 bg-fundo px-3 py-2 text-sm text-tinta outline-none file:mr-3 file:rounded-full file:border-0 file:bg-tinta file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-texto-claro"
             />
             {carregandoArquivo && <p className="text-sm text-tinta-suave">Lendo nota fiscal...</p>}
             {erro && <p className="text-sm text-acento">{erro}</p>}

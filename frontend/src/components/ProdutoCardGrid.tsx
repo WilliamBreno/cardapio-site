@@ -71,7 +71,7 @@ export function ProdutoCardGrid({ produto }: Props) {
                   onClick={() => selecionarVariacao(variacaoSelecionada?.id === v.id ? null : v)}
                   className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
                     variacaoSelecionada?.id === v.id
-                      ? 'border-acento bg-acento text-superficie'
+                      ? 'border-acento bg-acento text-texto-claro'
                       : 'border-tinta/20 text-tinta hover:border-acento/50'
                   }`}
                 >
@@ -87,7 +87,7 @@ export function ProdutoCardGrid({ produto }: Props) {
             </span>
             <button
               onClick={handleAdicionar}
-              className="rounded-full bg-acento px-3 py-1 text-xs font-semibold text-superficie transition active:scale-95 hover:bg-acento/90"
+              className="rounded-full bg-acento px-3 py-1 text-xs font-semibold text-texto-claro transition active:scale-95 hover:bg-acento/90"
             >
               Adicionar
             </button>

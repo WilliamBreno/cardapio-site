@@ -233,7 +233,7 @@ export function CadastroEmMassaDialog({ open, onOpenChange, categorias, subcateg
             {erro && <p className="text-sm text-acento">{erro}</p>}
             <DialogFooter className="border-tinta/10 bg-fundo">
               <Button type="button" variant="outline" className="border-tinta/20 bg-superficie text-tinta hover:bg-fundo" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button type="submit" className="bg-acento text-superficie hover:bg-acento/90" disabled={mutCriarProduto.isPending}>
+              <Button type="submit" className="bg-acento text-texto-claro hover:bg-acento/90" disabled={mutCriarProduto.isPending}>
                 {mutCriarProduto.isPending ? 'Salvando...' : 'Salvar e continuar'}
               </Button>
             </DialogFooter>
@@ -244,7 +244,7 @@ export function CadastroEmMassaDialog({ open, onOpenChange, categorias, subcateg
             <div className="space-y-2 rounded-xl border border-tinta/10 p-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Fotos do produto</p>
-                <label className="cursor-pointer rounded-full bg-tinta px-3 py-1 text-xs font-semibold text-superficie">
+                <label className="cursor-pointer rounded-full bg-tinta px-3 py-1 text-xs font-semibold text-texto-claro">
                   {enviandoFotoProduto ? 'Enviando...' : '+ Adicionar'}
                   <input type="file" accept="image/*" className="hidden" disabled={enviandoFotoProduto}
                     onChange={adicionarFotoDoProduto} />
@@ -265,10 +265,10 @@ export function CadastroEmMassaDialog({ open, onOpenChange, categorias, subcateg
                         type="button"
                         onClick={() => removerFotoDoProduto(foto.id)}
                         title="Remover foto"
-                        className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-superficie group-hover:flex"
+                        className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-texto-claro group-hover:flex"
                       >×</button>
                       {i === 0 && (
-                        <span className="pointer-events-none absolute bottom-0 left-0 right-0 rounded-b-xl bg-tinta/60 py-0.5 text-center text-[10px] text-superficie">
+                        <span className="pointer-events-none absolute bottom-0 left-0 right-0 rounded-b-xl bg-tinta/60 py-0.5 text-center text-[10px] text-texto-claro">
                           Principal
                         </span>
                       )}
@@ -300,7 +300,7 @@ export function CadastroEmMassaDialog({ open, onOpenChange, categorias, subcateg
                             <button
                               type="button"
                               onClick={() => removerFotoDaVariacao(v.id, foto.id)}
-                              className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-superficie group-hover:flex"
+                              className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-texto-claro group-hover:flex"
                             >×</button>
                           </div>
                         ))}
@@ -322,7 +322,7 @@ export function CadastroEmMassaDialog({ open, onOpenChange, categorias, subcateg
                 {erroVariacao && <p className="text-xs text-acento">{erroVariacao}</p>}
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" size="sm" className="border-tinta/20 bg-superficie text-tinta hover:bg-fundo" onClick={() => setMostrarFormVariacao(false)}>Cancelar</Button>
-                  <Button type="submit" size="sm" className="bg-acento text-superficie hover:bg-acento/90" disabled={mutCriarVariacao.isPending}>
+                  <Button type="submit" size="sm" className="bg-acento text-texto-claro hover:bg-acento/90" disabled={mutCriarVariacao.isPending}>
                     {mutCriarVariacao.isPending ? 'Salvando...' : 'Adicionar variação'}
                   </Button>
                 </div>
@@ -340,7 +340,7 @@ export function CadastroEmMassaDialog({ open, onOpenChange, categorias, subcateg
 
             <DialogFooter className="border-tinta/10 bg-fundo">
               <Button type="button" variant="secondary" className="bg-fundo text-tinta hover:bg-fundo/80" onClick={proximoProduto}>+ Adicionar outro produto</Button>
-              <Button type="button" className="bg-acento text-superficie hover:bg-acento/90" onClick={() => onOpenChange(false)}>Concluir</Button>
+              <Button type="button" className="bg-acento text-texto-claro hover:bg-acento/90" onClick={() => onOpenChange(false)}>Concluir</Button>
             </DialogFooter>
           </div>
         )}

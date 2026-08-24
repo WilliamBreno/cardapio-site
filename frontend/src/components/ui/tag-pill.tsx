@@ -14,7 +14,7 @@ function TagPill({ children, onRemove, className }: TagPillProps) {
     <span
       data-slot="tag-pill"
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full bg-acento px-3 py-1 text-xs font-semibold text-superficie",
+        "inline-flex items-center gap-1.5 rounded-full bg-acento px-3 py-1 text-xs font-semibold text-texto-claro",
         className
       )}
     >

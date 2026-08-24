@@ -315,20 +315,20 @@ export function Configuracoes() {
                   <button
                     onClick={() => removerFotoBanner(foto.id)}
                     title="Remover foto"
-                    className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-superficie group-hover:flex"
+                    className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-acento text-xs text-texto-claro group-hover:flex"
                   >×</button>
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-1 pb-0.5 opacity-0 group-hover:pointer-events-auto group-hover:opacity-100">
                     <button
                       onClick={() => moverFotoBanner(foto.id, -1)}
                       disabled={i === 0 || movendoBanner}
                       title="Mover pra trás"
-                      className="rounded-full bg-tinta/70 px-1.5 text-xs text-superficie disabled:opacity-30"
+                      className="rounded-full bg-tinta/70 px-1.5 text-xs text-texto-claro disabled:opacity-30"
                     >◀</button>
                     <button
                       onClick={() => moverFotoBanner(foto.id, 1)}
                       disabled={i === banners.length - 1 || movendoBanner}
                       title="Mover pra frente"
-                      className="rounded-full bg-tinta/70 px-1.5 text-xs text-superficie disabled:opacity-30"
+                      className="rounded-full bg-tinta/70 px-1.5 text-xs text-texto-claro disabled:opacity-30"
                     >▶</button>
                   </div>
                 </div>

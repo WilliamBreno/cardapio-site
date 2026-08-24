@@ -148,7 +148,7 @@ export function HierarquiaCategoria({
                               placeholder="Ex: Tons escuros"
                               className="flex-1 rounded-lg border border-tinta/20 bg-fundo px-2 py-1 text-xs text-tinta outline-none focus:border-acento"
                             />
-                            <button type="submit" className="rounded-full bg-acento px-2 py-1 text-xs font-semibold text-superficie">Salvar</button>
+                            <button type="submit" className="rounded-full bg-acento px-2 py-1 text-xs font-semibold text-texto-claro">Salvar</button>
                             <button type="button" onClick={() => setMostrarFormGrupo(false)} className="rounded-full border border-tinta/20 px-2 py-1 text-xs text-tinta">Cancelar</button>
                           </form>
                         ) : (
@@ -178,7 +178,7 @@ export function HierarquiaCategoria({
                   className="w-full rounded-lg border border-tinta/20 bg-fundo px-2 py-1 text-xs text-tinta outline-none focus:border-acento"
                 />
               </Campo>
-              <button type="submit" className="rounded-full bg-acento px-3 py-1 text-xs font-semibold text-superficie">Salvar</button>
+              <button type="submit" className="rounded-full bg-acento px-3 py-1 text-xs font-semibold text-texto-claro">Salvar</button>
               <button type="button" onClick={() => setMostrarFormSub(false)} className="rounded-full border border-tinta/20 px-3 py-1 text-xs text-tinta">Cancelar</button>
             </form>
           ) : (

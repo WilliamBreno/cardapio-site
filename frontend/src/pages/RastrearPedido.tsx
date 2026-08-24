@@ -120,10 +120,10 @@ export function RastrearPedido() {
   return (
     <div className="flex min-h-screen flex-col bg-fundo">
       <header className="bg-acento px-6 py-4 text-center">
-        <h1 className="font-display text-lg tracking-wide text-superficie">
+        <h1 className="font-display text-lg tracking-wide text-texto-claro">
           Acompanhando seu pedido #{pedidoId}
         </h1>
-        <p className="text-xs text-superficie/80">
+        <p className="text-xs text-texto-claro/80">
           {semLocalizacaoAinda
             ? 'Aguardando a primeira atualização de localização...'
             : `Atualizado às ${new Date(dados.entregador_atualizado_em!).toLocaleTimeString('pt-BR')}`}

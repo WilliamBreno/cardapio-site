@@ -228,7 +228,7 @@ export function CardapioPublico() {
             <img src={data.loja.logo_url} alt={data.loja.nome}
               className="mx-auto mb-3 h-16 w-16 rounded-full border-2 border-superficie/40 object-cover" />
           )}
-          <h1 className="font-display text-3xl tracking-wide text-superficie">{data.loja.nome}</h1>
+          <h1 className="font-display text-3xl tracking-wide text-texto-claro">{data.loja.nome}</h1>
         </header>
         <BannerCarrossel fotos={data.loja.banner_fotos} />
         <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
@@ -262,25 +262,25 @@ export function CardapioPublico() {
           <img src={data.loja.logo_url} alt={data.loja.nome}
             className="mx-auto mb-3 h-16 w-16 rounded-full border-2 border-superficie/40 object-cover" />
         )}
-        <h1 className="font-display text-3xl tracking-wide text-superficie sm:text-4xl">
+        <h1 className="font-display text-3xl tracking-wide text-texto-claro sm:text-4xl">
           {data.loja.nome}
         </h1>
         {data.loja.horario_abertura && data.loja.horario_fechamento && (
-          <p className="mt-1 font-carimbo text-xs uppercase tracking-[0.2em] text-superficie/70">
+          <p className="mt-1 font-carimbo text-xs uppercase tracking-[0.2em] text-texto-claro/70">
             {data.loja.horario_abertura} – {data.loja.horario_fechamento}
           </p>
         )}
         <div className="mt-3 flex justify-center gap-2">
           <button
             onClick={() => setHistoricoAberto(true)}
-            className="rounded-full border border-superficie/30 px-4 py-1.5 text-xs font-medium text-superficie/80 hover:bg-superficie/10"
+            className="rounded-full border border-superficie/30 px-4 py-1.5 text-xs font-medium text-texto-claro/80 hover:bg-superficie/10"
           >
             Meus pedidos
           </button>
           {data.loja.aceita_guardar_entregar && (
             <button
               onClick={() => setGuardadosAberto(true)}
-              className="rounded-full border border-superficie/30 px-4 py-1.5 text-xs font-medium text-superficie/80 hover:bg-superficie/10"
+              className="rounded-full border border-superficie/30 px-4 py-1.5 text-xs font-medium text-texto-claro/80 hover:bg-superficie/10"
             >
               📦 Itens guardados
             </button>

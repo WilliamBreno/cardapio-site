@@ -101,7 +101,7 @@ function FiltroChip({
         pequeno ? 'px-3 py-1 text-xs' : 'px-5 py-1.5 text-sm'
       } ${
         ativo
-          ? 'border-acento bg-acento text-superficie'
+          ? 'border-acento bg-acento text-texto-claro'
           : 'border-tinta/25 bg-superficie text-tinta-suave hover:border-tinta/40'
       }`}
     >

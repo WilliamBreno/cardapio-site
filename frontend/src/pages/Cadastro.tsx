@@ -150,7 +150,7 @@ export function Cadastro() {
         <button
           type="submit"
           disabled={enviando}
-          className="w-full rounded-full bg-acento py-3 font-semibold text-superficie transition disabled:opacity-60"
+          className="w-full rounded-full bg-acento py-3 font-semibold text-texto-claro transition disabled:opacity-60"
         >
           {enviando ? 'Criando...' : 'Criar minha loja'}
         </button>

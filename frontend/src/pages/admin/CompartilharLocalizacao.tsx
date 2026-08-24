@@ -132,7 +132,7 @@ export function CompartilharLocalizacao() {
             </p>
             <button
               onClick={iniciarCompartilhamento}
-              className="mt-4 w-full rounded-full bg-acento py-3 font-semibold text-superficie"
+              className="mt-4 w-full rounded-full bg-acento py-3 font-semibold text-texto-claro"
             >
               {temRastreamento ? '🛵 Iniciar entrega e compartilhar localização' : '🛵 Marcar como saiu para entrega'}
             </button>
@@ -158,7 +158,7 @@ export function CompartilharLocalizacao() {
             <button
               onClick={marcarEntregue}
               disabled={finalizando}
-              className="mt-4 w-full rounded-full bg-acento py-3 font-semibold text-superficie disabled:opacity-60"
+              className="mt-4 w-full rounded-full bg-acento py-3 font-semibold text-texto-claro disabled:opacity-60"
             >
               {finalizando ? 'Finalizando...' : '✅ Marcar como entregue'}
             </button>

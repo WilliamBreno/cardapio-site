@@ -106,7 +106,7 @@ function SolicitacaoCard({ solicitacao }: { solicitacao: SolicitacaoEntrega }) {
       {podeGerenciarEntrega && (
         <Link
           to={`/admin/solicitacoes/${solicitacao.id}/localizacao`}
-          className="mt-3 block rounded-full bg-acento px-4 py-2 text-center text-sm font-semibold text-superficie"
+          className="mt-3 block rounded-full bg-acento px-4 py-2 text-center text-sm font-semibold text-texto-claro"
         >
           {solicitacao.status_entrega === 'saiu_para_entrega' ? '📍 Gerenciar entrega' : '🛵 Iniciar entrega'}
         </Link>

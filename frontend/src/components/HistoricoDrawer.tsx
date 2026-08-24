@@ -128,7 +128,7 @@ export function HistoricoDrawer({ aberto, onFechar, slug, produtos, onAbrirCarri
                     </div>
                     <button
                       onClick={() => repetirPedido(pedido)}
-                      className="shrink-0 rounded-full bg-acento px-3 py-1.5 text-xs font-semibold text-superficie"
+                      className="shrink-0 rounded-full bg-acento px-3 py-1.5 text-xs font-semibold text-texto-claro"
                     >
                       Repetir
                     </button>

@@ -523,7 +523,7 @@ export function CarrinhoDrawer({ aberto, onFechar, slug, modoPedido, antecedenci
                     Remover
                   </button>
                 ) : (
-                  <button onClick={aplicarCupom} disabled={validandoCupom || !cupomCodigo.trim()} className="rounded-lg bg-tinta px-3 py-2 text-xs font-semibold text-superficie disabled:opacity-40">
+                  <button onClick={aplicarCupom} disabled={validandoCupom || !cupomCodigo.trim()} className="rounded-lg bg-tinta px-3 py-2 text-xs font-semibold text-texto-claro disabled:opacity-40">
                     {validandoCupom ? '...' : 'Aplicar'}
                   </button>
                 )}

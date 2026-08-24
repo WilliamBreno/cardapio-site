@@ -267,13 +267,13 @@ export function Pedidos() {
         <div className="flex shrink-0 gap-1 rounded-full bg-superficie p-1 shadow-sm">
           <button
             onClick={() => setVisualizacao('lista')}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${visualizacao === 'lista' ? 'bg-acento text-superficie' : 'text-tinta-suave'}`}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${visualizacao === 'lista' ? 'bg-acento text-texto-claro' : 'text-tinta-suave'}`}
           >
             Lista
           </button>
           <button
             onClick={() => setVisualizacao('quadro')}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${visualizacao === 'quadro' ? 'bg-acento text-superficie' : 'text-tinta-suave'}`}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${visualizacao === 'quadro' ? 'bg-acento text-texto-claro' : 'text-tinta-suave'}`}
           >
             Quadro
           </button>
@@ -289,7 +289,7 @@ export function Pedidos() {
                 onClick={() => setFiltro(item.valor)}
                 className={`shrink-0 rounded-full border-2 px-4 py-1.5 text-sm font-medium transition ${
                   filtro === item.valor
-                    ? 'border-acento bg-acento text-superficie'
+                    ? 'border-acento bg-acento text-texto-claro'
                     : item.valor === 'peso_pendente'
                     ? 'border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-400'
                     : 'border-tinta/15 bg-superficie text-tinta-suave hover:border-tinta/30'

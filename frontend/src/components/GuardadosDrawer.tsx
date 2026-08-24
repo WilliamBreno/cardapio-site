@@ -247,7 +247,7 @@ export function GuardadosDrawer({ aberto, onFechar, slug }: Props) {
             <button
               onClick={() => setEtapa('entrega')}
               disabled={selecionados.size === 0}
-              className="w-full rounded-full bg-acento py-3 font-semibold text-superficie transition disabled:opacity-40"
+              className="w-full rounded-full bg-acento py-3 font-semibold text-texto-claro transition disabled:opacity-40"
             >
               Continuar ({selecionados.size} {selecionados.size === 1 ? 'item' : 'itens'})
             </button>
@@ -259,7 +259,7 @@ export function GuardadosDrawer({ aberto, onFechar, slug }: Props) {
               <button
                 onClick={confirmarEntrega}
                 disabled={confirmando}
-                className="flex-1 rounded-full bg-acento py-3 font-semibold text-superficie transition disabled:opacity-60"
+                className="flex-1 rounded-full bg-acento py-3 font-semibold text-texto-claro transition disabled:opacity-60"
               >
                 {confirmando ? 'Confirmando...' : 'Confirmar e pagar o frete'}
               </button>

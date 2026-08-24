@@ -17,7 +17,7 @@ export function Home() {
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <Link
           to="/cadastro"
-          className="rounded-full bg-acento px-6 py-3 font-semibold text-superficie transition hover:bg-acento/90"
+          className="rounded-full bg-acento px-6 py-3 font-semibold text-texto-claro transition hover:bg-acento/90"
         >
           Criar minha loja
         </Link>

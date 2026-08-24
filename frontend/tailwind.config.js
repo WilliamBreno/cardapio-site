@@ -35,6 +35,12 @@ export default {
         'tinta-suave':'rgb(var(--color-tinta-suave) / <alpha-value>)',
         acento:       'rgb(var(--color-acento)      / <alpha-value>)',
         douro:        'rgb(var(--color-douro)        / <alpha-value>)',
+        // texto-claro: sempre claro, nunca inverte com o modo escuro
+        // (ver comentário em index.css :root) — usado só como cor de
+        // TEXTO/borda de contraste sobre fundo saturado (bg-acento,
+        // bg-tinta), nunca como bg-* de superfície/card (isso continua
+        // sendo `superficie`, que corretamente inverte).
+        'texto-claro':'rgb(var(--color-texto-claro)  / <alpha-value>)',
 
         // Tokens semânticos do shadcn (usados por components/ui/*, ex:
         // button.tsx, card.tsx, dialog.tsx) — o CLI do shadcn gera esses

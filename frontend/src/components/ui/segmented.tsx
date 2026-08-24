@@ -30,7 +30,7 @@ function Segmented<T extends string>({ opcoes, valor, onValorChange, className }
         <Toggle
           key={opcao.valor}
           value={opcao.valor}
-          className="flex-1 rounded-full px-4 py-1.5 text-sm font-semibold text-tinta-suave transition data-[pressed]:bg-acento data-[pressed]:text-superficie"
+          className="flex-1 rounded-full px-4 py-1.5 text-sm font-semibold text-tinta-suave transition data-[pressed]:bg-acento data-[pressed]:text-texto-claro"
         >
           {opcao.label}
         </Toggle>

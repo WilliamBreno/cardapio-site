@@ -264,7 +264,7 @@ export function Planos() {
               cardápio público de qualquer loja. */}
           <div data-tema={temaAtivo} className="overflow-hidden rounded-2xl bg-fundo ring-1 ring-border">
             <div className="bg-acento px-4 py-5 text-center">
-              <p className="font-display text-lg tracking-wide text-superficie">Sua Loja</p>
+              <p className="font-display text-lg tracking-wide text-texto-claro">Sua Loja</p>
             </div>
             <div className="space-y-2.5 p-4">
               <div className="rounded-xl bg-superficie p-3">

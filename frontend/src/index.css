@@ -15,6 +15,21 @@
   --color-tinta-suave:  138 122 99;
   --color-acento:       168 54 42;
   --color-douro:        198 138 46;
+
+  /* texto-claro (achado em 24/08/2026, corrige texto preto no modo
+     noturno do admin): antes disso, text-superficie fazia dupla função
+     — cor de fundo de card (precisa inverter claro/escuro entre temas,
+     é o que .dark faz corretamente) E "texto claro pra contraste em
+     cima de fundo saturado" (bg-acento, bg-tinta) em botões/pills, que
+     precisa ficar SEMPRE claro, nos dois modos. Quando .dark redefiniu
+     superficie pra um tom escuro (certo pro card), toda essa segunda
+     função quebrou junto (texto virou escuro sobre fundo colorido).
+     texto-claro isola essa segunda função num token próprio, que nunca
+     é redefinido em .dark nem em nenhum [data-tema] — sempre o mesmo
+     valor claro, propositalmente. Mesmo valor de --color-superficie
+     aqui em :root porque é exatamente o que já era usado (por acidente
+     de dupla função) antes do modo escuro existir. */
+  --color-texto-claro:  250 243 228;
 }
 
 [data-tema="oceano"] {
@@ -270,7 +285,7 @@
   }
 
   .btn-neu-primario {
-    @apply btn-neu bg-acento px-5 py-2.5 text-sm text-superficie;
+    @apply btn-neu bg-acento px-5 py-2.5 text-sm text-texto-claro;
     box-shadow:
       3px 3px 8px rgb(0 0 0 / 0.22),
       -2px -2px 6px rgb(255 255 255 / 0.12),
