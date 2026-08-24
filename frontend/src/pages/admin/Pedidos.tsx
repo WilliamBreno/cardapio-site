@@ -205,26 +205,33 @@ export function Pedidos() {
           )}
         </>
       ) : (
-        <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} onAvancar={avancarEtapa} onImprimir={handleImprimir} />
+        <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onImprimir={handleImprimir} />
       )}
     </div>
   );
 }
 
-// QuadroPedidos é a visão "dinâmica e interativa" (Fase 10.2) — uma
-// coluna por etapa, cada card com um botão único de avançar. Sem
-// drag-and-drop de propósito (mais frágil de acertar bem e não foi
-// pedido explicitamente) — "um clique" já é bem atendido pelo botão.
-function QuadroPedidos({ pedidos, isLoading, onAvancar, onImprimir }: { pedidos: Pedido[]; isLoading: boolean; onAvancar: (pedido: Pedido) => void; onImprimir: (pedido: Pedido) => void }) {
+// QuadroPedidos é a visão "dinâmica e interativa" (Fase 10.2, redesenhada
+// em 20/08/2026 com drag-and-drop de verdade — ver próxima task). Grid
+// responsivo (1/2/4 colunas) no lugar do scroll horizontal forçado de
+// antes; card com a mesma densidade de informação da Lista (itens,
+// telefone, horário, cupom, peso pendente), não só nome+total.
+function QuadroPedidos({ pedidos, isLoading, segmentoLoja, onAvancar, onImprimir }: {
+  pedidos: Pedido[];
+  isLoading: boolean;
+  segmentoLoja?: TipoProduto;
+  onAvancar: (pedido: Pedido) => void;
+  onImprimir: (pedido: Pedido) => void;
+}) {
   if (isLoading) return <p className="text-tinta-suave">Carregando pedidos...</p>;
   if (pedidos.length === 0) return <p className="text-tinta-suave">Nenhum pedido pago ainda.</p>;
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-2">
+    <div className="grid grid-cols-1 gap-4 pb-2 sm:grid-cols-2 lg:grid-cols-4">
       {ETAPAS.map((etapa) => {
         const pedidosDaEtapa = pedidos.filter((p) => etapaAtual(p) === etapa.valor);
         return (
-          <div key={etapa.valor} className="w-72 shrink-0 space-y-3">
+          <div key={etapa.valor} className="space-y-3">
             <div className={`rounded-full px-3 py-1.5 text-center text-xs font-semibold ${etapa.classe}`}>
               {etapa.rotuloEntrega === etapa.rotuloRetirada ? etapa.rotuloEntrega : `${etapa.rotuloEntrega} / ${etapa.rotuloRetirada}`}
               {' · '}{pedidosDaEtapa.length}
@@ -232,13 +239,45 @@ function QuadroPedidos({ pedidos, isLoading, onAvancar, onImprimir }: { pedidos:
             <div className="space-y-2">
               {pedidosDaEtapa.map((pedido) => {
                 const proxima = proximaEtapa(etapaAtual(pedido));
+                const totalItens = pedido.itens.length + (pedido.combos?.length ?? 0);
                 return (
                   <div key={pedido.id} className="rounded-xl bg-superficie p-3 shadow-sm">
-                    <p className="text-sm font-medium text-tinta">
-                      {pedido.cliente_nome} <span className="text-tinta-suave">· #{pedido.id}</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-tinta">
+                        {pedido.cliente_nome} <span className="text-tinta-suave">· #{pedido.id}</span>
+                      </p>
+                      {pedido.peso_pendente && (
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${PESO_PENDENTE_CLASSE}`}>
+                          ⚠️ Peso pendente
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-tinta-suave">{pedido.cliente_telefone}</p>
+                    <p className="mt-1 text-xs text-tinta-suave">
+                      {pedido.modo_entrega === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'} · {formatarData(pedido.data_retirada)}
                     </p>
-                    <p className="text-xs text-tinta-suave">
-                      {pedido.modo_entrega === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'} · R$ {pedido.total.toFixed(2).replace('.', ',')}
+                    <div className="mt-2 space-y-0.5 border-t border-tinta/10 pt-2">
+                      {pedido.itens.slice(0, 2).map((item) => (
+                        <p key={item.id} className="truncate text-xs text-tinta">
+                          {item.quantidade}x {item.produto_nome}
+                        </p>
+                      ))}
+                      {pedido.combos?.slice(0, 2).map((combo) => (
+                        <p key={combo.id} className="truncate text-xs text-tinta">
+                          {combo.quantidade}x {combo.nome} <span className="text-acento">· {rotuloCombo(segmentoLoja)}</span>
+                        </p>
+                      ))}
+                      {totalItens > 2 && (
+                        <p className="text-xs text-tinta-suave">+{totalItens - 2} ite{totalItens - 2 === 1 ? 'm' : 'ns'}</p>
+                      )}
+                    </div>
+                    {pedido.cupom_codigo && (
+                      <p className="mt-1 text-xs text-emerald-600">
+                        Cupom {pedido.cupom_codigo} · -R$ {pedido.desconto.toFixed(2).replace('.', ',')}
+                      </p>
+                    )}
+                    <p className="mt-2 border-t border-tinta/10 pt-2 text-sm font-carimbo font-semibold text-tinta">
+                      R$ {pedido.total.toFixed(2).replace('.', ',')}
                     </p>
                     {proxima && (
                       <button onClick={() => onAvancar(pedido)} className="btn-neu-primario btn-neu-sm mt-2 w-full">
