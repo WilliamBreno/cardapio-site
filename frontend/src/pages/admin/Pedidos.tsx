@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listarPedidos, buscarLoja } from '../../api/admin';
@@ -6,6 +6,7 @@ import { atualizarStatusEntrega, type EtapaPedido } from '../../api/rastreamento
 import type { Pedido, StatusPedido, TipoProduto } from '../../api/types';
 import { rotuloCombo } from '../../lib/utils';
 import { imprimirComanda } from '../../lib/impressoraBluetooth';
+import { useLayoutAdminStore } from '../../store/layoutAdminStore';
 
 const statusInfo: Record<StatusPedido, { label: string; classe: string }> = {
   aguardando_pagamento: { label: 'Aguardando pagamento', classe: 'bg-douro/20 text-douro' },
@@ -93,6 +94,17 @@ export function Pedidos() {
 
   const [filtro, setFiltro] = useState<FiltroPedido>('todos');
   const [visualizacao, setVisualizacao] = useState<'lista' | 'quadro'>('lista');
+
+  const definirLarguraCompleta = useLayoutAdminStore((state) => state.definirLarguraCompleta);
+
+  // Largura total do <main> só faz sentido na visão Quadro (precisa de
+  // ~1150px pras 4 colunas lado a lado) — desliga ao trocar pra Lista ou
+  // ao sair da tela (cleanup do useEffect), pra não vazar largura total
+  // pras outras ~15 telas do admin que reaproveitam o mesmo <main>.
+  useEffect(() => {
+    definirLarguraCompleta(visualizacao === 'quadro');
+    return () => definirLarguraCompleta(false);
+  }, [visualizacao, definirLarguraCompleta]);
 
   // avancarEtapa é compartilhado pela lista e pelo quadro — os dois
   // chamam o mesmo endpoint, só muda onde o botão aparece.
