@@ -109,11 +109,15 @@ function renderProdutosAgrupados(produtos: Produto[], categoriaId: number, subca
 // BannerCarrossel (redesign de 24/08/2026, substitui o BannerOferta de
 // foto única): card dedicado abaixo do cabeçalho da loja, com largura
 // proporcional mas limitada (max-w-4xl — não vai mais de ponta a ponta
-// da tela em telas largas) e a imagem preenchendo todo o espaço
-// disponível do card via object-cover (sem a faixa desfocada de antes —
-// feedback do William foi que a "moldura" ficava esquisita; cobrir com
-// crop, mesmo cortando um pouco a imagem, ficou melhor). Com mais de uma
-// foto, alterna sozinho a cada 5s e mostra os pontinhos de navegação.
+// da tela em telas largas). A altura do card se ajusta à proporção de
+// cada foto (w-full h-auto, sem object-cover nem altura fixa) — testado
+// com object-cover antes e o corte cortava texto importante de peças
+// promocionais (ex: título no topo da arte), então a prioridade agora é
+// nunca cortar a imagem, mesmo que a altura do card varie de foto pra
+// foto no carrossel. Com mais de uma foto, alterna sozinho a cada 5s e
+// mostra os pontinhos de navegação; a troca usa fade-in (tw-animate-css)
+// em vez do crossfade por opacidade empilhada de antes, que exigia
+// altura fixa pra funcionar.
 function BannerCarrossel({ fotos }: { fotos: FotoBanner[] }) {
   const [indice, setIndice] = useState(0);
 
@@ -125,20 +129,17 @@ function BannerCarrossel({ fotos }: { fotos: FotoBanner[] }) {
 
   if (fotos.length === 0) return null;
 
+  const fotoAtual = fotos[indice];
+
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6">
-      <div className="relative mt-4 h-40 overflow-hidden rounded-2xl shadow-sm sm:h-56">
-        {fotos.map((foto, i) => (
-          <img
-            key={foto.id}
-            src={foto.url}
-            alt="Oferta em destaque"
-            className={cn(
-              'absolute inset-0 h-full w-full object-cover transition-opacity duration-700',
-              i === indice ? 'opacity-100' : 'opacity-0'
-            )}
-          />
-        ))}
+      <div className="relative mt-4 overflow-hidden rounded-2xl shadow-sm">
+        <img
+          key={fotoAtual.id}
+          src={fotoAtual.url}
+          alt="Oferta em destaque"
+          className="block h-auto w-full animate-in fade-in-0 duration-500"
+        />
         {fotos.length > 1 && (
           <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
             {fotos.map((foto, i) => (
