@@ -1399,7 +1399,7 @@ git commit -m "feat: store de preferência de tema do admin + paleta escura"
 **Interfaces:**
 - Consumes: `useTemaAdminStore` (Task 14).
 
-- [ ] **Passo 1: Editar `Dashboard.tsx`**
+- [x] **Passo 1: Editar `Dashboard.tsx`**
 
 Adicionar os imports novos, junto dos já existentes no topo do arquivo:
 ```tsx
@@ -1445,13 +1445,13 @@ por (toggle + Sair, agrupados):
 </div>
 ```
 
-- [ ] **Passo 2: Validar**
+- [x] **Passo 2: Validar**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 Verificação manual — a mais importante desta task: logar no admin, clicar no ícone de sol/lua no cabeçalho e conferir que TODA a tela (fundo, cards, texto, bordas) muda pra paleta escura instantaneamente, em qualquer página do admin (não só Início). Recarregar a página (F5) e confirmar que a preferência escolhida persiste (não volta pro claro sozinha). Conferir visualmente que a cor de destaque (terracota, usada nos botões `btn-neu-primario`, no link ativo do menu, etc.) continua a mesma cor nos dois modos.
 
-- [ ] **Passo 3: Commit**
+- [x] **Passo 3: Commit**
 
 ```bash
 git add frontend/src/pages/admin/Dashboard.tsx
