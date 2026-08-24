@@ -329,7 +329,7 @@ git commit -m "feat: Kanban de Pedidos em grid responsivo com cards mais densos"
 - Consumes: `DndContext`, `DragOverlay`, `KeyboardSensor`, `PointerSensor`, `TouchSensor`, `useDraggable`, `useDroppable`, `useSensor`, `useSensors`, tipos `DragEndEvent`/`DragStartEvent` de `@dnd-kit/core` (Task 1).
 - Produces: `QuadroPedidos` ganha a prop nova `onMover: (pedido: Pedido, etapa: EtapaPedido) => void`; `Pedidos()` ganha `moverParaEtapa`.
 
-- [ ] **Passo 1: Adicionar os imports de `@dnd-kit/core` e `cn`**
+- [x] **Passo 1: Adicionar os imports de `@dnd-kit/core` e `cn`**
 
 No topo de `frontend/src/pages/admin/Pedidos.tsx`, adicionar (depois da linha 8, `import { imprimirComanda } ...`):
 
@@ -358,7 +358,7 @@ por:
 import { cn, rotuloCombo } from '../../lib/utils';
 ```
 
-- [ ] **Passo 2: Adicionar `moverParaEtapa` e passar `onMover`**
+- [x] **Passo 2: Adicionar `moverParaEtapa` e passar `onMover`**
 
 Depois da função `avancarEtapa` (logo após a linha 106, antes de `handleImprimir`), adicionar:
 
@@ -381,7 +381,7 @@ por:
         <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onMover={moverParaEtapa} onImprimir={handleImprimir} />
 ```
 
-- [ ] **Passo 3: Reescrever `QuadroPedidos` com drag-and-drop**
+- [x] **Passo 3: Reescrever `QuadroPedidos` com drag-and-drop**
 
 Substituir a função `QuadroPedidos` inteira (a versão da Task 4) por esta versão, que quebra o card em subcomponentes pra poder reaproveisar o mesmo conteúdo visual dentro do `DragOverlay`:
 
@@ -602,20 +602,33 @@ function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir }: {
 }
 ```
 
-- [ ] **Passo 4: Verificar o typecheck**
+- [x] **Passo 4: Verificar o typecheck**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 
-- [ ] **Passo 5: Verificar no navegador — mouse**
+Confirmado limpo — sem nenhum erro, inclusive nenhum ajuste de tipo precisou ser feito na API do
+`@dnd-kit/core` (`id` de `useDraggable`/`useDroppable` aceita `string` direto, `DragEndEvent`/
+`DragStartEvent` batem com o uso de `event.active.id`/`event.over.id` como estava escrito no
+plano) — o código foi copiado exatamente como no Passo 3, sem nenhuma variação.
 
-Abrir `/admin/pedidos`, visão Quadro, com pelo menos 2 pedidos pagos em etapas diferentes. Arrastar um card de uma coluna pra outra (qualquer direção, não só a adjacente) — o card deve se mover e a mutation deve persistir (confirmar com F5 que a etapa nova ficou salva). Confirmar que os botões "Avançar →" e "🖨️ Imprimir comanda" continuam clicáveis normalmente sem disparar um arraste sem querer.
+- [x] **Passo 5: Verificar no navegador — mouse**
 
-- [ ] **Passo 6: Verificar no navegador — toque**
+**Nota**: verificação visual pulada nesta sessão — mesma situação já registrada nas Tasks 3 e 4
+deste plano: nenhuma ferramenta de browser/screenshot disponível neste ambiente (confirmado via
+`ToolSearch`, só existe `WebFetch`, que não serve pra inspecionar um SPA autenticado como o admin)
+e nenhuma ferramenta de QA em `backend/cmd/` pra gerar token de teste sem passar pelo login manual
+(só `whatsapp-pair`/`whatsapp-unpair`/`api`). Não haveria como registrar o resultado do teste de
+arraste mesmo subindo o stack completo (Postgres + API + Vite). Diferente das Tasks 3/4, aqui essa
+é justamente a task mais arriscada do plano (drag-and-drop é interação complexa que `tsc -b`
+sozinho não garante que funciona de verdade) — fica registrado como risco pendente, recomendo
+testar manualmente com o William antes de confiar 100% no comportamento.
 
-No DevTools, ativar a emulação de dispositivo móvel (toque). Repetir o teste de arrastar um card — confirmar que funciona com um "press and drag" (o `delay: 200` do `TouchSensor` existe justamente pra distinguir de um scroll vertical da página).
+- [x] **Passo 6: Verificar no navegador — toque**
 
-- [ ] **Passo 7: Commit**
+**Nota**: mesma limitação do Passo 5 — pulado pelo mesmo motivo.
+
+- [x] **Passo 7: Commit**
 
 ```bash
 git add frontend/src/pages/admin/Pedidos.tsx
