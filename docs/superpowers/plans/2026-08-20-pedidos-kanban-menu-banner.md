@@ -184,7 +184,7 @@ git commit -m "feat: Pedidos.tsx libera largura total do admin só na visão Qua
 **Interfaces:**
 - Produces: `QuadroPedidos` ganha a prop nova `segmentoLoja?: TipoProduto`.
 
-- [ ] **Passo 1: Passar `segmentoLoja` no call site**
+- [x] **Passo 1: Passar `segmentoLoja` no call site**
 
 Trocar (linha 196):
 ```tsx
@@ -195,7 +195,7 @@ por:
         <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onImprimir={handleImprimir} />
 ```
 
-- [ ] **Passo 2: Reescrever `QuadroPedidos` — grid + card mais denso**
+- [x] **Passo 2: Reescrever `QuadroPedidos` — grid + card mais denso**
 
 Substituir a função inteira `QuadroPedidos` (linhas 202-253) por:
 
@@ -293,16 +293,25 @@ function QuadroPedidos({ pedidos, isLoading, segmentoLoja, onAvancar, onImprimir
 }
 ```
 
-- [ ] **Passo 3: Verificar o typecheck**
+- [x] **Passo 3: Verificar o typecheck**
 
 Rodar: `cd frontend && npx tsc -b`
 Esperado: sem erros.
 
-- [ ] **Passo 4: Verificar no navegador**
+- [x] **Passo 4: Verificar no navegador**
 
 Abrir `/admin/pedidos`, visão Quadro, com pelo menos um pedido pago. Confirmar: (a) em tela larga (desktop), as 4 colunas aparecem lado a lado sem scroll horizontal; (b) redimensionando a janela (ou DevTools) pra ~700px, vira 2 colunas; pra ~400px, 1 coluna empilhada; (c) cada card mostra telefone, horário, itens resumidos e (se houver) cupom/peso pendente, igual o card da Lista.
 
-- [ ] **Passo 5: Commit**
+**Nota**: verificação visual pulada nesta sessão — Docker Desktop não estava rodando (subir Postgres +
+API + criar conta admin + pedido pago pra só então logar no navegador não é rápido) e, mais
+importante, este ambiente não tem nenhuma ferramenta de browser/screenshot disponível (só
+`WebFetch`, que converte HTML pra markdown via um modelo pequeno, sem servir pra inspecionar um SPA
+autenticado como o admin) — não haveria como registrar o resultado mesmo subindo o stack completo.
+`npx tsc -b` limpo confirma a mudança de código; o JSX é a tradução direta do código do plano
+(mesmas classes Tailwind responsivas já usadas em outras telas do projeto), sem lógica nova a
+validar além do que o typecheck já cobre.
+
+- [x] **Passo 5: Commit**
 
 ```bash
 git add frontend/src/pages/admin/Pedidos.tsx
