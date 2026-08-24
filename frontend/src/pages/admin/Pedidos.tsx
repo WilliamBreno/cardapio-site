@@ -549,12 +549,18 @@ function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir }: {
         </button>
       )}
       {precisaCodigoParaEntregar && (
+        // Mesmo rótulo e estilo (btn-neu-secundario, não o primário
+        // vermelho) do link "Gerenciar entrega" da Lista (24/08/2026,
+        // feedback do William) — "Confirmar entrega" soava como uma ação
+        // direta de um clique só, o que não é: esse link só navega pra
+        // tela de gerenciar entrega, onde o código ainda precisa ser
+        // digitado certo pra confirmar de verdade.
         <Link
           onPointerDown={(e) => e.stopPropagation()}
           to={`/admin/pedidos/${pedido.id}/localizacao`}
-          className="btn-neu-primario btn-neu-sm mt-2 block w-full text-center"
+          className="btn-neu-secundario btn-neu-sm mt-2 block w-full text-center"
         >
-          📍 Confirmar entrega
+          📍 Gerenciar entrega
         </Link>
       )}
       <button
