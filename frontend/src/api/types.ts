@@ -425,6 +425,9 @@ export interface Pedido {
   entregador_latitude: number;
   entregador_longitude: number;
   entregador_atualizado_em: string | null;
+  // token_entregador (26/08/2026): senha simples do link público
+  // "Gerar link" — ver GerenciarEntrega.tsx e api/rastreamento.ts.
+  token_entregador: string;
 }
 
 // Carrinho — estado só do front, nunca enviado direto pra API. Na hora

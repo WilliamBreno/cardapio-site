@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import {
@@ -22,6 +21,15 @@ import { cn, rotuloCombo } from '../../lib/utils';
 import { imprimirComanda, bluetoothSuportado, conectarImpressora, tentarReconectarSilenciosamente } from '../../lib/impressoraBluetooth';
 import { useLayoutAdminStore } from '../../store/layoutAdminStore';
 import { useImpressoraStore } from '../../store/impressoraStore';
+
+// linkEntregador monta o link público "Gerar link" (26/08/2026) —
+// mesmo padrão do link de rastreamento do cliente, só que apontando pra
+// GerenciarEntrega.tsx (a tela do entregador) em vez de RastrearPedido,
+// e autenticado pelo TokenEntregador do pedido em vez do telefone do
+// cliente.
+function linkEntregador(slug: string, pedido: Pedido): string {
+  return `${window.location.origin}/${slug}/pedido/${pedido.id}/entregador?token=${pedido.token_entregador}`;
+}
 
 // ESTILO_AVANCAR varia o botão "Avançar" pela etapa ATUAL do pedido (não
 // a de destino) — sinaliza visualmente o que precisa de atenção agora.
@@ -234,7 +242,7 @@ export function Pedidos() {
   function moverParaEtapa(pedido: Pedido, etapa: EtapaPedido) {
     if (etapa === etapaAtual(pedido)) return;
     if (etapa === 'entregue' && pedido.modo_entrega === 'entrega') {
-      alert('Pra marcar como entregue, use "Gerenciar entrega" no card — precisa do código que o cliente recebeu.');
+      alert('Pra marcar como entregue, use "Gerar link" no card e confirme pelo código que o cliente recebeu.');
       return;
     }
     mutAvancar.mutate({ pedidoId: pedido.id, etapa });
@@ -249,6 +257,25 @@ export function Pedidos() {
       await imprimirComanda(pedido, loja?.nome ?? 'Comanda');
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Não foi possível imprimir a comanda.');
+    }
+  }
+
+  // Gerar link (26/08/2026) — copia pra área de transferência o link
+  // público que o entregador abre pra ver o mapa até o destino e digitar
+  // o código de confirmação (GerenciarEntrega.tsx), sem precisar da
+  // conta do dono. Substitui o antigo "Gerenciar entrega", que navegava
+  // pra uma tela dentro do próprio admin (exigia login).
+  async function handleGerarLink(pedido: Pedido) {
+    if (!loja?.slug) return;
+    const link = linkEntregador(loja.slug, pedido);
+    try {
+      await navigator.clipboard.writeText(link);
+      alert('Link copiado! Envie pro entregador.');
+    } catch {
+      // Alguns navegadores/contextos (ex: sem HTTPS) recusam a Clipboard
+      // API — mostra o link pra copiar manualmente em vez de falhar
+      // silenciosamente.
+      prompt('Não deu pra copiar automaticamente. Copie o link abaixo:', link);
     }
   }
 
@@ -328,13 +355,13 @@ export function Pedidos() {
             // como pedido), 2 em tablet, 3 em desktop bem largo.
             <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {pedidosFiltrados.map((pedido) => (
-                <PedidoCard key={pedido.id} pedido={pedido} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onImprimir={handleImprimir} />
+                <PedidoCard key={pedido.id} pedido={pedido} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onImprimir={handleImprimir} onGerarLink={handleGerarLink} />
               ))}
             </ul>
           )}
         </>
       ) : (
-        <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onMover={moverParaEtapa} onImprimir={handleImprimir} />
+        <QuadroPedidos pedidos={pedidosPagos} isLoading={isLoading} segmentoLoja={loja?.segmento_principal} onAvancar={avancarEtapa} onMover={moverParaEtapa} onImprimir={handleImprimir} onGerarLink={handleGerarLink} />
       )}
     </div>
   );
@@ -347,13 +374,14 @@ export function Pedidos() {
 // Kanban de verdade. Funciona em mouse (PointerSensor), toque
 // (TouchSensor) e teclado (KeyboardSensor, ativado pelos atributos que
 // useDraggable já injeta no card).
-function QuadroPedidos({ pedidos, isLoading, segmentoLoja, onAvancar, onMover, onImprimir }: {
+function QuadroPedidos({ pedidos, isLoading, segmentoLoja, onAvancar, onMover, onImprimir, onGerarLink }: {
   pedidos: Pedido[];
   isLoading: boolean;
   segmentoLoja?: TipoProduto;
   onAvancar: (pedido: Pedido) => void;
   onMover: (pedido: Pedido, etapa: EtapaPedido) => void;
   onImprimir: (pedido: Pedido) => void;
+  onGerarLink: (pedido: Pedido) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(
@@ -395,13 +423,14 @@ function QuadroPedidos({ pedidos, isLoading, segmentoLoja, onAvancar, onMover, o
             segmentoLoja={segmentoLoja}
             onAvancar={onAvancar}
             onImprimir={onImprimir}
+            onGerarLink={onGerarLink}
           />
         ))}
       </div>
       <DragOverlay>
         {pedidoArrastado && (
           <div className="rounded-xl bg-superficie p-3 shadow-lg ring-2 ring-acento/40">
-            <ConteudoCardQuadro pedido={pedidoArrastado} segmentoLoja={segmentoLoja} onAvancar={onAvancar} onImprimir={onImprimir} />
+            <ConteudoCardQuadro pedido={pedidoArrastado} segmentoLoja={segmentoLoja} onAvancar={onAvancar} onImprimir={onImprimir} onGerarLink={onGerarLink} />
           </div>
         )}
       </DragOverlay>
@@ -412,12 +441,13 @@ function QuadroPedidos({ pedidos, isLoading, segmentoLoja, onAvancar, onMover, o
 // ColunaEtapa é a zona de soltar (useDroppable, id = etapa.valor) — o
 // destaque visual (isOver) confirma pro dono onde o card vai cair antes
 // de soltar o dedo/mouse.
-function ColunaEtapa({ etapa, pedidosDaEtapa, segmentoLoja, onAvancar, onImprimir }: {
+function ColunaEtapa({ etapa, pedidosDaEtapa, segmentoLoja, onAvancar, onImprimir, onGerarLink }: {
   etapa: (typeof ETAPAS)[number];
   pedidosDaEtapa: Pedido[];
   segmentoLoja?: TipoProduto;
   onAvancar: (pedido: Pedido) => void;
   onImprimir: (pedido: Pedido) => void;
+  onGerarLink: (pedido: Pedido) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: etapa.valor });
 
@@ -439,7 +469,7 @@ function ColunaEtapa({ etapa, pedidosDaEtapa, segmentoLoja, onAvancar, onImprimi
         )}
       >
         {pedidosDaEtapa.map((pedido) => (
-          <CardArrastavel key={pedido.id} pedido={pedido} segmentoLoja={segmentoLoja} onAvancar={onAvancar} onImprimir={onImprimir} />
+          <CardArrastavel key={pedido.id} pedido={pedido} segmentoLoja={segmentoLoja} onAvancar={onAvancar} onImprimir={onImprimir} onGerarLink={onGerarLink} />
         ))}
         {pedidosDaEtapa.length === 0 && (
           <p className="rounded-xl border-2 border-dashed border-tinta/10 p-3 text-center text-xs text-tinta-suave/60">
@@ -455,11 +485,12 @@ function ColunaEtapa({ etapa, pedidosDaEtapa, segmentoLoja, onAvancar, onImprimi
 // com opacidade reduzida no lugar de origem enquanto arrasta (o
 // DragOverlay do QuadroPedidos mostra a cópia "de verdade" seguindo o
 // ponteiro).
-function CardArrastavel({ pedido, segmentoLoja, onAvancar, onImprimir }: {
+function CardArrastavel({ pedido, segmentoLoja, onAvancar, onImprimir, onGerarLink }: {
   pedido: Pedido;
   segmentoLoja?: TipoProduto;
   onAvancar: (pedido: Pedido) => void;
   onImprimir: (pedido: Pedido) => void;
+  onGerarLink: (pedido: Pedido) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `pedido-${pedido.id}` });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
@@ -475,7 +506,7 @@ function CardArrastavel({ pedido, segmentoLoja, onAvancar, onImprimir }: {
         isDragging && 'opacity-30'
       )}
     >
-      <ConteudoCardQuadro pedido={pedido} segmentoLoja={segmentoLoja} onAvancar={onAvancar} onImprimir={onImprimir} />
+      <ConteudoCardQuadro pedido={pedido} segmentoLoja={segmentoLoja} onAvancar={onAvancar} onImprimir={onImprimir} onGerarLink={onGerarLink} />
     </div>
   );
 }
@@ -483,17 +514,19 @@ function CardArrastavel({ pedido, segmentoLoja, onAvancar, onImprimir }: {
 // ConteudoCardQuadro é só o miolo visual do card (sem nenhum hook de
 // drag) — reaproveitado tanto dentro do CardArrastavel quanto dentro do
 // DragOverlay, pra não duplicar o JSX nos dois lugares.
-function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir }: {
+function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir, onGerarLink }: {
   pedido: Pedido;
   segmentoLoja?: TipoProduto;
   onAvancar: (pedido: Pedido) => void;
   onImprimir: (pedido: Pedido) => void;
+  onGerarLink: (pedido: Pedido) => void;
 }) {
   const proxima = proximaEtapa(etapaAtual(pedido));
   const totalItens = pedido.itens.length + (pedido.combos?.length ?? 0);
   // Entregar um pedido modo "entrega" exige o código de confirmação
-  // (24/08/2026) — só existe na tela "Gerenciar entrega", não no botão
-  // "Avançar" genérico do Kanban (que sempre falharia sem o código).
+  // (24/08/2026) — só existe na tela do link do entregador ("Gerar
+  // link"), não no botão "Avançar" genérico do Kanban (que sempre
+  // falharia sem o código).
   const precisaCodigoParaEntregar = proxima === 'entregue' && pedido.modo_entrega === 'entrega';
 
   return (
@@ -550,18 +583,17 @@ function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir }: {
       )}
       {precisaCodigoParaEntregar && (
         // Mesmo rótulo e estilo (btn-neu-secundario, não o primário
-        // vermelho) do link "Gerenciar entrega" da Lista (24/08/2026,
-        // feedback do William) — "Confirmar entrega" soava como uma ação
-        // direta de um clique só, o que não é: esse link só navega pra
-        // tela de gerenciar entrega, onde o código ainda precisa ser
-        // digitado certo pra confirmar de verdade.
-        <Link
+        // vermelho) do botão "Gerar link" da Lista — "Confirmar entrega"
+        // soava como uma ação direta de um clique só, o que não é: esse
+        // botão só copia o link pro entregador, onde o código ainda
+        // precisa ser digitado certo pra confirmar de verdade.
+        <button
           onPointerDown={(e) => e.stopPropagation()}
-          to={`/admin/pedidos/${pedido.id}/localizacao`}
-          className="btn-neu-secundario btn-neu-sm mt-2 block w-full text-center"
+          onClick={() => onGerarLink(pedido)}
+          className="btn-neu-secundario btn-neu-sm mt-2 w-full"
         >
-          📍 Gerenciar entrega
-        </Link>
+          🔗 Gerar link
+        </button>
       )}
       <button
         onPointerDown={(e) => e.stopPropagation()}
@@ -574,26 +606,26 @@ function ConteudoCardQuadro({ pedido, segmentoLoja, onAvancar, onImprimir }: {
   );
 }
 
-function PedidoCard({ pedido, segmentoLoja, onAvancar, onImprimir }: { pedido: Pedido; segmentoLoja?: TipoProduto; onAvancar: (pedido: Pedido) => void; onImprimir: (pedido: Pedido) => void }) {
+function PedidoCard({ pedido, segmentoLoja, onAvancar, onImprimir, onGerarLink }: { pedido: Pedido; segmentoLoja?: TipoProduto; onAvancar: (pedido: Pedido) => void; onImprimir: (pedido: Pedido) => void; onGerarLink: (pedido: Pedido) => void }) {
   const status = statusInfo[pedido.status];
   // Etapa de preparo/entrega (Fase 10.2) só existe em pedido pago.
   const etapa = pedido.status === 'pago' ? infoEtapa(etapaAtual(pedido)) : null;
   const proxima = pedido.status === 'pago' ? proximaEtapa(etapaAtual(pedido)) : null;
 
-  // Só faz sentido gerenciar entrega (link pra tela de GPS/rastreamento)
-  // em pedidos pagos, com modo "entrega", e que ainda não foram marcados
-  // como entregues — o botão "Avançar" genérico abaixo é o caminho pra
-  // todo mundo, esse link é um atalho a mais só pra quem tem entrega de
-  // verdade (compartilha localização).
-  const podeGerenciarEntrega =
+  // Só faz sentido "Gerar link" (link público pro entregador ver o mapa
+  // de destino e compartilhar localização) em pedidos pagos, com modo
+  // "entrega", e que ainda não foram marcados como entregues — o botão
+  // "Avançar" genérico abaixo é o caminho pra todo mundo, esse botão é
+  // um atalho a mais só pra quem tem entrega de verdade.
+  const podeGerarLink =
     pedido.status === 'pago' &&
     pedido.modo_entrega === 'entrega' &&
     pedido.status_entrega !== 'entregue';
 
   // Entregar um pedido modo "entrega" exige o código de confirmação
   // (24/08/2026) — o botão "Avançar" genérico sempre falharia sem ele;
-  // o link "Gerenciar entrega" logo abaixo (podeGerenciarEntrega) é o
-  // caminho certo pra esse último passo.
+  // o botão "Gerar link" logo abaixo (podeGerarLink) é o caminho certo
+  // pra esse último passo (o entregador digita o código na tela dele).
   const precisaCodigoParaEntregar = proxima === 'entregue' && pedido.modo_entrega === 'entrega';
 
   return (
@@ -682,13 +714,13 @@ function PedidoCard({ pedido, segmentoLoja, onAvancar, onImprimir }: { pedido: P
         </button>
       )}
 
-      {podeGerenciarEntrega && (
-        <Link
-          to={`/admin/pedidos/${pedido.id}/localizacao`}
-          className="btn-neu-secundario mt-2 block text-center"
+      {podeGerarLink && (
+        <button
+          onClick={() => onGerarLink(pedido)}
+          className="btn-neu-secundario mt-2 w-full"
         >
-          {pedido.status_entrega === 'saiu_para_entrega' ? '📍 Gerenciar entrega' : '🛵 Iniciar entrega'}
-        </Link>
+          🔗 Gerar link
+        </button>
       )}
     </li>
   );

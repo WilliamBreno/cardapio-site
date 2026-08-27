@@ -94,6 +94,28 @@ type Pedido struct {
 	EntregadorLatitude     float64    `gorm:"default:0" json:"entregador_latitude"`
 	EntregadorLongitude    float64    `gorm:"default:0" json:"entregador_longitude"`
 	EntregadorAtualizadoEm *time.Time `json:"entregador_atualizado_em"`
+
+	// TokenEntregador (26/08/2026) — token de acesso gerado na criação do
+	// pedido, usado pelo link público "Gerar link" (ver PedidoHandler,
+	// grupo de rotas /lojas/:slug/pedidos/:id/entregador). Funciona como
+	// senha simples pra quem for entregar acessar a tela de gerenciar a
+	// entrega SEM precisar da conta de dono da loja — mesmo espírito do
+	// telefone no link de rastreamento do cliente, só que aqui é um
+	// segredo de verdade (não algo que o entregador já saiba de cor),
+	// porque essa tela também aceita atualizar status/localização.
+	TokenEntregador string `gorm:"size:40" json:"token_entregador"`
+
+	// DestinoLatitude/DestinoLongitude (26/08/2026) — coordenada do
+	// endereço de entrega, geocodificada em segundo plano na criação do
+	// pedido (ver PedidoService.geocodificarDestinoEmSegundoPlano).
+	// Diferente do cálculo de frete "por_km" (que já geocodifica, mas só
+	// nesse tipo de taxa e sem persistir o resultado), esses campos
+	// existem pra sempre mostrar o pino de destino no mapa do entregador,
+	// não importa o tipo de taxa de entrega da loja. Ficam em 0,0
+	// enquanto a geocodificação (assíncrona) ainda não terminou, ou se
+	// falhar — nesse caso a tela do entregador cai pro endereço em texto.
+	DestinoLatitude  float64 `gorm:"default:0" json:"destino_latitude"`
+	DestinoLongitude float64 `gorm:"default:0" json:"destino_longitude"`
 }
 
 func (Pedido) TableName() string {

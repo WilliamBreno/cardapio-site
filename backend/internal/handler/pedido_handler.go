@@ -389,3 +389,143 @@ func (h *PedidoHandler) Rastrear(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resposta)
 }
+
+// buscarPedidoPorToken resolve loja (pelo slug) + pedido (pelo ID e pelo
+// TokenEntregador) pras três rotas públicas do entregador abaixo —
+// mesmo padrão de validação em todas: 404 genérico tanto pra loja
+// inexistente quanto pra token errado/pedido de outra loja, sem
+// distinguir o motivo (não dar pista pra quem estiver tentando adivinhar
+// um token).
+func (h *PedidoHandler) buscarPedidoPorToken(c *gin.Context) (*domain.Pedido, *domain.Loja, bool) {
+	slug := c.Param("slug")
+	pedidoID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "id inválido"})
+		return nil, nil, false
+	}
+
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "link inválido"})
+		return nil, nil, false
+	}
+
+	loja, err := h.lojaRepo.BuscarPorSlug(slug)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "pedido não encontrado"})
+		return nil, nil, false
+	}
+
+	pedido, err := h.pedidoRepo.BuscarPorIDEToken(uint(pedidoID), token)
+	if err != nil || pedido.LojaID != loja.ID {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "pedido não encontrado"})
+		return nil, nil, false
+	}
+
+	return pedido, loja, true
+}
+
+type entregadorResponse struct {
+	StatusEntrega    string  `json:"status_entrega"`
+	ClienteNome      string  `json:"cliente_nome"`
+	EnderecoEntrega  string  `json:"endereco_entrega"`
+	DestinoLatitude  float64 `json:"destino_latitude"`
+	DestinoLongitude float64 `json:"destino_longitude"`
+	// Disponivel diz se o plano da loja permite compartilhar localização
+	// em tempo real (Fase 7.4: Pro/Scale) — false não impede a tela de
+	// funcionar, só esconde o botão de compartilhar GPS (a confirmação
+	// por código continua funcionando em qualquer plano).
+	Disponivel bool `json:"disponivel"`
+}
+
+// BuscarParaEntregador atende GET
+// /lojas/:slug/pedidos/:id/entregador?token=... — rota pública, sem
+// login. É o que a tela do link "Gerar link" (Pedidos.tsx admin) carrega
+// pra montar o mapa com o pino de destino e mostrar o endereço.
+func (h *PedidoHandler) BuscarParaEntregador(c *gin.Context) {
+	pedido, loja, ok := h.buscarPedidoPorToken(c)
+	if !ok {
+		return
+	}
+
+	c.JSON(http.StatusOK, entregadorResponse{
+		StatusEntrega:    pedido.StatusEntrega,
+		ClienteNome:      pedido.ClienteNome,
+		EnderecoEntrega:  pedido.EnderecoEntrega,
+		DestinoLatitude:  pedido.DestinoLatitude,
+		DestinoLongitude: pedido.DestinoLongitude,
+		Disponivel:       rastreamentoDisponivel(loja.Plano),
+	})
+}
+
+// AtualizarLocalizacaoEntregador atende POST
+// /lojas/:slug/pedidos/:id/entregador/localizacao?token=... — equivalente
+// público de AtualizarLocalizacao, autenticado pelo token do link em vez
+// do JWT do dono (o entregador não tem login nesse sistema).
+func (h *PedidoHandler) AtualizarLocalizacaoEntregador(c *gin.Context) {
+	pedido, loja, ok := h.buscarPedidoPorToken(c)
+	if !ok {
+		return
+	}
+	if !rastreamentoDisponivel(loja.Plano) {
+		c.JSON(http.StatusForbidden, gin.H{"erro": "rastreamento em tempo real disponível a partir do plano Pro"})
+		return
+	}
+
+	var req localizacaoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})
+		return
+	}
+
+	if err := h.pedidoRepo.AtualizarLocalizacaoEntregador(pedido.ID, req.Latitude, req.Longitude); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"sucesso": true})
+}
+
+type statusEntregadorRequest struct {
+	// oneof deliberadamente mais estreito que statusEntregaRequest (que
+	// aceita as 4 etapas) — o link do entregador só faz sentido pras duas
+	// últimas etapas; "a_preparar"/"preparando" são passos de cozinha,
+	// não deveriam ser alcançáveis por esse link mesmo que vazado.
+	StatusEntrega     string `json:"status_entrega" binding:"required,oneof=saiu_para_entrega entregue"`
+	CodigoConfirmacao string `json:"codigo_confirmacao"`
+}
+
+// AtualizarStatusEntregador atende PUT
+// /lojas/:slug/pedidos/:id/entregador/status?token=... — equivalente
+// público de AtualizarStatusEntrega, mesma checagem de código de
+// confirmação pra "entregue" num pedido modo "entrega".
+func (h *PedidoHandler) AtualizarStatusEntregador(c *gin.Context) {
+	pedido, loja, ok := h.buscarPedidoPorToken(c)
+	if !ok {
+		return
+	}
+
+	var req statusEntregadorRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": err.Error()})
+		return
+	}
+
+	if req.StatusEntrega == "entregue" {
+		if req.CodigoConfirmacao == "" || req.CodigoConfirmacao != pedido.CodigoConfirmacao {
+			c.JSON(http.StatusBadRequest, gin.H{"erro": "código de confirmação incorreto — peça o código pro cliente"})
+			return
+		}
+	}
+
+	if err := h.pedidoRepo.AtualizarStatusEntrega(pedido.ID, req.StatusEntrega); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+
+	if req.StatusEntrega == "saiu_para_entrega" {
+		go h.notificarSaiuParaEntrega(pedido.ID, loja.ID)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"sucesso": true})
+}

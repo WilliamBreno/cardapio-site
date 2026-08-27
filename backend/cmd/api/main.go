@@ -288,6 +288,12 @@ func main() {
 	router.GET("/lojas/:slug/historico", catalogoHandler.BuscarHistorico)
 	router.POST("/lojas/:slug/pedidos", pedidoHandler.Criar)
 	router.GET("/lojas/:slug/pedidos/:id/rastrear", pedidoHandler.Rastrear)
+	// Rotas do link público "Gerar link" (26/08/2026) — o entregador não
+	// tem login nesse sistema, então acessa via token na URL em vez de
+	// JWT, mesmo espírito do link de rastreamento do cliente acima.
+	router.GET("/lojas/:slug/pedidos/:id/entregador", pedidoHandler.BuscarParaEntregador)
+	router.POST("/lojas/:slug/pedidos/:id/entregador/localizacao", pedidoHandler.AtualizarLocalizacaoEntregador)
+	router.PUT("/lojas/:slug/pedidos/:id/entregador/status", pedidoHandler.AtualizarStatusEntregador)
 	router.GET("/lojas/:slug/sugestoes-carrinho", sugestaoProdutoHandler.SugestoesCarrinho)
 	router.POST("/lojas/:slug/cupons/validar", func(c *gin.Context) {
 		loja, err := lojaService.BuscarPorSlug(c.Param("slug"))

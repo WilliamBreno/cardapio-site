@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -97,6 +98,27 @@ func gerarCodigoConfirmacao() string {
 		return "0000"
 	}
 	return fmt.Sprintf("%04d", n.Int64())
+}
+
+// gerarTokenEntregador devolve um token de 32 caracteres hexadecimais
+// (16 bytes de crypto/rand) — diferente do CodigoConfirmacao (4 dígitos,
+// pensado pra ser lido/digitado por humano), esse token vai numa URL
+// pública compartilhada com quem for entregar, e a única coisa que
+// impede qualquer um de abrir a tela de gerenciar entrega de um pedido
+// alheio é ele não ser adivinhável — por isso precisa de espaço de
+// busca grande de verdade, não só "difícil de adivinhar de cabeça".
+func gerarTokenEntregador() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// Praticamente nunca acontece (mesma situação de
+		// gerarCodigoConfirmacao) — cai num token fixo em vez de travar a
+		// criação do pedido; na pior hipótese, esse pedido específico fica
+		// sem link de entregador utilizável, não é vazamento de outro
+		// pedido (a chance de colisão real é desprezível pro handler, que
+		// também confirma loja_id).
+		return "0000000000000000000000000000000"
+	}
+	return hex.EncodeToString(b)
 }
 
 func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pedido, error) {
@@ -197,6 +219,7 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 		EnderecoEntrega:   input.EnderecoEntrega,
 		TaxaEntrega:       taxaEntrega,
 		CodigoConfirmacao: gerarCodigoConfirmacao(),
+		TokenEntregador:   gerarTokenEntregador(),
 	}
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {
@@ -473,7 +496,43 @@ func (s *PedidoService) CriarPorSlug(slug string, input PedidoInput) (*domain.Pe
 		return nil, err
 	}
 
+	// Geocodifica o destino em segundo plano, fora da transação — só pra
+	// modo "entrega" (retirada/guardar não têm entregador). Roda numa
+	// goroutine pra não atrasar o checkout do cliente com a espera do
+	// Nominatim (rate-limit de ~1,1s por chamada, ver DistanciaService) —
+	// mesmo padrão já usado nesse arquivo pra notificação de WhatsApp
+	// (PedidoHandler.notificarSaiuParaEntrega). Diferente do cálculo de
+	// frete "por_km" (que já geocodifica, mas só nesse tipo de taxa e sem
+	// persistir o resultado), aqui a geocodificação roda pra qualquer
+	// tipo de taxa de entrega — o mapa do entregador precisa do pino de
+	// destino independente de como o frete é cobrado.
+	if modoEntrega == domain.ModoEntregaEntrega {
+		s.geocodificarDestinoEmSegundoPlano(pedido.ID, input.EnderecoEntregaGeo)
+	}
+
 	return &pedido, nil
+}
+
+// geocodificarDestinoEmSegundoPlano busca a coordenada do endereço de
+// entrega e grava em Pedido.DestinoLatitude/DestinoLongitude. Falha
+// silenciosa (só loga) — a tela do entregador cai pro endereço em texto
+// se a geocodificação não terminar ou não achar o endereço, igual já
+// acontece com falha de notificação por WhatsApp em outros pontos do
+// sistema.
+func (s *PedidoService) geocodificarDestinoEmSegundoPlano(pedidoID uint, endereco EnderecoEstruturado) {
+	if s.distanciaService == nil {
+		return
+	}
+	go func() {
+		destino, err := s.distanciaService.GeocodificarEstruturado(endereco)
+		if err != nil {
+			log.Printf("aviso: não foi possível geocodificar o destino do pedido %d: %v", pedidoID, err)
+			return
+		}
+		if err := s.pedidoRepo.AtualizarDestinoGeo(pedidoID, destino.Latitude, destino.Longitude); err != nil {
+			log.Printf("aviso: não foi possível salvar a coordenada de destino do pedido %d: %v", pedidoID, err)
+		}
+	}()
 }
 
 func (s *PedidoService) ListarPorLoja(lojaID uint) ([]domain.Pedido, error) {

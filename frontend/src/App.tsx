@@ -6,6 +6,7 @@ import { Home } from './pages/Home';
 import { Planos } from './pages/Planos';
 import { CardapioPublico } from './pages/CardapioPublico';
 import { RastrearPedido } from './pages/RastrearPedido';
+import { GerenciarEntrega } from './pages/GerenciarEntrega';
 import { Login } from './pages/Login';
 import { Cadastro } from './pages/Cadastro';
 import { FinalizarCadastro } from './pages/FinalizarCadastro';
@@ -84,6 +85,7 @@ function App() {
               casar "/loja-x/pedido/5/rastrear" com a rota do cardápio,
               tratando "pedido" como se fosse um slug de loja. */}
           <Route path="/:slug/pedido/:id/rastrear" element={<RastrearPedido />} />
+          <Route path="/:slug/pedido/:id/entregador" element={<GerenciarEntrega />} />
 
           <Route path="/:slug" element={<CardapioPublico />} />
         </Routes>

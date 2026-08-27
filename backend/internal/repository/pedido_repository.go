@@ -119,6 +119,31 @@ func (r *PedidoRepository) AtualizarStatus(pedidoID uint, status domain.StatusPe
 	return r.db.Model(&domain.Pedido{}).Where("id = ?", pedidoID).Update("status", status).Error
 }
 
+// BuscarPorIDEToken é usado pela tela pública "Gerenciar entrega" do
+// entregador (link gerado pelo dono) — funciona como senha simples,
+// mesmo padrão de BuscarPorIDETelefone, só que com o TokenEntregador em
+// vez do telefone do cliente. Token vazio nunca bate com nada (pedido
+// sem token gerado ainda), então não precisa de checagem extra aqui.
+func (r *PedidoRepository) BuscarPorIDEToken(id uint, token string) (*domain.Pedido, error) {
+	var pedido domain.Pedido
+	if err := r.db.Where("id = ? AND token_entregador = ? AND token_entregador != ''", id, token).
+		First(&pedido).Error; err != nil {
+		return nil, err
+	}
+	return &pedido, nil
+}
+
+// AtualizarDestinoGeo grava a coordenada do endereço de entrega,
+// calculada em segundo plano na criação do pedido (ver
+// PedidoService.geocodificarDestinoEmSegundoPlano) — usada pra mostrar o
+// pino de destino no mapa da tela do entregador.
+func (r *PedidoRepository) AtualizarDestinoGeo(pedidoID uint, latitude, longitude float64) error {
+	return r.db.Model(&domain.Pedido{}).Where("id = ?", pedidoID).Updates(map[string]interface{}{
+		"destino_latitude":  latitude,
+		"destino_longitude": longitude,
+	}).Error
+}
+
 // AtualizarFormaPagamento grava o payment_type_id devolvido pelo Mercado
 // Pago (Fase 10.6) — vazio não sobrescreve nada (chamado só quando o
 // webhook realmente devolveu essa informação).

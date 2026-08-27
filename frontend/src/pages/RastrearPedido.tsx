@@ -1,22 +1,32 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import L from 'leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { rastrearPedido, rastrearSolicitacao } from '../api/rastreamento';
-
-// O react-leaflet quebra o ícone padrão do marcador por causa de como o
-// Vite/webpack lida com os caminhos dos assets — esse ajuste manual é o
-// jeito padrão de contornar isso.
-const iconePadrao = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
+import { iconePadrao } from '../lib/leafletIcone';
 
 const INTERVALO_POLL_MS = 10_000; // atualiza o mapa a cada 10s
+
+// InvalidarTamanhoMapa (27/08/2026) — achado testando essa tela num
+// navegador real: o mapa nascia com altura 0 (invisível, sem nenhum
+// erro no console) sempre que essa tela é a primeira coisa renderizada
+// (link aberto direto, sem navegação prévia dentro da SPA). Causa: o
+// `<MapContainer style={{height:'100%'}}>` fica dentro de um
+// `<div className="flex-1">` — a altura dele só existe DEPOIS do
+// layout flex terminar de se resolver, mas o Leaflet mede o tamanho do
+// próprio container de forma síncrona, no exato instante do mount, e
+// nesse instante a altura ainda podia estar zerada. invalidateSize()
+// força o Leaflet a reler o tamanho real do container logo em seguida
+// (mesmo problema/solução documentados pela própria biblioteca pra
+// mapas dentro de layout flex/grid).
+function InvalidarTamanhoMapa() {
+  const map = useMap();
+  useEffect(() => {
+    const id = setTimeout(() => map.invalidateSize(), 100);
+    return () => clearTimeout(id);
+  }, [map]);
+  return null;
+}
 
 // CodigoConfirmacaoEntrega (24/08/2026) — mostra o código de 4 dígitos
 // que o cliente informa pro entregador na hora da entrega, pra ele
@@ -152,7 +162,16 @@ export function RastrearPedido() {
         <CodigoConfirmacaoEntrega codigo={dados.codigo_confirmacao} />
       </div>
 
-      <div className="flex-1">
+      {/* relative + MapContainer "absolute inset-0" (em vez de
+          height:100%): altura em % dentro de um pai dimensionado só por
+          flex-grow (flex-1) é uma cilada clássica de CSS com Leaflet —
+          o container media 0px de altura mesmo com o pai já tendo
+          altura real (ver InvalidarTamanhoMapa acima, que sozinho não
+          bastou pra corrigir; achado testando essa tela num navegador
+          real). Posicionamento absoluto contorna o problema porque não
+          depende da resolução de porcentagem-em-altura, só da caixa
+          geométrica real do ancestral posicionado. */}
+      <div className="relative flex-1">
         {semLocalizacaoAinda ? (
           <div className="flex h-full items-center justify-center px-6 text-center">
             <p className="text-tinta-suave">
@@ -160,7 +179,8 @@ export function RastrearPedido() {
             </p>
           </div>
         ) : (
-          <MapContainer center={posicao} zoom={15} style={{ height: '100%', width: '100%' }}>
+          <MapContainer center={posicao} zoom={15} style={{ position: 'absolute', inset: 0 }}>
+            <InvalidarTamanhoMapa />
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
