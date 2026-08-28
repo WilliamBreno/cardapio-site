@@ -87,6 +87,15 @@ func main() {
 		log.Printf("aviso: não foi possível preencher códigos de confirmação de pedidos antigos: %v", err)
 	}
 
+	// Migração de dado (link do entregador, 28/08/2026): mesmo motivo da
+	// migração acima — pedido criado antes do campo TokenEntregador
+	// existir gera um link "Gerar link" com token vazio, que a tela do
+	// entregador sempre recusa como inválido (ver
+	// PedidoRepository.PreencherTokensEntregadorFaltantes).
+	if err := repository.NewPedidoRepository(db).PreencherTokensEntregadorFaltantes(); err != nil {
+		log.Printf("aviso: não foi possível preencher tokens de entregador de pedidos antigos: %v", err)
+	}
+
 	router := gin.Default()
 
 	// Não confia em X-Forwarded-For/X-Real-IP vindo da requisição — sem

@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"time"
 
 	"github.com/WilliamBreno/cardapio-backend/internal/domain"
@@ -178,6 +180,52 @@ func (r *PedidoRepository) PreencherCodigosDeConfirmacaoFaltantes() error {
 		UPDATE pedidos SET codigo_confirmacao = lpad(floor(random() * 10000)::text, 4, '0')
 		WHERE codigo_confirmacao = '' OR codigo_confirmacao IS NULL
 	`).Error
+}
+
+// PreencherTokensEntregadorFaltantes é a mesma migração de dado de
+// PreencherCodigosDeConfirmacaoFaltantes, achada em produção em
+// 28/08/2026 — pedido criado antes do campo TokenEntregador existir
+// fica com ele vazio pra sempre, e o link "Gerar link" (Pedidos.tsx)
+// monta a URL com `?token=` vazio, que BuscarPorIDEToken nunca
+// encontra (a query já filtra `token_entregador != ”`) — a tela do
+// entregador mostra "link inválido" mesmo pro dono que gerou o link
+// certinho, porque o token nunca existiu de fato pra esse pedido.
+//
+// Diferente do código de confirmação (4 dígitos, gerado com
+// `random()` direto no SQL — aceitável porque só precisa ser
+// "difícil de adivinhar de cabeça", já que é falado em voz alta), o
+// token do entregador protege uma URL pública que atualiza
+// status/localização do pedido, então precisa do mesmo padrão de
+// aleatoriedade forte usado na criação de pedido novo
+// (PedidoService.gerarTokenEntregador) — daqui não dá pra chamar
+// aquela função (moraria uma dependência de repository → service, ao
+// contrário do resto da camada), então o mesmo gerador é replicado
+// aqui, só pra esse backfill.
+func (r *PedidoRepository) PreencherTokensEntregadorFaltantes() error {
+	var ids []uint
+	if err := r.db.Model(&domain.Pedido{}).
+		Where("token_entregador = '' OR token_entregador IS NULL").
+		Pluck("id", &ids).Error; err != nil {
+		return err
+	}
+	for _, id := range ids {
+		token, err := tokenEntregadorAleatorio()
+		if err != nil {
+			return err
+		}
+		if err := r.db.Model(&domain.Pedido{}).Where("id = ?", id).Update("token_entregador", token).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func tokenEntregadorAleatorio() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 // AtualizarLocalizacaoEntregador grava a posição mais recente de quem

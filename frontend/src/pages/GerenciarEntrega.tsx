@@ -11,6 +11,20 @@ import { iconePadrao } from '../lib/leafletIcone';
 
 const INTERVALO_MS = 25_000; // 25 segundos, mesmo padrão de CompartilharLocalizacao.tsx
 
+// TelaCentralizada — mesmo cartão único centralizado usado em
+// RastrearPedido.tsx pros estados sem mapa (link inválido, carregando,
+// erro, já entregue), pra manter a mesma linguagem visual nas duas
+// pontas do fluxo de entrega.
+function TelaCentralizada({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-fundo px-6">
+      <div className="w-full max-w-sm space-y-2 rounded-2xl bg-superficie px-6 py-8 text-center shadow-xl ring-1 ring-tinta/5">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // GerenciarEntrega (26/08/2026) é a versão pública do que antes só
 // existia em CompartilharLocalizacao.tsx (admin, atrás de login) — o
 // botão "Gerar link" em Pedidos.tsx manda pra cá, com um token na URL em
@@ -159,35 +173,35 @@ export function GerenciarEntrega() {
 
   if (!slug || !pedidoId || !token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-fundo px-6 text-center">
+      <TelaCentralizada>
         <p className="text-tinta-suave">Link de entrega inválido.</p>
-      </div>
+      </TelaCentralizada>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-fundo">
+      <TelaCentralizada>
         <p className="text-tinta-suave">Carregando...</p>
-      </div>
+      </TelaCentralizada>
     );
   }
 
   if (error || !pedido) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-2 bg-fundo px-6 text-center">
+      <TelaCentralizada>
         <p className="font-display text-xl text-tinta">Não foi possível abrir esse link</p>
         <p className="text-sm text-tinta-suave">Confere se o link está completo e tenta de novo.</p>
-      </div>
+      </TelaCentralizada>
     );
   }
 
   if (pedido.status_entrega === 'entregue') {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-2 bg-fundo px-6 text-center">
+      <TelaCentralizada>
         <p className="font-display text-xl text-tinta">Pedido já entregue ✅</p>
         <p className="text-sm text-tinta-suave">Não tem mais nada pra fazer por aqui.</p>
-      </div>
+      </TelaCentralizada>
     );
   }
 
@@ -204,17 +218,18 @@ export function GerenciarEntrega() {
   const statusJaSaiuParaEntrega = pedido.status_entrega === 'saiu_para_entrega';
 
   return (
-    <div className="flex min-h-screen flex-col bg-fundo">
-      <header className="bg-acento px-6 py-4 text-center">
-        <h1 className="font-display text-lg tracking-wide text-texto-claro">Entrega do pedido #{pedidoId}</h1>
-        <p className="text-xs text-texto-claro/80">{pedido.cliente_nome}</p>
-      </header>
-
-      <div className="h-64 shrink-0">
+    <div className="relative min-h-screen overflow-hidden bg-fundo">
+      {/* Mapa em tela cheia com o pino do destino, mesma linguagem
+          visual do lado do cliente (RastrearPedido.tsx) — cabeçalho e
+          painel de ação flutuam por cima, estilo apps de entrega/
+          corrida. Fixed inset-0 evita a mesma cilada de altura zero já
+          documentada lá (percentual dentro de flex-grow). */}
+      <div className="fixed inset-0">
         {temDestino ? (
           <MapContainer
             center={[pedido.destino_latitude, pedido.destino_longitude]}
             zoom={15}
+            zoomControl={false}
             style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
@@ -232,13 +247,27 @@ export function GerenciarEntrega() {
         )}
       </div>
 
-      <div className="mx-auto w-full max-w-md flex-1 space-y-4 p-4">
-        <div className="rounded-2xl bg-superficie p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Endereço</p>
-          <p className="text-sm text-tinta">{pedido.endereco_entrega || 'Endereço não informado'}</p>
+      {/* Cabeçalho flutuante */}
+      <header className="pointer-events-none fixed inset-x-0 top-0 z-[1000] flex justify-center px-4 pt-4">
+        <div className="pointer-events-auto rounded-full bg-acento px-5 py-2.5 text-center shadow-lg">
+          <h1 className="font-display text-sm leading-tight tracking-wide text-texto-claro">
+            Entrega do pedido #{pedidoId}
+          </h1>
+          <p className="text-[11px] leading-tight text-texto-claro/80">{pedido.cliente_nome}</p>
         </div>
+      </header>
 
-        <div className="rounded-2xl bg-superficie p-5 shadow-sm">
+      {/* Painel de ação flutuante — "bottom sheet" fixo na base,
+          rolável quando o conteúdo (endereço + ação + código) passa da
+          altura disponível numa tela pequena. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[1000] max-h-[75vh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-10">
+        <div className="pointer-events-auto mx-auto w-full max-w-md space-y-3">
+          <div className="rounded-2xl bg-superficie p-4 shadow-xl ring-1 ring-tinta/5">
+            <p className="text-xs font-medium uppercase tracking-wide text-tinta-suave">Endereço</p>
+            <p className="text-sm text-tinta">{pedido.endereco_entrega || 'Endereço não informado'}</p>
+          </div>
+
+          <div className="rounded-2xl bg-superficie p-5 shadow-xl ring-1 ring-tinta/5">
           {!compartilhando ? (
             <>
               <p className="text-sm text-tinta-suave">
@@ -314,6 +343,7 @@ export function GerenciarEntrega() {
             </>
           )}
           {erro && <p className="mt-3 text-sm text-acento">{erro}</p>}
+          </div>
         </div>
       </div>
     </div>
