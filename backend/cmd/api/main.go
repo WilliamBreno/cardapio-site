@@ -189,6 +189,13 @@ func main() {
 	// aviso de limite de pedidos do Start (ver PedidoService.avisarLimitePedidos).
 	pedidoService := service.NewPedidoService(db, distanciaService, whatsappSender)
 
+	// Migração de dado (destino do entregador, 28/08/2026): pedido de
+	// entrega criado antes da geocodificação em segundo plano existir
+	// fica sem coordenada de destino pra sempre — ver
+	// PedidoService.PreencherDestinoGeoFaltantes (roda em goroutine
+	// própria, não bloqueia o boot da API esperando o Nominatim).
+	pedidoService.PreencherDestinoGeoFaltantes()
+
 	lojaService := service.NewLojaService(db, whatsappSender)
 	lojaRepoParaPedido := repository.NewLojaRepository(db)
 

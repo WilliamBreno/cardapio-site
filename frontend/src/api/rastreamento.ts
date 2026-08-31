@@ -12,6 +12,12 @@ interface RastrearResponse {
   // planos sem mapa ao vivo — o cliente mostra pro entregador, que
   // digita na tela de gerenciar entrega pra confirmar.
   codigo_confirmacao: string;
+  // destino_latitude/longitude (28/08/2026): coordenada do endereço de
+  // entrega, pra mostrar o pino de destino (além da posição ao vivo do
+  // entregador) e desenhar o trajeto entre os dois. Fica em 0,0 se a
+  // geocodificação ainda não terminou/falhou.
+  destino_latitude: number;
+  destino_longitude: number;
 }
 
 // Chamadas administrativas (exigem token — o interceptor do client.ts já

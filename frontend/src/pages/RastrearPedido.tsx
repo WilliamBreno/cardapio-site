@@ -1,29 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Polyline } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { rastrearPedido, rastrearSolicitacao } from '../api/rastreamento';
 import { iconePadrao } from '../lib/leafletIcone';
+import { buscarRota } from '../lib/rota';
+import { InvalidarTamanhoMapa, AjustarBoundsMapa } from '../components/MapaHelpers';
 
 const INTERVALO_POLL_MS = 10_000; // atualiza o mapa a cada 10s
-
-// InvalidarTamanhoMapa (27/08/2026) — achado testando essa tela num
-// navegador real: o mapa nascia com altura 0 (invisível, sem nenhum
-// erro no console) sempre que essa tela é a primeira coisa renderizada
-// (link aberto direto, sem navegação prévia dentro da SPA). O layout
-// atual já usa "fixed inset-0" (posição com bordas explícitas, sem
-// depender de porcentagem de altura em cima de flex-grow — a cilada
-// original), mas invalidateSize() continua aqui como segurança extra:
-// não custa nada e cobre qualquer outro cenário de mount com o
-// container ainda não totalmente assentado.
-function InvalidarTamanhoMapa() {
-  const map = useMap();
-  useEffect(() => {
-    const id = setTimeout(() => map.invalidateSize(), 100);
-    return () => clearTimeout(id);
-  }, [map]);
-  return null;
-}
 
 // CodigoConfirmacaoEntrega (24/08/2026, redesenhada em 28/08/2026) —
 // mostra o código de 4 dígitos que o cliente informa pro entregador na
@@ -71,9 +55,12 @@ export function RastrearPedido() {
     entregador_atualizado_em: string | null;
     disponivel: boolean;
     codigo_confirmacao: string;
+    destino_latitude: number;
+    destino_longitude: number;
   } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const [rota, setRota] = useState<[number, number][] | null>(null);
 
   useEffect(() => {
     if (!slug || !pedidoId || !telefone) {
@@ -105,6 +92,29 @@ export function RastrearPedido() {
       clearInterval(intervalo);
     };
   }, [slug, pedidoId, telefone]);
+
+  // Trajeto (28/08/2026) — busca de novo toda vez que a posição do
+  // entregador muda (a cada poll de 10s), pra ir refazendo a linha
+  // conforme ele anda. Só faz sentido com os dois pontos conhecidos.
+  useEffect(() => {
+    if (!dados) return;
+    const temPosicaoEntregador = dados.entregador_latitude !== 0 || dados.entregador_longitude !== 0;
+    const temDestino = dados.destino_latitude !== 0 || dados.destino_longitude !== 0;
+    if (!temPosicaoEntregador || !temDestino) {
+      setRota(null);
+      return;
+    }
+    let cancelado = false;
+    buscarRota(
+      { lat: dados.entregador_latitude, lng: dados.entregador_longitude },
+      { lat: dados.destino_latitude, lng: dados.destino_longitude }
+    ).then((resultado) => {
+      if (!cancelado) setRota(resultado);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [dados?.entregador_latitude, dados?.entregador_longitude, dados?.destino_latitude, dados?.destino_longitude]);
 
   if (carregando) {
     return (
@@ -156,7 +166,10 @@ export function RastrearPedido() {
   }
 
   const posicao: [number, number] = [dados.entregador_latitude, dados.entregador_longitude];
+  const destino: [number, number] = [dados.destino_latitude, dados.destino_longitude];
   const semLocalizacaoAinda = dados.entregador_latitude === 0 && dados.entregador_longitude === 0;
+  const temDestino = dados.destino_latitude !== 0 || dados.destino_longitude !== 0;
+  const pontosParaEnquadrar = temDestino ? [posicao, destino] : [posicao];
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-fundo">
@@ -175,13 +188,24 @@ export function RastrearPedido() {
         ) : (
           <MapContainer center={posicao} zoom={15} zoomControl={false} style={{ height: '100%', width: '100%' }}>
             <InvalidarTamanhoMapa />
+            <AjustarBoundsMapa pontos={pontosParaEnquadrar} />
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
+            {rota && <Polyline positions={rota} pathOptions={{ color: '#b3472b', weight: 4, opacity: 0.85 }} />}
             <Marker position={posicao} icon={iconePadrao}>
               <Popup>Localização do entregador</Popup>
             </Marker>
+            {temDestino && (
+              <CircleMarker
+                center={destino}
+                radius={9}
+                pathOptions={{ color: '#fff', weight: 2, fillColor: '#b3472b', fillOpacity: 1 }}
+              >
+                <Popup>Endereço de entrega</Popup>
+              </CircleMarker>
+            )}
           </MapContainer>
         )}
       </div>

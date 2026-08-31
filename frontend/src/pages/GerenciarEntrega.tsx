@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Polyline } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import {
   buscarParaEntregador, atualizarLocalizacaoEntregador, atualizarStatusEntregador,
 } from '../api/rastreamento';
 import { iconePadrao } from '../lib/leafletIcone';
+import { buscarRota } from '../lib/rota';
+import { InvalidarTamanhoMapa, AjustarBoundsMapa } from '../components/MapaHelpers';
 
 const INTERVALO_MS = 25_000; // 25 segundos, mesmo padrão de CompartilharLocalizacao.tsx
 
@@ -49,6 +51,13 @@ export function GerenciarEntrega() {
   const [erro, setErro] = useState<string | null>(null);
   const [finalizando, setFinalizando] = useState(false);
   const [codigo, setCodigo] = useState('');
+  // minhaPosicao (28/08/2026) — leitura pontual (getCurrentPosition, não
+  // watchPosition) só pra dar contexto no mapa (mostrar "você está aqui"
+  // + o trajeto até o destino) assim que a página abre, antes mesmo do
+  // entregador tocar em "Iniciar corrida". Independente do
+  // compartilhamento contínuo que só começa depois desse clique.
+  const [minhaPosicao, setMinhaPosicao] = useState<{ lat: number; lng: number } | null>(null);
+  const [rota, setRota] = useState<[number, number][] | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const posicaoAtualRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -59,6 +68,35 @@ export function GerenciarEntrega() {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (posicao) => setMinhaPosicao({ lat: posicao.coords.latitude, lng: posicao.coords.longitude }),
+      () => {
+        // Sem permissão ainda (ou negada) — sem problema, o mapa mostra
+        // só o destino até o entregador tocar em "Iniciar corrida" (que
+        // pede a permissão de novo através do watchPosition).
+      },
+      { enableHighAccuracy: true, maximumAge: 30_000, timeout: 10_000 }
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!minhaPosicao || !pedido) return;
+    const temDestino = pedido.destino_latitude !== 0 || pedido.destino_longitude !== 0;
+    if (!temDestino) {
+      setRota(null);
+      return;
+    }
+    let cancelado = false;
+    buscarRota(minhaPosicao, { lat: pedido.destino_latitude, lng: pedido.destino_longitude }).then((resultado) => {
+      if (!cancelado) setRota(resultado);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [minhaPosicao, pedido?.destino_latitude, pedido?.destino_longitude]);
 
   // abrirNavegacaoExterna manda o entregador pro Google Maps (app, se
   // instalado, senão o site) já com a rota até o destino calculada —
@@ -206,6 +244,9 @@ export function GerenciarEntrega() {
   }
 
   const temDestino = pedido.destino_latitude !== 0 || pedido.destino_longitude !== 0;
+  const destino: [number, number] = [pedido.destino_latitude, pedido.destino_longitude];
+  const minhaPosicaoArr: [number, number] | null = minhaPosicao ? [minhaPosicao.lat, minhaPosicao.lng] : null;
+  const pontosParaEnquadrar = temDestino && minhaPosicaoArr ? [minhaPosicaoArr, destino] : [];
   // painelDeCompartilhar só troca de tela depois que o GPS foi de fato
   // iniciado NESSA sessão (compartilhando) — se depender só do status do
   // servidor (pedido.status_entrega === 'saiu_para_entrega'), a página
@@ -226,19 +267,22 @@ export function GerenciarEntrega() {
           documentada lá (percentual dentro de flex-grow). */}
       <div className="fixed inset-0">
         {temDestino ? (
-          <MapContainer
-            center={[pedido.destino_latitude, pedido.destino_longitude]}
-            zoom={15}
-            zoomControl={false}
-            style={{ height: '100%', width: '100%' }}
-          >
+          <MapContainer center={destino} zoom={15} zoomControl={false} style={{ height: '100%', width: '100%' }}>
+            <InvalidarTamanhoMapa />
+            <AjustarBoundsMapa pontos={pontosParaEnquadrar} />
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
-            <Marker position={[pedido.destino_latitude, pedido.destino_longitude]} icon={iconePadrao}>
+            {rota && <Polyline positions={rota} pathOptions={{ color: '#b3472b', weight: 4, opacity: 0.85 }} />}
+            {minhaPosicaoArr && (
+              <Marker position={minhaPosicaoArr} icon={iconePadrao}>
+                <Popup>Sua localização</Popup>
+              </Marker>
+            )}
+            <CircleMarker center={destino} radius={9} pathOptions={{ color: '#fff', weight: 2, fillColor: '#b3472b', fillOpacity: 1 }}>
               <Popup>Destino da entrega</Popup>
-            </Marker>
+            </CircleMarker>
           </MapContainer>
         ) : (
           <div className="flex h-full items-center justify-center bg-superficie px-6 text-center">

@@ -165,6 +165,35 @@ func tentativasEstruturadas(end EnderecoEstruturado) []url.Values {
 	return tentativas
 }
 
+// GeocodificarTextoLivre transforma um endereço já formatado como uma
+// única string (ex: "Rua X, 123, Bairro, Cidade - UF, CEP") em
+// coordenadas — usado só pra pedido antigo, criado antes de o campo
+// EnderecoEntregaGeo (estruturado) existir, cujos campos separados
+// (rua/número/bairro/cidade/estado/CEP) nunca foram guardados, só o
+// texto já achatado (ver PedidoService.PreencherDestinoGeoFaltantes).
+//
+// Menos confiável que GeocodificarEstruturado (ver o comentário de
+// tentativasEstruturadas sobre por que texto livre falha mais) — é o
+// melhor disponível pra esse pedido específico, não o caminho normal.
+func (s *DistanciaService) GeocodificarTextoLivre(enderecoCompleto string) (*Coordenada, error) {
+	texto := strings.TrimSpace(enderecoCompleto)
+	if texto == "" {
+		return nil, fmt.Errorf("endereço vazio")
+	}
+
+	params := url.Values{}
+	params.Set("format", "json")
+	params.Set("limit", "1")
+	params.Set("countrycodes", "br")
+	params.Set("q", texto)
+
+	resultado, err := s.buscarNominatim(params)
+	if err != nil {
+		return nil, err
+	}
+	return &resultado.Coordenada, nil
+}
+
 func (s *DistanciaService) geocodificarComFallback(end EnderecoEstruturado, comEndereco bool) (*GeocodificacaoDetalhada, error) {
 	tentativas := tentativasEstruturadas(end)
 	if len(tentativas) == 0 {

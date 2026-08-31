@@ -135,6 +135,20 @@ func (r *PedidoRepository) BuscarPorIDEToken(id uint, token string) (*domain.Ped
 	return &pedido, nil
 }
 
+// ListarEntregaSemDestinoGeo devolve os pedidos modo "entrega" cuja
+// coordenada de destino ainda não foi calculada — usado pelo backfill
+// de pedido antigo (ver PedidoService.PreencherDestinoGeoFaltantes,
+// achado em produção em 28/08/2026: todo pedido criado antes da
+// geocodificação em segundo plano existir fica sem pino de destino e
+// sem coordenada exata pra passar pro app de navegação externo).
+func (r *PedidoRepository) ListarEntregaSemDestinoGeo() ([]domain.Pedido, error) {
+	var pedidos []domain.Pedido
+	err := r.db.
+		Where("modo_entrega = ? AND destino_latitude = 0 AND destino_longitude = 0 AND endereco_entrega != ''", domain.ModoEntregaEntrega).
+		Find(&pedidos).Error
+	return pedidos, err
+}
+
 // AtualizarDestinoGeo grava a coordenada do endereço de entrega,
 // calculada em segundo plano na criação do pedido (ver
 // PedidoService.geocodificarDestinoEmSegundoPlano) — usada pra mostrar o

@@ -345,6 +345,16 @@ type rastrearResponse struct {
 	// entrega, que digita ele pra marcar o pedido como "entregue" (ver
 	// AtualizarStatusEntrega).
 	CodigoConfirmacao string `json:"codigo_confirmacao"`
+	// DestinoLatitude/DestinoLongitude (28/08/2026) — coordenada do
+	// endereço de entrega, pra mostrar o pino de destino também na tela
+	// do cliente (além da posição ao vivo do entregador) e desenhar o
+	// trajeto entre os dois. Igual CodigoConfirmacao, sempre incluído
+	// independente de Disponivel — só o mapa ao vivo do entregador é
+	// gate de plano, o pino de destino não. Fica em 0,0 se a
+	// geocodificação (em segundo plano na criação do pedido, ou no
+	// backfill de pedido antigo) ainda não terminou ou falhou.
+	DestinoLatitude  float64 `json:"destino_latitude"`
+	DestinoLongitude float64 `json:"destino_longitude"`
 }
 
 // Rastrear atende GET /lojas/:slug/pedidos/:id/rastrear?telefone=...
@@ -381,6 +391,8 @@ func (h *PedidoHandler) Rastrear(c *gin.Context) {
 		StatusEntrega:     pedido.StatusEntrega,
 		Disponivel:        disponivel,
 		CodigoConfirmacao: pedido.CodigoConfirmacao,
+		DestinoLatitude:   pedido.DestinoLatitude,
+		DestinoLongitude:  pedido.DestinoLongitude,
 	}
 	if disponivel {
 		resposta.EntregadorLatitude = pedido.EntregadorLatitude

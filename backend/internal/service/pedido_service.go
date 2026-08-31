@@ -535,6 +535,46 @@ func (s *PedidoService) geocodificarDestinoEmSegundoPlano(pedidoID uint, enderec
 	}()
 }
 
+// PreencherDestinoGeoFaltantes é uma migração de dado, chamada uma vez
+// no boot da API (main.go) — achada em produção em 28/08/2026 junto com
+// o bug do token vazio: todo pedido criado antes da geocodificação em
+// segundo plano existir (ver geocodificarDestinoEmSegundoPlano) fica
+// sem DestinoLatitude/DestinoLongitude pra sempre, então a tela do
+// entregador mostra "localização não disponível" em vez do pino, e o
+// botão "Iniciar corrida" cai pro fallback de endereço em texto livre —
+// bem menos confiável que coordenada exata (foi o que causou o
+// "endereço totalmente errado" relatado: geocodificação de texto livre
+// erra mais que a estruturada, ver comentário de tentativasEstruturadas
+// em distancia_service.go).
+//
+// Diferente de PreencherCodigosDeConfirmacaoFaltantes/
+// PreencherTokensEntregadorFaltantes (grava um valor local, instantâneo,
+// sem depender de rede), essa migração chama o Nominatim uma vez por
+// pedido, com o rate-limit de ~1,1s já embutido em DistanciaService —
+// roda em goroutine, não trava o boot da API esperando isso terminar.
+func (s *PedidoService) PreencherDestinoGeoFaltantes() {
+	if s.distanciaService == nil {
+		return
+	}
+	go func() {
+		pedidos, err := s.pedidoRepo.ListarEntregaSemDestinoGeo()
+		if err != nil {
+			log.Printf("aviso: não foi possível listar pedidos sem coordenada de destino: %v", err)
+			return
+		}
+		for _, pedido := range pedidos {
+			destino, err := s.distanciaService.GeocodificarTextoLivre(pedido.EnderecoEntrega)
+			if err != nil {
+				log.Printf("aviso: não foi possível geocodificar o destino do pedido antigo %d: %v", pedido.ID, err)
+				continue
+			}
+			if err := s.pedidoRepo.AtualizarDestinoGeo(pedido.ID, destino.Latitude, destino.Longitude); err != nil {
+				log.Printf("aviso: não foi possível salvar a coordenada de destino do pedido antigo %d: %v", pedido.ID, err)
+			}
+		}
+	}()
+}
+
 func (s *PedidoService) ListarPorLoja(lojaID uint) ([]domain.Pedido, error) {
 	return s.pedidoRepo.ListarPorLoja(lojaID)
 }
